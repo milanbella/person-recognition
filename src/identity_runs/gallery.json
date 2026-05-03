@@ -1,0 +1,228 @@
+[
+  {
+    "identity_id": "person_001",
+    "event_names": [
+      "track_005_event_001_20260501_174054"
+    ],
+    "face_counts": [
+      9
+    ],
+    "event_count": 1
+  },
+  {
+    "identity_id": "person_002",
+    "event_names": [
+      "track_008_event_003_20260501_174236",
+      "track_009_event_004_20260501_174415"
+    ],
+    "face_counts": [
+      8,
+      9
+    ],
+    "event_count": 2
+  },
+  {
+    "identity_id": "person_003",
+    "event_names": [
+      "track_001_event_001_20260501_175631",
+      "track_131_event_021_20260501_181947"
+    ],
+    "face_counts": [
+      9,
+      9
+    ],
+    "event_count": 2
+  },
+  {
+    "identity_id": "person_004",
+    "event_names": [
+      "track_003_event_002_20260501_175633",
+      "track_059_event_008_20260501_180518"
+    ],
+    "face_counts": [
+      9,
+      9
+    ],
+    "event_count": 2
+  },
+  {
+    "identity_id": "person_005",
+    "event_names": [
+      "track_018_event_003_20260501_175857"
+    ],
+    "face_counts": [
+      5
+    ],
+    "event_count": 1
+  },
+  {
+    "identity_id": "person_006",
+    "event_names": [
+      "track_019_event_004_20260501_175904"
+    ],
+    "face_counts": [
+      9
+    ],
+    "event_count": 1
+  },
+  {
+    "identity_id": "person_007",
+    "event_names": [
+      "track_045_event_005_20260501_180231"
+    ],
+    "face_counts": [
+      9
+    ],
+    "event_count": 1
+  },
+  {
+    "identity_id": "person_008",
+    "event_names": [
+      "track_048_event_006_20260501_180258"
+    ],
+    "face_counts": [
+      9
+    ],
+    "event_count": 1
+  },
+  {
+    "identity_id": "person_009",
+    "event_names": [
+      "track_055_event_007_20260501_180427"
+    ],
+    "face_counts": [
+      5
+    ],
+    "event_count": 1
+  },
+  {
+    "identity_id": "person_010",
+    "event_names": [
+      "track_061_event_009_20260501_180533"
+    ],
+    "face_counts": [
+      9
+    ],
+    "event_count": 1
+  },
+  {
+    "identity_id": "person_011",
+    "event_names": [
+      "track_065_event_011_20260501_180547"
+    ],
+    "face_counts": [
+      6
+    ],
+    "event_count": 1
+  },
+  {
+    "identity_id": "person_012",
+    "event_names": [
+      "track_071_event_013_20260501_180601"
+    ],
+    "face_counts": [
+      8
+    ],
+    "event_count": 1
+  },
+  {
+    "identity_id": "person_013",
+    "event_names": [
+      "track_073_event_014_20260501_180611"
+    ],
+    "face_counts": [
+      6
+    ],
+    "event_count": 1
+  },
+  {
+    "identity_id": "person_014",
+    "event_names": [
+      "track_076_event_015_20260501_180634"
+    ],
+    "face_counts": [
+      8
+    ],
+    "event_count": 1
+  },
+  {
+    "identity_id": "person_015",
+    "event_names": [
+      "track_088_event_016_20260501_180746"
+    ],
+    "face_counts": [
+      9
+    ],
+    "event_count": 1
+  },
+  {
+    "identity_id": "person_016",
+    "event_names": [
+      "track_108_event_017_20260501_180929"
+    ],
+    "face_counts": [
+      7
+    ],
+    "event_count": 1
+  },
+  {
+    "identity_id": "person_017",
+    "event_names": [
+      "track_109_event_018_20260501_180933"
+    ],
+    "face_counts": [
+      9
+    ],
+    "event_count": 1
+  },
+  {
+    "identity_id": "person_018",
+    "event_names": [
+      "track_115_event_019_20260501_181528"
+    ],
+    "face_counts": [
+      9
+    ],
+    "event_count": 1
+  },
+  {
+    "identity_id": "person_019",
+    "event_names": [
+      "track_130_event_020_20260501_181945"
+    ],
+    "face_counts": [
+      9
+    ],
+    "event_count": 1
+  },
+  {
+    "identity_id": "person_020",
+    "event_names": [
+      "track_132_event_022_20260501_181959"
+    ],
+    "face_counts": [
+      7
+    ],
+    "event_count": 1
+  },
+  {
+    "identity_id": "person_021",
+    "event_names": [
+      "track_136_event_023_20260501_182419"
+    ],
+    "face_counts": [
+      9
+    ],
+    "event_count": 1
+  },
+  {
+    "identity_id": "person_022",
+    "event_names": [
+      "track_138_event_025_20260501_182741"
+    ],
+    "face_counts": [
+      9
+    ],
+    "event_count": 1
+  }
+]

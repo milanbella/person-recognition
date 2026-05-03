@@ -1,0 +1,87 @@
+{
+  "event_dir": "C:\\wi\\luxonis\\person-recognition\\src\\evidence\\track_108_event_017_20260501_180929",
+  "output_dir": "C:\\wi\\luxonis\\person-recognition\\src\\embedding_runs\\track_108_event_017_20260501_180929",
+  "face_count": 7,
+  "embedding_dim": 512,
+  "images": [
+    {
+      "image_name": "event_frame_011700_score_0.54.jpg",
+      "det_score": 0.7938403487205505,
+      "bbox": [
+        109.56484985351562,
+        88.71880340576172,
+        146.0366973876953,
+        139.8836669921875
+      ],
+      "embedding_norm": 19.06294822692871
+    },
+    {
+      "image_name": "post_00_frame_011701_score_0.62.jpg",
+      "det_score": 0.7840642929077148,
+      "bbox": [
+        103.05389404296875,
+        86.21356201171875,
+        140.60955810546875,
+        136.39988708496094
+      ],
+      "embedding_norm": 19.369140625
+    },
+    {
+      "image_name": "post_01_frame_011702_score_0.52.jpg",
+      "det_score": 0.4876248240470886,
+      "bbox": [
+        101.30555725097656,
+        93.12734985351562,
+        130.88363647460938,
+        137.54214477539062
+      ],
+      "embedding_norm": 11.88697624206543
+    },
+    {
+      "image_name": "pre_00_frame_011697_score_0.60.jpg",
+      "det_score": 0.8061113357543945,
+      "bbox": [
+        128.00421142578125,
+        87.0678939819336,
+        163.66712951660156,
+        137.36570739746094
+      ],
+      "embedding_norm": 20.46369743347168
+    },
+    {
+      "image_name": "pre_01_frame_011698_score_0.66.jpg",
+      "det_score": 0.7791275978088379,
+      "bbox": [
+        95.6023941040039,
+        84.95426940917969,
+        130.57376098632812,
+        136.79165649414062
+      ],
+      "embedding_norm": 22.80999183654785
+    },
+    {
+      "image_name": "pre_02_frame_011699_score_0.60.jpg",
+      "det_score": 0.7833060026168823,
+      "bbox": [
+        101.55335235595703,
+        83.8884506225586,
+        136.40545654296875,
+        134.12965393066406
+      ],
+      "embedding_norm": 19.445175170898438
+    },
+    {
+      "image_name": "pre_03_frame_011700_score_0.54.jpg",
+      "det_score": 0.7938403487205505,
+      "bbox": [
+        109.56484985351562,
+        88.71880340576172,
+        146.0366973876953,
+        139.8836669921875
+      ],
+      "embedding_norm": 19.06294822692871
+    }
+  ],
+  "mean_embedding_file": "mean_embedding.npy",
+  "best_image": "pre_00_frame_011697_score_0.60.jpg"
+}

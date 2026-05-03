@@ -1,0 +1,7 @@
+{
+  "embedding_runs_dir": "C:\\wi\\luxonis\\person-recognition\\src\\embedding_runs",
+  "match_threshold": 0.68,
+  "min_face_count": 3,
+  "assignments_file": "C:\\wi\\luxonis\\person-recognition\\src\\identity_runs\\assignments.json",
+  "gallery_file": "C:\\wi\\luxonis\\person-recognition\\src\\identity_runs\\gallery.json"
+}

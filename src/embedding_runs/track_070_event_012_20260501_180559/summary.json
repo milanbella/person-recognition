@@ -1,0 +1,21 @@
+{
+  "event_dir": "C:\\wi\\luxonis\\person-recognition\\src\\evidence\\track_070_event_012_20260501_180559",
+  "output_dir": "C:\\wi\\luxonis\\person-recognition\\src\\embedding_runs\\track_070_event_012_20260501_180559",
+  "face_count": 1,
+  "embedding_dim": 512,
+  "images": [
+    {
+      "image_name": "post_00_frame_008657_score_0.52.jpg",
+      "det_score": 0.45374420285224915,
+      "bbox": [
+        101.12725067138672,
+        103.82408905029297,
+        124.73881530761719,
+        148.5628204345703
+      ],
+      "embedding_norm": 10.412847518920898
+    }
+  ],
+  "mean_embedding_file": "mean_embedding.npy",
+  "best_image": "post_00_frame_008657_score_0.52.jpg"
+}

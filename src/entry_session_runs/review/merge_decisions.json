@@ -1,0 +1,3782 @@
+[
+  {
+    "incoming_event_id": "entry_evt_track_008_event_003_20260501_174236",
+    "candidate_session_id": "entry_session_001",
+    "candidate_event_id": "entry_evt_track_005_event_001_20260501_174054",
+    "time_delta_seconds": 102.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_009_event_004_20260501_174415",
+    "candidate_session_id": "entry_session_001",
+    "candidate_event_id": "entry_evt_track_005_event_001_20260501_174054",
+    "time_delta_seconds": 201.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_009_event_004_20260501_174415",
+    "candidate_session_id": "entry_session_002",
+    "candidate_event_id": "entry_evt_track_008_event_003_20260501_174236",
+    "time_delta_seconds": 99.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_001_event_001_20260501_175631",
+    "candidate_session_id": "entry_session_001",
+    "candidate_event_id": "entry_evt_track_005_event_001_20260501_174054",
+    "time_delta_seconds": 937.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_001_event_001_20260501_175631",
+    "candidate_session_id": "entry_session_002",
+    "candidate_event_id": "entry_evt_track_008_event_003_20260501_174236",
+    "time_delta_seconds": 835.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_001_event_001_20260501_175631",
+    "candidate_session_id": "entry_session_003",
+    "candidate_event_id": "entry_evt_track_009_event_004_20260501_174415",
+    "time_delta_seconds": 736.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_003_event_002_20260501_175633",
+    "candidate_session_id": "entry_session_001",
+    "candidate_event_id": "entry_evt_track_005_event_001_20260501_174054",
+    "time_delta_seconds": 939.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_003_event_002_20260501_175633",
+    "candidate_session_id": "entry_session_002",
+    "candidate_event_id": "entry_evt_track_008_event_003_20260501_174236",
+    "time_delta_seconds": 837.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_003_event_002_20260501_175633",
+    "candidate_session_id": "entry_session_003",
+    "candidate_event_id": "entry_evt_track_009_event_004_20260501_174415",
+    "time_delta_seconds": 738.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_003_event_002_20260501_175633",
+    "candidate_session_id": "entry_session_004",
+    "candidate_event_id": "entry_evt_track_001_event_001_20260501_175631",
+    "time_delta_seconds": 2.0,
+    "face_similarity": 0.27192118763923645,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "same_camera_without_high_similarity"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_018_event_003_20260501_175857",
+    "candidate_session_id": "entry_session_001",
+    "candidate_event_id": "entry_evt_track_005_event_001_20260501_174054",
+    "time_delta_seconds": 1083.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_018_event_003_20260501_175857",
+    "candidate_session_id": "entry_session_002",
+    "candidate_event_id": "entry_evt_track_008_event_003_20260501_174236",
+    "time_delta_seconds": 981.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_018_event_003_20260501_175857",
+    "candidate_session_id": "entry_session_003",
+    "candidate_event_id": "entry_evt_track_009_event_004_20260501_174415",
+    "time_delta_seconds": 882.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_018_event_003_20260501_175857",
+    "candidate_session_id": "entry_session_004",
+    "candidate_event_id": "entry_evt_track_001_event_001_20260501_175631",
+    "time_delta_seconds": 146.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_018_event_003_20260501_175857",
+    "candidate_session_id": "entry_session_005",
+    "candidate_event_id": "entry_evt_track_003_event_002_20260501_175633",
+    "time_delta_seconds": 144.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_019_event_004_20260501_175904",
+    "candidate_session_id": "entry_session_001",
+    "candidate_event_id": "entry_evt_track_005_event_001_20260501_174054",
+    "time_delta_seconds": 1090.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_019_event_004_20260501_175904",
+    "candidate_session_id": "entry_session_002",
+    "candidate_event_id": "entry_evt_track_008_event_003_20260501_174236",
+    "time_delta_seconds": 988.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_019_event_004_20260501_175904",
+    "candidate_session_id": "entry_session_003",
+    "candidate_event_id": "entry_evt_track_009_event_004_20260501_174415",
+    "time_delta_seconds": 889.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_019_event_004_20260501_175904",
+    "candidate_session_id": "entry_session_004",
+    "candidate_event_id": "entry_evt_track_001_event_001_20260501_175631",
+    "time_delta_seconds": 153.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_019_event_004_20260501_175904",
+    "candidate_session_id": "entry_session_005",
+    "candidate_event_id": "entry_evt_track_003_event_002_20260501_175633",
+    "time_delta_seconds": 151.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_019_event_004_20260501_175904",
+    "candidate_session_id": "entry_session_006",
+    "candidate_event_id": "entry_evt_track_018_event_003_20260501_175857",
+    "time_delta_seconds": 7.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_045_event_005_20260501_180231",
+    "candidate_session_id": "entry_session_001",
+    "candidate_event_id": "entry_evt_track_005_event_001_20260501_174054",
+    "time_delta_seconds": 1297.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_045_event_005_20260501_180231",
+    "candidate_session_id": "entry_session_002",
+    "candidate_event_id": "entry_evt_track_008_event_003_20260501_174236",
+    "time_delta_seconds": 1195.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_045_event_005_20260501_180231",
+    "candidate_session_id": "entry_session_003",
+    "candidate_event_id": "entry_evt_track_009_event_004_20260501_174415",
+    "time_delta_seconds": 1096.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_045_event_005_20260501_180231",
+    "candidate_session_id": "entry_session_004",
+    "candidate_event_id": "entry_evt_track_001_event_001_20260501_175631",
+    "time_delta_seconds": 360.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_045_event_005_20260501_180231",
+    "candidate_session_id": "entry_session_005",
+    "candidate_event_id": "entry_evt_track_003_event_002_20260501_175633",
+    "time_delta_seconds": 358.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_045_event_005_20260501_180231",
+    "candidate_session_id": "entry_session_006",
+    "candidate_event_id": "entry_evt_track_018_event_003_20260501_175857",
+    "time_delta_seconds": 214.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_045_event_005_20260501_180231",
+    "candidate_session_id": "entry_session_007",
+    "candidate_event_id": "entry_evt_track_019_event_004_20260501_175904",
+    "time_delta_seconds": 207.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_048_event_006_20260501_180258",
+    "candidate_session_id": "entry_session_001",
+    "candidate_event_id": "entry_evt_track_005_event_001_20260501_174054",
+    "time_delta_seconds": 1324.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_048_event_006_20260501_180258",
+    "candidate_session_id": "entry_session_002",
+    "candidate_event_id": "entry_evt_track_008_event_003_20260501_174236",
+    "time_delta_seconds": 1222.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_048_event_006_20260501_180258",
+    "candidate_session_id": "entry_session_003",
+    "candidate_event_id": "entry_evt_track_009_event_004_20260501_174415",
+    "time_delta_seconds": 1123.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_048_event_006_20260501_180258",
+    "candidate_session_id": "entry_session_004",
+    "candidate_event_id": "entry_evt_track_001_event_001_20260501_175631",
+    "time_delta_seconds": 387.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_048_event_006_20260501_180258",
+    "candidate_session_id": "entry_session_005",
+    "candidate_event_id": "entry_evt_track_003_event_002_20260501_175633",
+    "time_delta_seconds": 385.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_048_event_006_20260501_180258",
+    "candidate_session_id": "entry_session_006",
+    "candidate_event_id": "entry_evt_track_018_event_003_20260501_175857",
+    "time_delta_seconds": 241.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_048_event_006_20260501_180258",
+    "candidate_session_id": "entry_session_007",
+    "candidate_event_id": "entry_evt_track_019_event_004_20260501_175904",
+    "time_delta_seconds": 234.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_048_event_006_20260501_180258",
+    "candidate_session_id": "entry_session_008",
+    "candidate_event_id": "entry_evt_track_045_event_005_20260501_180231",
+    "time_delta_seconds": 27.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_055_event_007_20260501_180427",
+    "candidate_session_id": "entry_session_001",
+    "candidate_event_id": "entry_evt_track_005_event_001_20260501_174054",
+    "time_delta_seconds": 1413.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_055_event_007_20260501_180427",
+    "candidate_session_id": "entry_session_002",
+    "candidate_event_id": "entry_evt_track_008_event_003_20260501_174236",
+    "time_delta_seconds": 1311.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_055_event_007_20260501_180427",
+    "candidate_session_id": "entry_session_003",
+    "candidate_event_id": "entry_evt_track_009_event_004_20260501_174415",
+    "time_delta_seconds": 1212.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_055_event_007_20260501_180427",
+    "candidate_session_id": "entry_session_004",
+    "candidate_event_id": "entry_evt_track_001_event_001_20260501_175631",
+    "time_delta_seconds": 476.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_055_event_007_20260501_180427",
+    "candidate_session_id": "entry_session_005",
+    "candidate_event_id": "entry_evt_track_003_event_002_20260501_175633",
+    "time_delta_seconds": 474.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_055_event_007_20260501_180427",
+    "candidate_session_id": "entry_session_006",
+    "candidate_event_id": "entry_evt_track_018_event_003_20260501_175857",
+    "time_delta_seconds": 330.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_055_event_007_20260501_180427",
+    "candidate_session_id": "entry_session_007",
+    "candidate_event_id": "entry_evt_track_019_event_004_20260501_175904",
+    "time_delta_seconds": 323.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_055_event_007_20260501_180427",
+    "candidate_session_id": "entry_session_008",
+    "candidate_event_id": "entry_evt_track_045_event_005_20260501_180231",
+    "time_delta_seconds": 116.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_055_event_007_20260501_180427",
+    "candidate_session_id": "entry_session_009",
+    "candidate_event_id": "entry_evt_track_048_event_006_20260501_180258",
+    "time_delta_seconds": 89.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_059_event_008_20260501_180518",
+    "candidate_session_id": "entry_session_001",
+    "candidate_event_id": "entry_evt_track_005_event_001_20260501_174054",
+    "time_delta_seconds": 1464.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_059_event_008_20260501_180518",
+    "candidate_session_id": "entry_session_002",
+    "candidate_event_id": "entry_evt_track_008_event_003_20260501_174236",
+    "time_delta_seconds": 1362.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_059_event_008_20260501_180518",
+    "candidate_session_id": "entry_session_003",
+    "candidate_event_id": "entry_evt_track_009_event_004_20260501_174415",
+    "time_delta_seconds": 1263.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_059_event_008_20260501_180518",
+    "candidate_session_id": "entry_session_004",
+    "candidate_event_id": "entry_evt_track_001_event_001_20260501_175631",
+    "time_delta_seconds": 527.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_059_event_008_20260501_180518",
+    "candidate_session_id": "entry_session_005",
+    "candidate_event_id": "entry_evt_track_003_event_002_20260501_175633",
+    "time_delta_seconds": 525.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_059_event_008_20260501_180518",
+    "candidate_session_id": "entry_session_006",
+    "candidate_event_id": "entry_evt_track_018_event_003_20260501_175857",
+    "time_delta_seconds": 381.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_059_event_008_20260501_180518",
+    "candidate_session_id": "entry_session_007",
+    "candidate_event_id": "entry_evt_track_019_event_004_20260501_175904",
+    "time_delta_seconds": 374.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_059_event_008_20260501_180518",
+    "candidate_session_id": "entry_session_008",
+    "candidate_event_id": "entry_evt_track_045_event_005_20260501_180231",
+    "time_delta_seconds": 167.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_059_event_008_20260501_180518",
+    "candidate_session_id": "entry_session_009",
+    "candidate_event_id": "entry_evt_track_048_event_006_20260501_180258",
+    "time_delta_seconds": 140.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_059_event_008_20260501_180518",
+    "candidate_session_id": "entry_session_010",
+    "candidate_event_id": "entry_evt_track_055_event_007_20260501_180427",
+    "time_delta_seconds": 51.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_061_event_009_20260501_180533",
+    "candidate_session_id": "entry_session_001",
+    "candidate_event_id": "entry_evt_track_005_event_001_20260501_174054",
+    "time_delta_seconds": 1479.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_061_event_009_20260501_180533",
+    "candidate_session_id": "entry_session_002",
+    "candidate_event_id": "entry_evt_track_008_event_003_20260501_174236",
+    "time_delta_seconds": 1377.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_061_event_009_20260501_180533",
+    "candidate_session_id": "entry_session_003",
+    "candidate_event_id": "entry_evt_track_009_event_004_20260501_174415",
+    "time_delta_seconds": 1278.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_061_event_009_20260501_180533",
+    "candidate_session_id": "entry_session_004",
+    "candidate_event_id": "entry_evt_track_001_event_001_20260501_175631",
+    "time_delta_seconds": 542.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_061_event_009_20260501_180533",
+    "candidate_session_id": "entry_session_005",
+    "candidate_event_id": "entry_evt_track_003_event_002_20260501_175633",
+    "time_delta_seconds": 540.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_061_event_009_20260501_180533",
+    "candidate_session_id": "entry_session_006",
+    "candidate_event_id": "entry_evt_track_018_event_003_20260501_175857",
+    "time_delta_seconds": 396.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_061_event_009_20260501_180533",
+    "candidate_session_id": "entry_session_007",
+    "candidate_event_id": "entry_evt_track_019_event_004_20260501_175904",
+    "time_delta_seconds": 389.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_061_event_009_20260501_180533",
+    "candidate_session_id": "entry_session_008",
+    "candidate_event_id": "entry_evt_track_045_event_005_20260501_180231",
+    "time_delta_seconds": 182.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_061_event_009_20260501_180533",
+    "candidate_session_id": "entry_session_009",
+    "candidate_event_id": "entry_evt_track_048_event_006_20260501_180258",
+    "time_delta_seconds": 155.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_061_event_009_20260501_180533",
+    "candidate_session_id": "entry_session_010",
+    "candidate_event_id": "entry_evt_track_055_event_007_20260501_180427",
+    "time_delta_seconds": 66.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_061_event_009_20260501_180533",
+    "candidate_session_id": "entry_session_011",
+    "candidate_event_id": "entry_evt_track_059_event_008_20260501_180518",
+    "time_delta_seconds": 15.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_065_event_011_20260501_180547",
+    "candidate_session_id": "entry_session_001",
+    "candidate_event_id": "entry_evt_track_005_event_001_20260501_174054",
+    "time_delta_seconds": 1493.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_065_event_011_20260501_180547",
+    "candidate_session_id": "entry_session_002",
+    "candidate_event_id": "entry_evt_track_008_event_003_20260501_174236",
+    "time_delta_seconds": 1391.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_065_event_011_20260501_180547",
+    "candidate_session_id": "entry_session_003",
+    "candidate_event_id": "entry_evt_track_009_event_004_20260501_174415",
+    "time_delta_seconds": 1292.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_065_event_011_20260501_180547",
+    "candidate_session_id": "entry_session_004",
+    "candidate_event_id": "entry_evt_track_001_event_001_20260501_175631",
+    "time_delta_seconds": 556.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_065_event_011_20260501_180547",
+    "candidate_session_id": "entry_session_005",
+    "candidate_event_id": "entry_evt_track_003_event_002_20260501_175633",
+    "time_delta_seconds": 554.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_065_event_011_20260501_180547",
+    "candidate_session_id": "entry_session_006",
+    "candidate_event_id": "entry_evt_track_018_event_003_20260501_175857",
+    "time_delta_seconds": 410.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_065_event_011_20260501_180547",
+    "candidate_session_id": "entry_session_007",
+    "candidate_event_id": "entry_evt_track_019_event_004_20260501_175904",
+    "time_delta_seconds": 403.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_065_event_011_20260501_180547",
+    "candidate_session_id": "entry_session_008",
+    "candidate_event_id": "entry_evt_track_045_event_005_20260501_180231",
+    "time_delta_seconds": 196.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_065_event_011_20260501_180547",
+    "candidate_session_id": "entry_session_009",
+    "candidate_event_id": "entry_evt_track_048_event_006_20260501_180258",
+    "time_delta_seconds": 169.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_065_event_011_20260501_180547",
+    "candidate_session_id": "entry_session_010",
+    "candidate_event_id": "entry_evt_track_055_event_007_20260501_180427",
+    "time_delta_seconds": 80.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_065_event_011_20260501_180547",
+    "candidate_session_id": "entry_session_011",
+    "candidate_event_id": "entry_evt_track_059_event_008_20260501_180518",
+    "time_delta_seconds": 29.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_065_event_011_20260501_180547",
+    "candidate_session_id": "entry_session_012",
+    "candidate_event_id": "entry_evt_track_061_event_009_20260501_180533",
+    "time_delta_seconds": 14.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_070_event_012_20260501_180559",
+    "candidate_session_id": "entry_session_001",
+    "candidate_event_id": "entry_evt_track_005_event_001_20260501_174054",
+    "time_delta_seconds": 1505.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_070_event_012_20260501_180559",
+    "candidate_session_id": "entry_session_002",
+    "candidate_event_id": "entry_evt_track_008_event_003_20260501_174236",
+    "time_delta_seconds": 1403.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_070_event_012_20260501_180559",
+    "candidate_session_id": "entry_session_003",
+    "candidate_event_id": "entry_evt_track_009_event_004_20260501_174415",
+    "time_delta_seconds": 1304.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_070_event_012_20260501_180559",
+    "candidate_session_id": "entry_session_004",
+    "candidate_event_id": "entry_evt_track_001_event_001_20260501_175631",
+    "time_delta_seconds": 568.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_070_event_012_20260501_180559",
+    "candidate_session_id": "entry_session_005",
+    "candidate_event_id": "entry_evt_track_003_event_002_20260501_175633",
+    "time_delta_seconds": 566.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_070_event_012_20260501_180559",
+    "candidate_session_id": "entry_session_006",
+    "candidate_event_id": "entry_evt_track_018_event_003_20260501_175857",
+    "time_delta_seconds": 422.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_070_event_012_20260501_180559",
+    "candidate_session_id": "entry_session_007",
+    "candidate_event_id": "entry_evt_track_019_event_004_20260501_175904",
+    "time_delta_seconds": 415.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_070_event_012_20260501_180559",
+    "candidate_session_id": "entry_session_008",
+    "candidate_event_id": "entry_evt_track_045_event_005_20260501_180231",
+    "time_delta_seconds": 208.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_070_event_012_20260501_180559",
+    "candidate_session_id": "entry_session_009",
+    "candidate_event_id": "entry_evt_track_048_event_006_20260501_180258",
+    "time_delta_seconds": 181.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_070_event_012_20260501_180559",
+    "candidate_session_id": "entry_session_010",
+    "candidate_event_id": "entry_evt_track_055_event_007_20260501_180427",
+    "time_delta_seconds": 92.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_070_event_012_20260501_180559",
+    "candidate_session_id": "entry_session_011",
+    "candidate_event_id": "entry_evt_track_059_event_008_20260501_180518",
+    "time_delta_seconds": 41.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_070_event_012_20260501_180559",
+    "candidate_session_id": "entry_session_012",
+    "candidate_event_id": "entry_evt_track_061_event_009_20260501_180533",
+    "time_delta_seconds": 26.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_070_event_012_20260501_180559",
+    "candidate_session_id": "entry_session_013",
+    "candidate_event_id": "entry_evt_track_065_event_011_20260501_180547",
+    "time_delta_seconds": 12.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_071_event_013_20260501_180601",
+    "candidate_session_id": "entry_session_001",
+    "candidate_event_id": "entry_evt_track_005_event_001_20260501_174054",
+    "time_delta_seconds": 1507.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_071_event_013_20260501_180601",
+    "candidate_session_id": "entry_session_002",
+    "candidate_event_id": "entry_evt_track_008_event_003_20260501_174236",
+    "time_delta_seconds": 1405.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_071_event_013_20260501_180601",
+    "candidate_session_id": "entry_session_003",
+    "candidate_event_id": "entry_evt_track_009_event_004_20260501_174415",
+    "time_delta_seconds": 1306.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_071_event_013_20260501_180601",
+    "candidate_session_id": "entry_session_004",
+    "candidate_event_id": "entry_evt_track_001_event_001_20260501_175631",
+    "time_delta_seconds": 570.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_071_event_013_20260501_180601",
+    "candidate_session_id": "entry_session_005",
+    "candidate_event_id": "entry_evt_track_003_event_002_20260501_175633",
+    "time_delta_seconds": 568.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_071_event_013_20260501_180601",
+    "candidate_session_id": "entry_session_006",
+    "candidate_event_id": "entry_evt_track_018_event_003_20260501_175857",
+    "time_delta_seconds": 424.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_071_event_013_20260501_180601",
+    "candidate_session_id": "entry_session_007",
+    "candidate_event_id": "entry_evt_track_019_event_004_20260501_175904",
+    "time_delta_seconds": 417.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_071_event_013_20260501_180601",
+    "candidate_session_id": "entry_session_008",
+    "candidate_event_id": "entry_evt_track_045_event_005_20260501_180231",
+    "time_delta_seconds": 210.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_071_event_013_20260501_180601",
+    "candidate_session_id": "entry_session_009",
+    "candidate_event_id": "entry_evt_track_048_event_006_20260501_180258",
+    "time_delta_seconds": 183.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_071_event_013_20260501_180601",
+    "candidate_session_id": "entry_session_010",
+    "candidate_event_id": "entry_evt_track_055_event_007_20260501_180427",
+    "time_delta_seconds": 94.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_071_event_013_20260501_180601",
+    "candidate_session_id": "entry_session_011",
+    "candidate_event_id": "entry_evt_track_059_event_008_20260501_180518",
+    "time_delta_seconds": 43.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_071_event_013_20260501_180601",
+    "candidate_session_id": "entry_session_012",
+    "candidate_event_id": "entry_evt_track_061_event_009_20260501_180533",
+    "time_delta_seconds": 28.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_071_event_013_20260501_180601",
+    "candidate_session_id": "entry_session_013",
+    "candidate_event_id": "entry_evt_track_065_event_011_20260501_180547",
+    "time_delta_seconds": 14.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_071_event_013_20260501_180601",
+    "candidate_session_id": "entry_session_014",
+    "candidate_event_id": "entry_evt_track_070_event_012_20260501_180559",
+    "time_delta_seconds": 2.0,
+    "face_similarity": 0.22989627718925476,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "same_camera_without_high_similarity"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_073_event_014_20260501_180611",
+    "candidate_session_id": "entry_session_001",
+    "candidate_event_id": "entry_evt_track_005_event_001_20260501_174054",
+    "time_delta_seconds": 1517.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_073_event_014_20260501_180611",
+    "candidate_session_id": "entry_session_002",
+    "candidate_event_id": "entry_evt_track_008_event_003_20260501_174236",
+    "time_delta_seconds": 1415.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_073_event_014_20260501_180611",
+    "candidate_session_id": "entry_session_003",
+    "candidate_event_id": "entry_evt_track_009_event_004_20260501_174415",
+    "time_delta_seconds": 1316.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_073_event_014_20260501_180611",
+    "candidate_session_id": "entry_session_004",
+    "candidate_event_id": "entry_evt_track_001_event_001_20260501_175631",
+    "time_delta_seconds": 580.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_073_event_014_20260501_180611",
+    "candidate_session_id": "entry_session_005",
+    "candidate_event_id": "entry_evt_track_003_event_002_20260501_175633",
+    "time_delta_seconds": 578.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_073_event_014_20260501_180611",
+    "candidate_session_id": "entry_session_006",
+    "candidate_event_id": "entry_evt_track_018_event_003_20260501_175857",
+    "time_delta_seconds": 434.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_073_event_014_20260501_180611",
+    "candidate_session_id": "entry_session_007",
+    "candidate_event_id": "entry_evt_track_019_event_004_20260501_175904",
+    "time_delta_seconds": 427.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_073_event_014_20260501_180611",
+    "candidate_session_id": "entry_session_008",
+    "candidate_event_id": "entry_evt_track_045_event_005_20260501_180231",
+    "time_delta_seconds": 220.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_073_event_014_20260501_180611",
+    "candidate_session_id": "entry_session_009",
+    "candidate_event_id": "entry_evt_track_048_event_006_20260501_180258",
+    "time_delta_seconds": 193.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_073_event_014_20260501_180611",
+    "candidate_session_id": "entry_session_010",
+    "candidate_event_id": "entry_evt_track_055_event_007_20260501_180427",
+    "time_delta_seconds": 104.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_073_event_014_20260501_180611",
+    "candidate_session_id": "entry_session_011",
+    "candidate_event_id": "entry_evt_track_059_event_008_20260501_180518",
+    "time_delta_seconds": 53.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_073_event_014_20260501_180611",
+    "candidate_session_id": "entry_session_012",
+    "candidate_event_id": "entry_evt_track_061_event_009_20260501_180533",
+    "time_delta_seconds": 38.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_073_event_014_20260501_180611",
+    "candidate_session_id": "entry_session_013",
+    "candidate_event_id": "entry_evt_track_065_event_011_20260501_180547",
+    "time_delta_seconds": 24.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_073_event_014_20260501_180611",
+    "candidate_session_id": "entry_session_014",
+    "candidate_event_id": "entry_evt_track_070_event_012_20260501_180559",
+    "time_delta_seconds": 12.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_073_event_014_20260501_180611",
+    "candidate_session_id": "entry_session_015",
+    "candidate_event_id": "entry_evt_track_071_event_013_20260501_180601",
+    "time_delta_seconds": 10.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_076_event_015_20260501_180634",
+    "candidate_session_id": "entry_session_001",
+    "candidate_event_id": "entry_evt_track_005_event_001_20260501_174054",
+    "time_delta_seconds": 1540.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_076_event_015_20260501_180634",
+    "candidate_session_id": "entry_session_002",
+    "candidate_event_id": "entry_evt_track_008_event_003_20260501_174236",
+    "time_delta_seconds": 1438.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_076_event_015_20260501_180634",
+    "candidate_session_id": "entry_session_003",
+    "candidate_event_id": "entry_evt_track_009_event_004_20260501_174415",
+    "time_delta_seconds": 1339.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_076_event_015_20260501_180634",
+    "candidate_session_id": "entry_session_004",
+    "candidate_event_id": "entry_evt_track_001_event_001_20260501_175631",
+    "time_delta_seconds": 603.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_076_event_015_20260501_180634",
+    "candidate_session_id": "entry_session_005",
+    "candidate_event_id": "entry_evt_track_003_event_002_20260501_175633",
+    "time_delta_seconds": 601.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_076_event_015_20260501_180634",
+    "candidate_session_id": "entry_session_006",
+    "candidate_event_id": "entry_evt_track_018_event_003_20260501_175857",
+    "time_delta_seconds": 457.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_076_event_015_20260501_180634",
+    "candidate_session_id": "entry_session_007",
+    "candidate_event_id": "entry_evt_track_019_event_004_20260501_175904",
+    "time_delta_seconds": 450.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_076_event_015_20260501_180634",
+    "candidate_session_id": "entry_session_008",
+    "candidate_event_id": "entry_evt_track_045_event_005_20260501_180231",
+    "time_delta_seconds": 243.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_076_event_015_20260501_180634",
+    "candidate_session_id": "entry_session_009",
+    "candidate_event_id": "entry_evt_track_048_event_006_20260501_180258",
+    "time_delta_seconds": 216.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_076_event_015_20260501_180634",
+    "candidate_session_id": "entry_session_010",
+    "candidate_event_id": "entry_evt_track_055_event_007_20260501_180427",
+    "time_delta_seconds": 127.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_076_event_015_20260501_180634",
+    "candidate_session_id": "entry_session_011",
+    "candidate_event_id": "entry_evt_track_059_event_008_20260501_180518",
+    "time_delta_seconds": 76.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_076_event_015_20260501_180634",
+    "candidate_session_id": "entry_session_012",
+    "candidate_event_id": "entry_evt_track_061_event_009_20260501_180533",
+    "time_delta_seconds": 61.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_076_event_015_20260501_180634",
+    "candidate_session_id": "entry_session_013",
+    "candidate_event_id": "entry_evt_track_065_event_011_20260501_180547",
+    "time_delta_seconds": 47.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_076_event_015_20260501_180634",
+    "candidate_session_id": "entry_session_014",
+    "candidate_event_id": "entry_evt_track_070_event_012_20260501_180559",
+    "time_delta_seconds": 35.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_076_event_015_20260501_180634",
+    "candidate_session_id": "entry_session_015",
+    "candidate_event_id": "entry_evt_track_071_event_013_20260501_180601",
+    "time_delta_seconds": 33.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_076_event_015_20260501_180634",
+    "candidate_session_id": "entry_session_016",
+    "candidate_event_id": "entry_evt_track_073_event_014_20260501_180611",
+    "time_delta_seconds": 23.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_088_event_016_20260501_180746",
+    "candidate_session_id": "entry_session_001",
+    "candidate_event_id": "entry_evt_track_005_event_001_20260501_174054",
+    "time_delta_seconds": 1612.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_088_event_016_20260501_180746",
+    "candidate_session_id": "entry_session_002",
+    "candidate_event_id": "entry_evt_track_008_event_003_20260501_174236",
+    "time_delta_seconds": 1510.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_088_event_016_20260501_180746",
+    "candidate_session_id": "entry_session_003",
+    "candidate_event_id": "entry_evt_track_009_event_004_20260501_174415",
+    "time_delta_seconds": 1411.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_088_event_016_20260501_180746",
+    "candidate_session_id": "entry_session_004",
+    "candidate_event_id": "entry_evt_track_001_event_001_20260501_175631",
+    "time_delta_seconds": 675.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_088_event_016_20260501_180746",
+    "candidate_session_id": "entry_session_005",
+    "candidate_event_id": "entry_evt_track_003_event_002_20260501_175633",
+    "time_delta_seconds": 673.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_088_event_016_20260501_180746",
+    "candidate_session_id": "entry_session_006",
+    "candidate_event_id": "entry_evt_track_018_event_003_20260501_175857",
+    "time_delta_seconds": 529.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_088_event_016_20260501_180746",
+    "candidate_session_id": "entry_session_007",
+    "candidate_event_id": "entry_evt_track_019_event_004_20260501_175904",
+    "time_delta_seconds": 522.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_088_event_016_20260501_180746",
+    "candidate_session_id": "entry_session_008",
+    "candidate_event_id": "entry_evt_track_045_event_005_20260501_180231",
+    "time_delta_seconds": 315.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_088_event_016_20260501_180746",
+    "candidate_session_id": "entry_session_009",
+    "candidate_event_id": "entry_evt_track_048_event_006_20260501_180258",
+    "time_delta_seconds": 288.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_088_event_016_20260501_180746",
+    "candidate_session_id": "entry_session_010",
+    "candidate_event_id": "entry_evt_track_055_event_007_20260501_180427",
+    "time_delta_seconds": 199.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_088_event_016_20260501_180746",
+    "candidate_session_id": "entry_session_011",
+    "candidate_event_id": "entry_evt_track_059_event_008_20260501_180518",
+    "time_delta_seconds": 148.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_088_event_016_20260501_180746",
+    "candidate_session_id": "entry_session_012",
+    "candidate_event_id": "entry_evt_track_061_event_009_20260501_180533",
+    "time_delta_seconds": 133.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_088_event_016_20260501_180746",
+    "candidate_session_id": "entry_session_013",
+    "candidate_event_id": "entry_evt_track_065_event_011_20260501_180547",
+    "time_delta_seconds": 119.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_088_event_016_20260501_180746",
+    "candidate_session_id": "entry_session_014",
+    "candidate_event_id": "entry_evt_track_070_event_012_20260501_180559",
+    "time_delta_seconds": 107.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_088_event_016_20260501_180746",
+    "candidate_session_id": "entry_session_015",
+    "candidate_event_id": "entry_evt_track_071_event_013_20260501_180601",
+    "time_delta_seconds": 105.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_088_event_016_20260501_180746",
+    "candidate_session_id": "entry_session_016",
+    "candidate_event_id": "entry_evt_track_073_event_014_20260501_180611",
+    "time_delta_seconds": 95.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_088_event_016_20260501_180746",
+    "candidate_session_id": "entry_session_017",
+    "candidate_event_id": "entry_evt_track_076_event_015_20260501_180634",
+    "time_delta_seconds": 72.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_108_event_017_20260501_180929",
+    "candidate_session_id": "entry_session_001",
+    "candidate_event_id": "entry_evt_track_005_event_001_20260501_174054",
+    "time_delta_seconds": 1715.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_108_event_017_20260501_180929",
+    "candidate_session_id": "entry_session_002",
+    "candidate_event_id": "entry_evt_track_008_event_003_20260501_174236",
+    "time_delta_seconds": 1613.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_108_event_017_20260501_180929",
+    "candidate_session_id": "entry_session_003",
+    "candidate_event_id": "entry_evt_track_009_event_004_20260501_174415",
+    "time_delta_seconds": 1514.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_108_event_017_20260501_180929",
+    "candidate_session_id": "entry_session_004",
+    "candidate_event_id": "entry_evt_track_001_event_001_20260501_175631",
+    "time_delta_seconds": 778.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_108_event_017_20260501_180929",
+    "candidate_session_id": "entry_session_005",
+    "candidate_event_id": "entry_evt_track_003_event_002_20260501_175633",
+    "time_delta_seconds": 776.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_108_event_017_20260501_180929",
+    "candidate_session_id": "entry_session_006",
+    "candidate_event_id": "entry_evt_track_018_event_003_20260501_175857",
+    "time_delta_seconds": 632.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_108_event_017_20260501_180929",
+    "candidate_session_id": "entry_session_007",
+    "candidate_event_id": "entry_evt_track_019_event_004_20260501_175904",
+    "time_delta_seconds": 625.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_108_event_017_20260501_180929",
+    "candidate_session_id": "entry_session_008",
+    "candidate_event_id": "entry_evt_track_045_event_005_20260501_180231",
+    "time_delta_seconds": 418.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_108_event_017_20260501_180929",
+    "candidate_session_id": "entry_session_009",
+    "candidate_event_id": "entry_evt_track_048_event_006_20260501_180258",
+    "time_delta_seconds": 391.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_108_event_017_20260501_180929",
+    "candidate_session_id": "entry_session_010",
+    "candidate_event_id": "entry_evt_track_055_event_007_20260501_180427",
+    "time_delta_seconds": 302.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_108_event_017_20260501_180929",
+    "candidate_session_id": "entry_session_011",
+    "candidate_event_id": "entry_evt_track_059_event_008_20260501_180518",
+    "time_delta_seconds": 251.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_108_event_017_20260501_180929",
+    "candidate_session_id": "entry_session_012",
+    "candidate_event_id": "entry_evt_track_061_event_009_20260501_180533",
+    "time_delta_seconds": 236.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_108_event_017_20260501_180929",
+    "candidate_session_id": "entry_session_013",
+    "candidate_event_id": "entry_evt_track_065_event_011_20260501_180547",
+    "time_delta_seconds": 222.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_108_event_017_20260501_180929",
+    "candidate_session_id": "entry_session_014",
+    "candidate_event_id": "entry_evt_track_070_event_012_20260501_180559",
+    "time_delta_seconds": 210.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_108_event_017_20260501_180929",
+    "candidate_session_id": "entry_session_015",
+    "candidate_event_id": "entry_evt_track_071_event_013_20260501_180601",
+    "time_delta_seconds": 208.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_108_event_017_20260501_180929",
+    "candidate_session_id": "entry_session_016",
+    "candidate_event_id": "entry_evt_track_073_event_014_20260501_180611",
+    "time_delta_seconds": 198.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_108_event_017_20260501_180929",
+    "candidate_session_id": "entry_session_017",
+    "candidate_event_id": "entry_evt_track_076_event_015_20260501_180634",
+    "time_delta_seconds": 175.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_108_event_017_20260501_180929",
+    "candidate_session_id": "entry_session_018",
+    "candidate_event_id": "entry_evt_track_088_event_016_20260501_180746",
+    "time_delta_seconds": 103.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_109_event_018_20260501_180933",
+    "candidate_session_id": "entry_session_001",
+    "candidate_event_id": "entry_evt_track_005_event_001_20260501_174054",
+    "time_delta_seconds": 1719.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_109_event_018_20260501_180933",
+    "candidate_session_id": "entry_session_002",
+    "candidate_event_id": "entry_evt_track_008_event_003_20260501_174236",
+    "time_delta_seconds": 1617.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_109_event_018_20260501_180933",
+    "candidate_session_id": "entry_session_003",
+    "candidate_event_id": "entry_evt_track_009_event_004_20260501_174415",
+    "time_delta_seconds": 1518.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_109_event_018_20260501_180933",
+    "candidate_session_id": "entry_session_004",
+    "candidate_event_id": "entry_evt_track_001_event_001_20260501_175631",
+    "time_delta_seconds": 782.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_109_event_018_20260501_180933",
+    "candidate_session_id": "entry_session_005",
+    "candidate_event_id": "entry_evt_track_003_event_002_20260501_175633",
+    "time_delta_seconds": 780.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_109_event_018_20260501_180933",
+    "candidate_session_id": "entry_session_006",
+    "candidate_event_id": "entry_evt_track_018_event_003_20260501_175857",
+    "time_delta_seconds": 636.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_109_event_018_20260501_180933",
+    "candidate_session_id": "entry_session_007",
+    "candidate_event_id": "entry_evt_track_019_event_004_20260501_175904",
+    "time_delta_seconds": 629.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_109_event_018_20260501_180933",
+    "candidate_session_id": "entry_session_008",
+    "candidate_event_id": "entry_evt_track_045_event_005_20260501_180231",
+    "time_delta_seconds": 422.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_109_event_018_20260501_180933",
+    "candidate_session_id": "entry_session_009",
+    "candidate_event_id": "entry_evt_track_048_event_006_20260501_180258",
+    "time_delta_seconds": 395.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_109_event_018_20260501_180933",
+    "candidate_session_id": "entry_session_010",
+    "candidate_event_id": "entry_evt_track_055_event_007_20260501_180427",
+    "time_delta_seconds": 306.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_109_event_018_20260501_180933",
+    "candidate_session_id": "entry_session_011",
+    "candidate_event_id": "entry_evt_track_059_event_008_20260501_180518",
+    "time_delta_seconds": 255.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_109_event_018_20260501_180933",
+    "candidate_session_id": "entry_session_012",
+    "candidate_event_id": "entry_evt_track_061_event_009_20260501_180533",
+    "time_delta_seconds": 240.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_109_event_018_20260501_180933",
+    "candidate_session_id": "entry_session_013",
+    "candidate_event_id": "entry_evt_track_065_event_011_20260501_180547",
+    "time_delta_seconds": 226.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_109_event_018_20260501_180933",
+    "candidate_session_id": "entry_session_014",
+    "candidate_event_id": "entry_evt_track_070_event_012_20260501_180559",
+    "time_delta_seconds": 214.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_109_event_018_20260501_180933",
+    "candidate_session_id": "entry_session_015",
+    "candidate_event_id": "entry_evt_track_071_event_013_20260501_180601",
+    "time_delta_seconds": 212.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_109_event_018_20260501_180933",
+    "candidate_session_id": "entry_session_016",
+    "candidate_event_id": "entry_evt_track_073_event_014_20260501_180611",
+    "time_delta_seconds": 202.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_109_event_018_20260501_180933",
+    "candidate_session_id": "entry_session_017",
+    "candidate_event_id": "entry_evt_track_076_event_015_20260501_180634",
+    "time_delta_seconds": 179.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_109_event_018_20260501_180933",
+    "candidate_session_id": "entry_session_018",
+    "candidate_event_id": "entry_evt_track_088_event_016_20260501_180746",
+    "time_delta_seconds": 107.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_109_event_018_20260501_180933",
+    "candidate_session_id": "entry_session_019",
+    "candidate_event_id": "entry_evt_track_108_event_017_20260501_180929",
+    "time_delta_seconds": 4.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_115_event_019_20260501_181528",
+    "candidate_session_id": "entry_session_001",
+    "candidate_event_id": "entry_evt_track_005_event_001_20260501_174054",
+    "time_delta_seconds": 2074.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_115_event_019_20260501_181528",
+    "candidate_session_id": "entry_session_002",
+    "candidate_event_id": "entry_evt_track_008_event_003_20260501_174236",
+    "time_delta_seconds": 1972.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_115_event_019_20260501_181528",
+    "candidate_session_id": "entry_session_003",
+    "candidate_event_id": "entry_evt_track_009_event_004_20260501_174415",
+    "time_delta_seconds": 1873.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_115_event_019_20260501_181528",
+    "candidate_session_id": "entry_session_004",
+    "candidate_event_id": "entry_evt_track_001_event_001_20260501_175631",
+    "time_delta_seconds": 1137.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_115_event_019_20260501_181528",
+    "candidate_session_id": "entry_session_005",
+    "candidate_event_id": "entry_evt_track_003_event_002_20260501_175633",
+    "time_delta_seconds": 1135.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_115_event_019_20260501_181528",
+    "candidate_session_id": "entry_session_006",
+    "candidate_event_id": "entry_evt_track_018_event_003_20260501_175857",
+    "time_delta_seconds": 991.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_115_event_019_20260501_181528",
+    "candidate_session_id": "entry_session_007",
+    "candidate_event_id": "entry_evt_track_019_event_004_20260501_175904",
+    "time_delta_seconds": 984.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_115_event_019_20260501_181528",
+    "candidate_session_id": "entry_session_008",
+    "candidate_event_id": "entry_evt_track_045_event_005_20260501_180231",
+    "time_delta_seconds": 777.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_115_event_019_20260501_181528",
+    "candidate_session_id": "entry_session_009",
+    "candidate_event_id": "entry_evt_track_048_event_006_20260501_180258",
+    "time_delta_seconds": 750.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_115_event_019_20260501_181528",
+    "candidate_session_id": "entry_session_010",
+    "candidate_event_id": "entry_evt_track_055_event_007_20260501_180427",
+    "time_delta_seconds": 661.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_115_event_019_20260501_181528",
+    "candidate_session_id": "entry_session_011",
+    "candidate_event_id": "entry_evt_track_059_event_008_20260501_180518",
+    "time_delta_seconds": 610.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_115_event_019_20260501_181528",
+    "candidate_session_id": "entry_session_012",
+    "candidate_event_id": "entry_evt_track_061_event_009_20260501_180533",
+    "time_delta_seconds": 595.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_115_event_019_20260501_181528",
+    "candidate_session_id": "entry_session_013",
+    "candidate_event_id": "entry_evt_track_065_event_011_20260501_180547",
+    "time_delta_seconds": 581.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_115_event_019_20260501_181528",
+    "candidate_session_id": "entry_session_014",
+    "candidate_event_id": "entry_evt_track_070_event_012_20260501_180559",
+    "time_delta_seconds": 569.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_115_event_019_20260501_181528",
+    "candidate_session_id": "entry_session_015",
+    "candidate_event_id": "entry_evt_track_071_event_013_20260501_180601",
+    "time_delta_seconds": 567.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_115_event_019_20260501_181528",
+    "candidate_session_id": "entry_session_016",
+    "candidate_event_id": "entry_evt_track_073_event_014_20260501_180611",
+    "time_delta_seconds": 557.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_115_event_019_20260501_181528",
+    "candidate_session_id": "entry_session_017",
+    "candidate_event_id": "entry_evt_track_076_event_015_20260501_180634",
+    "time_delta_seconds": 534.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_115_event_019_20260501_181528",
+    "candidate_session_id": "entry_session_018",
+    "candidate_event_id": "entry_evt_track_088_event_016_20260501_180746",
+    "time_delta_seconds": 462.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_115_event_019_20260501_181528",
+    "candidate_session_id": "entry_session_019",
+    "candidate_event_id": "entry_evt_track_108_event_017_20260501_180929",
+    "time_delta_seconds": 359.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_115_event_019_20260501_181528",
+    "candidate_session_id": "entry_session_020",
+    "candidate_event_id": "entry_evt_track_109_event_018_20260501_180933",
+    "time_delta_seconds": 355.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_130_event_020_20260501_181945",
+    "candidate_session_id": "entry_session_001",
+    "candidate_event_id": "entry_evt_track_005_event_001_20260501_174054",
+    "time_delta_seconds": 2331.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_130_event_020_20260501_181945",
+    "candidate_session_id": "entry_session_002",
+    "candidate_event_id": "entry_evt_track_008_event_003_20260501_174236",
+    "time_delta_seconds": 2229.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_130_event_020_20260501_181945",
+    "candidate_session_id": "entry_session_003",
+    "candidate_event_id": "entry_evt_track_009_event_004_20260501_174415",
+    "time_delta_seconds": 2130.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_130_event_020_20260501_181945",
+    "candidate_session_id": "entry_session_004",
+    "candidate_event_id": "entry_evt_track_001_event_001_20260501_175631",
+    "time_delta_seconds": 1394.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_130_event_020_20260501_181945",
+    "candidate_session_id": "entry_session_005",
+    "candidate_event_id": "entry_evt_track_003_event_002_20260501_175633",
+    "time_delta_seconds": 1392.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_130_event_020_20260501_181945",
+    "candidate_session_id": "entry_session_006",
+    "candidate_event_id": "entry_evt_track_018_event_003_20260501_175857",
+    "time_delta_seconds": 1248.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_130_event_020_20260501_181945",
+    "candidate_session_id": "entry_session_007",
+    "candidate_event_id": "entry_evt_track_019_event_004_20260501_175904",
+    "time_delta_seconds": 1241.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_130_event_020_20260501_181945",
+    "candidate_session_id": "entry_session_008",
+    "candidate_event_id": "entry_evt_track_045_event_005_20260501_180231",
+    "time_delta_seconds": 1034.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_130_event_020_20260501_181945",
+    "candidate_session_id": "entry_session_009",
+    "candidate_event_id": "entry_evt_track_048_event_006_20260501_180258",
+    "time_delta_seconds": 1007.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_130_event_020_20260501_181945",
+    "candidate_session_id": "entry_session_010",
+    "candidate_event_id": "entry_evt_track_055_event_007_20260501_180427",
+    "time_delta_seconds": 918.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_130_event_020_20260501_181945",
+    "candidate_session_id": "entry_session_011",
+    "candidate_event_id": "entry_evt_track_059_event_008_20260501_180518",
+    "time_delta_seconds": 867.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_130_event_020_20260501_181945",
+    "candidate_session_id": "entry_session_012",
+    "candidate_event_id": "entry_evt_track_061_event_009_20260501_180533",
+    "time_delta_seconds": 852.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_130_event_020_20260501_181945",
+    "candidate_session_id": "entry_session_013",
+    "candidate_event_id": "entry_evt_track_065_event_011_20260501_180547",
+    "time_delta_seconds": 838.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_130_event_020_20260501_181945",
+    "candidate_session_id": "entry_session_014",
+    "candidate_event_id": "entry_evt_track_070_event_012_20260501_180559",
+    "time_delta_seconds": 826.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_130_event_020_20260501_181945",
+    "candidate_session_id": "entry_session_015",
+    "candidate_event_id": "entry_evt_track_071_event_013_20260501_180601",
+    "time_delta_seconds": 824.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_130_event_020_20260501_181945",
+    "candidate_session_id": "entry_session_016",
+    "candidate_event_id": "entry_evt_track_073_event_014_20260501_180611",
+    "time_delta_seconds": 814.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_130_event_020_20260501_181945",
+    "candidate_session_id": "entry_session_017",
+    "candidate_event_id": "entry_evt_track_076_event_015_20260501_180634",
+    "time_delta_seconds": 791.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_130_event_020_20260501_181945",
+    "candidate_session_id": "entry_session_018",
+    "candidate_event_id": "entry_evt_track_088_event_016_20260501_180746",
+    "time_delta_seconds": 719.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_130_event_020_20260501_181945",
+    "candidate_session_id": "entry_session_019",
+    "candidate_event_id": "entry_evt_track_108_event_017_20260501_180929",
+    "time_delta_seconds": 616.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_130_event_020_20260501_181945",
+    "candidate_session_id": "entry_session_020",
+    "candidate_event_id": "entry_evt_track_109_event_018_20260501_180933",
+    "time_delta_seconds": 612.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_130_event_020_20260501_181945",
+    "candidate_session_id": "entry_session_021",
+    "candidate_event_id": "entry_evt_track_115_event_019_20260501_181528",
+    "time_delta_seconds": 257.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_131_event_021_20260501_181947",
+    "candidate_session_id": "entry_session_001",
+    "candidate_event_id": "entry_evt_track_005_event_001_20260501_174054",
+    "time_delta_seconds": 2333.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_131_event_021_20260501_181947",
+    "candidate_session_id": "entry_session_002",
+    "candidate_event_id": "entry_evt_track_008_event_003_20260501_174236",
+    "time_delta_seconds": 2231.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_131_event_021_20260501_181947",
+    "candidate_session_id": "entry_session_003",
+    "candidate_event_id": "entry_evt_track_009_event_004_20260501_174415",
+    "time_delta_seconds": 2132.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_131_event_021_20260501_181947",
+    "candidate_session_id": "entry_session_004",
+    "candidate_event_id": "entry_evt_track_001_event_001_20260501_175631",
+    "time_delta_seconds": 1396.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_131_event_021_20260501_181947",
+    "candidate_session_id": "entry_session_005",
+    "candidate_event_id": "entry_evt_track_003_event_002_20260501_175633",
+    "time_delta_seconds": 1394.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_131_event_021_20260501_181947",
+    "candidate_session_id": "entry_session_006",
+    "candidate_event_id": "entry_evt_track_018_event_003_20260501_175857",
+    "time_delta_seconds": 1250.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_131_event_021_20260501_181947",
+    "candidate_session_id": "entry_session_007",
+    "candidate_event_id": "entry_evt_track_019_event_004_20260501_175904",
+    "time_delta_seconds": 1243.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_131_event_021_20260501_181947",
+    "candidate_session_id": "entry_session_008",
+    "candidate_event_id": "entry_evt_track_045_event_005_20260501_180231",
+    "time_delta_seconds": 1036.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_131_event_021_20260501_181947",
+    "candidate_session_id": "entry_session_009",
+    "candidate_event_id": "entry_evt_track_048_event_006_20260501_180258",
+    "time_delta_seconds": 1009.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_131_event_021_20260501_181947",
+    "candidate_session_id": "entry_session_010",
+    "candidate_event_id": "entry_evt_track_055_event_007_20260501_180427",
+    "time_delta_seconds": 920.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_131_event_021_20260501_181947",
+    "candidate_session_id": "entry_session_011",
+    "candidate_event_id": "entry_evt_track_059_event_008_20260501_180518",
+    "time_delta_seconds": 869.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_131_event_021_20260501_181947",
+    "candidate_session_id": "entry_session_012",
+    "candidate_event_id": "entry_evt_track_061_event_009_20260501_180533",
+    "time_delta_seconds": 854.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_131_event_021_20260501_181947",
+    "candidate_session_id": "entry_session_013",
+    "candidate_event_id": "entry_evt_track_065_event_011_20260501_180547",
+    "time_delta_seconds": 840.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_131_event_021_20260501_181947",
+    "candidate_session_id": "entry_session_014",
+    "candidate_event_id": "entry_evt_track_070_event_012_20260501_180559",
+    "time_delta_seconds": 828.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_131_event_021_20260501_181947",
+    "candidate_session_id": "entry_session_015",
+    "candidate_event_id": "entry_evt_track_071_event_013_20260501_180601",
+    "time_delta_seconds": 826.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_131_event_021_20260501_181947",
+    "candidate_session_id": "entry_session_016",
+    "candidate_event_id": "entry_evt_track_073_event_014_20260501_180611",
+    "time_delta_seconds": 816.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_131_event_021_20260501_181947",
+    "candidate_session_id": "entry_session_017",
+    "candidate_event_id": "entry_evt_track_076_event_015_20260501_180634",
+    "time_delta_seconds": 793.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_131_event_021_20260501_181947",
+    "candidate_session_id": "entry_session_018",
+    "candidate_event_id": "entry_evt_track_088_event_016_20260501_180746",
+    "time_delta_seconds": 721.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_131_event_021_20260501_181947",
+    "candidate_session_id": "entry_session_019",
+    "candidate_event_id": "entry_evt_track_108_event_017_20260501_180929",
+    "time_delta_seconds": 618.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_131_event_021_20260501_181947",
+    "candidate_session_id": "entry_session_020",
+    "candidate_event_id": "entry_evt_track_109_event_018_20260501_180933",
+    "time_delta_seconds": 614.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_131_event_021_20260501_181947",
+    "candidate_session_id": "entry_session_021",
+    "candidate_event_id": "entry_evt_track_115_event_019_20260501_181528",
+    "time_delta_seconds": 259.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_131_event_021_20260501_181947",
+    "candidate_session_id": "entry_session_022",
+    "candidate_event_id": "entry_evt_track_130_event_020_20260501_181945",
+    "time_delta_seconds": 2.0,
+    "face_similarity": 0.5740159749984741,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "same_camera_without_high_similarity"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_132_event_022_20260501_181959",
+    "candidate_session_id": "entry_session_001",
+    "candidate_event_id": "entry_evt_track_005_event_001_20260501_174054",
+    "time_delta_seconds": 2345.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_132_event_022_20260501_181959",
+    "candidate_session_id": "entry_session_002",
+    "candidate_event_id": "entry_evt_track_008_event_003_20260501_174236",
+    "time_delta_seconds": 2243.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_132_event_022_20260501_181959",
+    "candidate_session_id": "entry_session_003",
+    "candidate_event_id": "entry_evt_track_009_event_004_20260501_174415",
+    "time_delta_seconds": 2144.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_132_event_022_20260501_181959",
+    "candidate_session_id": "entry_session_004",
+    "candidate_event_id": "entry_evt_track_001_event_001_20260501_175631",
+    "time_delta_seconds": 1408.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_132_event_022_20260501_181959",
+    "candidate_session_id": "entry_session_005",
+    "candidate_event_id": "entry_evt_track_003_event_002_20260501_175633",
+    "time_delta_seconds": 1406.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_132_event_022_20260501_181959",
+    "candidate_session_id": "entry_session_006",
+    "candidate_event_id": "entry_evt_track_018_event_003_20260501_175857",
+    "time_delta_seconds": 1262.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_132_event_022_20260501_181959",
+    "candidate_session_id": "entry_session_007",
+    "candidate_event_id": "entry_evt_track_019_event_004_20260501_175904",
+    "time_delta_seconds": 1255.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_132_event_022_20260501_181959",
+    "candidate_session_id": "entry_session_008",
+    "candidate_event_id": "entry_evt_track_045_event_005_20260501_180231",
+    "time_delta_seconds": 1048.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_132_event_022_20260501_181959",
+    "candidate_session_id": "entry_session_009",
+    "candidate_event_id": "entry_evt_track_048_event_006_20260501_180258",
+    "time_delta_seconds": 1021.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_132_event_022_20260501_181959",
+    "candidate_session_id": "entry_session_010",
+    "candidate_event_id": "entry_evt_track_055_event_007_20260501_180427",
+    "time_delta_seconds": 932.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_132_event_022_20260501_181959",
+    "candidate_session_id": "entry_session_011",
+    "candidate_event_id": "entry_evt_track_059_event_008_20260501_180518",
+    "time_delta_seconds": 881.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_132_event_022_20260501_181959",
+    "candidate_session_id": "entry_session_012",
+    "candidate_event_id": "entry_evt_track_061_event_009_20260501_180533",
+    "time_delta_seconds": 866.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_132_event_022_20260501_181959",
+    "candidate_session_id": "entry_session_013",
+    "candidate_event_id": "entry_evt_track_065_event_011_20260501_180547",
+    "time_delta_seconds": 852.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_132_event_022_20260501_181959",
+    "candidate_session_id": "entry_session_014",
+    "candidate_event_id": "entry_evt_track_070_event_012_20260501_180559",
+    "time_delta_seconds": 840.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_132_event_022_20260501_181959",
+    "candidate_session_id": "entry_session_015",
+    "candidate_event_id": "entry_evt_track_071_event_013_20260501_180601",
+    "time_delta_seconds": 838.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_132_event_022_20260501_181959",
+    "candidate_session_id": "entry_session_016",
+    "candidate_event_id": "entry_evt_track_073_event_014_20260501_180611",
+    "time_delta_seconds": 828.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_132_event_022_20260501_181959",
+    "candidate_session_id": "entry_session_017",
+    "candidate_event_id": "entry_evt_track_076_event_015_20260501_180634",
+    "time_delta_seconds": 805.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_132_event_022_20260501_181959",
+    "candidate_session_id": "entry_session_018",
+    "candidate_event_id": "entry_evt_track_088_event_016_20260501_180746",
+    "time_delta_seconds": 733.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_132_event_022_20260501_181959",
+    "candidate_session_id": "entry_session_019",
+    "candidate_event_id": "entry_evt_track_108_event_017_20260501_180929",
+    "time_delta_seconds": 630.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_132_event_022_20260501_181959",
+    "candidate_session_id": "entry_session_020",
+    "candidate_event_id": "entry_evt_track_109_event_018_20260501_180933",
+    "time_delta_seconds": 626.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_132_event_022_20260501_181959",
+    "candidate_session_id": "entry_session_021",
+    "candidate_event_id": "entry_evt_track_115_event_019_20260501_181528",
+    "time_delta_seconds": 271.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_132_event_022_20260501_181959",
+    "candidate_session_id": "entry_session_022",
+    "candidate_event_id": "entry_evt_track_130_event_020_20260501_181945",
+    "time_delta_seconds": 14.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_132_event_022_20260501_181959",
+    "candidate_session_id": "entry_session_023",
+    "candidate_event_id": "entry_evt_track_131_event_021_20260501_181947",
+    "time_delta_seconds": 12.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_136_event_023_20260501_182419",
+    "candidate_session_id": "entry_session_001",
+    "candidate_event_id": "entry_evt_track_005_event_001_20260501_174054",
+    "time_delta_seconds": 2605.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_136_event_023_20260501_182419",
+    "candidate_session_id": "entry_session_002",
+    "candidate_event_id": "entry_evt_track_008_event_003_20260501_174236",
+    "time_delta_seconds": 2503.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_136_event_023_20260501_182419",
+    "candidate_session_id": "entry_session_003",
+    "candidate_event_id": "entry_evt_track_009_event_004_20260501_174415",
+    "time_delta_seconds": 2404.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_136_event_023_20260501_182419",
+    "candidate_session_id": "entry_session_004",
+    "candidate_event_id": "entry_evt_track_001_event_001_20260501_175631",
+    "time_delta_seconds": 1668.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_136_event_023_20260501_182419",
+    "candidate_session_id": "entry_session_005",
+    "candidate_event_id": "entry_evt_track_003_event_002_20260501_175633",
+    "time_delta_seconds": 1666.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_136_event_023_20260501_182419",
+    "candidate_session_id": "entry_session_006",
+    "candidate_event_id": "entry_evt_track_018_event_003_20260501_175857",
+    "time_delta_seconds": 1522.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_136_event_023_20260501_182419",
+    "candidate_session_id": "entry_session_007",
+    "candidate_event_id": "entry_evt_track_019_event_004_20260501_175904",
+    "time_delta_seconds": 1515.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_136_event_023_20260501_182419",
+    "candidate_session_id": "entry_session_008",
+    "candidate_event_id": "entry_evt_track_045_event_005_20260501_180231",
+    "time_delta_seconds": 1308.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_136_event_023_20260501_182419",
+    "candidate_session_id": "entry_session_009",
+    "candidate_event_id": "entry_evt_track_048_event_006_20260501_180258",
+    "time_delta_seconds": 1281.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_136_event_023_20260501_182419",
+    "candidate_session_id": "entry_session_010",
+    "candidate_event_id": "entry_evt_track_055_event_007_20260501_180427",
+    "time_delta_seconds": 1192.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_136_event_023_20260501_182419",
+    "candidate_session_id": "entry_session_011",
+    "candidate_event_id": "entry_evt_track_059_event_008_20260501_180518",
+    "time_delta_seconds": 1141.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_136_event_023_20260501_182419",
+    "candidate_session_id": "entry_session_012",
+    "candidate_event_id": "entry_evt_track_061_event_009_20260501_180533",
+    "time_delta_seconds": 1126.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_136_event_023_20260501_182419",
+    "candidate_session_id": "entry_session_013",
+    "candidate_event_id": "entry_evt_track_065_event_011_20260501_180547",
+    "time_delta_seconds": 1112.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_136_event_023_20260501_182419",
+    "candidate_session_id": "entry_session_014",
+    "candidate_event_id": "entry_evt_track_070_event_012_20260501_180559",
+    "time_delta_seconds": 1100.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_136_event_023_20260501_182419",
+    "candidate_session_id": "entry_session_015",
+    "candidate_event_id": "entry_evt_track_071_event_013_20260501_180601",
+    "time_delta_seconds": 1098.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_136_event_023_20260501_182419",
+    "candidate_session_id": "entry_session_016",
+    "candidate_event_id": "entry_evt_track_073_event_014_20260501_180611",
+    "time_delta_seconds": 1088.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_136_event_023_20260501_182419",
+    "candidate_session_id": "entry_session_017",
+    "candidate_event_id": "entry_evt_track_076_event_015_20260501_180634",
+    "time_delta_seconds": 1065.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_136_event_023_20260501_182419",
+    "candidate_session_id": "entry_session_018",
+    "candidate_event_id": "entry_evt_track_088_event_016_20260501_180746",
+    "time_delta_seconds": 993.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_136_event_023_20260501_182419",
+    "candidate_session_id": "entry_session_019",
+    "candidate_event_id": "entry_evt_track_108_event_017_20260501_180929",
+    "time_delta_seconds": 890.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_136_event_023_20260501_182419",
+    "candidate_session_id": "entry_session_020",
+    "candidate_event_id": "entry_evt_track_109_event_018_20260501_180933",
+    "time_delta_seconds": 886.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_136_event_023_20260501_182419",
+    "candidate_session_id": "entry_session_021",
+    "candidate_event_id": "entry_evt_track_115_event_019_20260501_181528",
+    "time_delta_seconds": 531.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_136_event_023_20260501_182419",
+    "candidate_session_id": "entry_session_022",
+    "candidate_event_id": "entry_evt_track_130_event_020_20260501_181945",
+    "time_delta_seconds": 274.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_136_event_023_20260501_182419",
+    "candidate_session_id": "entry_session_023",
+    "candidate_event_id": "entry_evt_track_131_event_021_20260501_181947",
+    "time_delta_seconds": 272.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_136_event_023_20260501_182419",
+    "candidate_session_id": "entry_session_024",
+    "candidate_event_id": "entry_evt_track_132_event_022_20260501_181959",
+    "time_delta_seconds": 260.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_137_event_024_20260501_182732",
+    "candidate_session_id": "entry_session_001",
+    "candidate_event_id": "entry_evt_track_005_event_001_20260501_174054",
+    "time_delta_seconds": 2798.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_137_event_024_20260501_182732",
+    "candidate_session_id": "entry_session_002",
+    "candidate_event_id": "entry_evt_track_008_event_003_20260501_174236",
+    "time_delta_seconds": 2696.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_137_event_024_20260501_182732",
+    "candidate_session_id": "entry_session_003",
+    "candidate_event_id": "entry_evt_track_009_event_004_20260501_174415",
+    "time_delta_seconds": 2597.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_137_event_024_20260501_182732",
+    "candidate_session_id": "entry_session_004",
+    "candidate_event_id": "entry_evt_track_001_event_001_20260501_175631",
+    "time_delta_seconds": 1861.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_137_event_024_20260501_182732",
+    "candidate_session_id": "entry_session_005",
+    "candidate_event_id": "entry_evt_track_003_event_002_20260501_175633",
+    "time_delta_seconds": 1859.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_137_event_024_20260501_182732",
+    "candidate_session_id": "entry_session_006",
+    "candidate_event_id": "entry_evt_track_018_event_003_20260501_175857",
+    "time_delta_seconds": 1715.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_137_event_024_20260501_182732",
+    "candidate_session_id": "entry_session_007",
+    "candidate_event_id": "entry_evt_track_019_event_004_20260501_175904",
+    "time_delta_seconds": 1708.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_137_event_024_20260501_182732",
+    "candidate_session_id": "entry_session_008",
+    "candidate_event_id": "entry_evt_track_045_event_005_20260501_180231",
+    "time_delta_seconds": 1501.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_137_event_024_20260501_182732",
+    "candidate_session_id": "entry_session_009",
+    "candidate_event_id": "entry_evt_track_048_event_006_20260501_180258",
+    "time_delta_seconds": 1474.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_137_event_024_20260501_182732",
+    "candidate_session_id": "entry_session_010",
+    "candidate_event_id": "entry_evt_track_055_event_007_20260501_180427",
+    "time_delta_seconds": 1385.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_137_event_024_20260501_182732",
+    "candidate_session_id": "entry_session_011",
+    "candidate_event_id": "entry_evt_track_059_event_008_20260501_180518",
+    "time_delta_seconds": 1334.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_137_event_024_20260501_182732",
+    "candidate_session_id": "entry_session_012",
+    "candidate_event_id": "entry_evt_track_061_event_009_20260501_180533",
+    "time_delta_seconds": 1319.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_137_event_024_20260501_182732",
+    "candidate_session_id": "entry_session_013",
+    "candidate_event_id": "entry_evt_track_065_event_011_20260501_180547",
+    "time_delta_seconds": 1305.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_137_event_024_20260501_182732",
+    "candidate_session_id": "entry_session_014",
+    "candidate_event_id": "entry_evt_track_070_event_012_20260501_180559",
+    "time_delta_seconds": 1293.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_137_event_024_20260501_182732",
+    "candidate_session_id": "entry_session_015",
+    "candidate_event_id": "entry_evt_track_071_event_013_20260501_180601",
+    "time_delta_seconds": 1291.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_137_event_024_20260501_182732",
+    "candidate_session_id": "entry_session_016",
+    "candidate_event_id": "entry_evt_track_073_event_014_20260501_180611",
+    "time_delta_seconds": 1281.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_137_event_024_20260501_182732",
+    "candidate_session_id": "entry_session_017",
+    "candidate_event_id": "entry_evt_track_076_event_015_20260501_180634",
+    "time_delta_seconds": 1258.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_137_event_024_20260501_182732",
+    "candidate_session_id": "entry_session_018",
+    "candidate_event_id": "entry_evt_track_088_event_016_20260501_180746",
+    "time_delta_seconds": 1186.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_137_event_024_20260501_182732",
+    "candidate_session_id": "entry_session_019",
+    "candidate_event_id": "entry_evt_track_108_event_017_20260501_180929",
+    "time_delta_seconds": 1083.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_137_event_024_20260501_182732",
+    "candidate_session_id": "entry_session_020",
+    "candidate_event_id": "entry_evt_track_109_event_018_20260501_180933",
+    "time_delta_seconds": 1079.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_137_event_024_20260501_182732",
+    "candidate_session_id": "entry_session_021",
+    "candidate_event_id": "entry_evt_track_115_event_019_20260501_181528",
+    "time_delta_seconds": 724.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_137_event_024_20260501_182732",
+    "candidate_session_id": "entry_session_022",
+    "candidate_event_id": "entry_evt_track_130_event_020_20260501_181945",
+    "time_delta_seconds": 467.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_137_event_024_20260501_182732",
+    "candidate_session_id": "entry_session_023",
+    "candidate_event_id": "entry_evt_track_131_event_021_20260501_181947",
+    "time_delta_seconds": 465.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_137_event_024_20260501_182732",
+    "candidate_session_id": "entry_session_024",
+    "candidate_event_id": "entry_evt_track_132_event_022_20260501_181959",
+    "time_delta_seconds": 453.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_137_event_024_20260501_182732",
+    "candidate_session_id": "entry_session_025",
+    "candidate_event_id": "entry_evt_track_136_event_023_20260501_182419",
+    "time_delta_seconds": 193.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_138_event_025_20260501_182741",
+    "candidate_session_id": "entry_session_001",
+    "candidate_event_id": "entry_evt_track_005_event_001_20260501_174054",
+    "time_delta_seconds": 2807.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_138_event_025_20260501_182741",
+    "candidate_session_id": "entry_session_002",
+    "candidate_event_id": "entry_evt_track_008_event_003_20260501_174236",
+    "time_delta_seconds": 2705.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_138_event_025_20260501_182741",
+    "candidate_session_id": "entry_session_003",
+    "candidate_event_id": "entry_evt_track_009_event_004_20260501_174415",
+    "time_delta_seconds": 2606.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_138_event_025_20260501_182741",
+    "candidate_session_id": "entry_session_004",
+    "candidate_event_id": "entry_evt_track_001_event_001_20260501_175631",
+    "time_delta_seconds": 1870.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_138_event_025_20260501_182741",
+    "candidate_session_id": "entry_session_005",
+    "candidate_event_id": "entry_evt_track_003_event_002_20260501_175633",
+    "time_delta_seconds": 1868.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_138_event_025_20260501_182741",
+    "candidate_session_id": "entry_session_006",
+    "candidate_event_id": "entry_evt_track_018_event_003_20260501_175857",
+    "time_delta_seconds": 1724.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_138_event_025_20260501_182741",
+    "candidate_session_id": "entry_session_007",
+    "candidate_event_id": "entry_evt_track_019_event_004_20260501_175904",
+    "time_delta_seconds": 1717.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_138_event_025_20260501_182741",
+    "candidate_session_id": "entry_session_008",
+    "candidate_event_id": "entry_evt_track_045_event_005_20260501_180231",
+    "time_delta_seconds": 1510.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_138_event_025_20260501_182741",
+    "candidate_session_id": "entry_session_009",
+    "candidate_event_id": "entry_evt_track_048_event_006_20260501_180258",
+    "time_delta_seconds": 1483.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_138_event_025_20260501_182741",
+    "candidate_session_id": "entry_session_010",
+    "candidate_event_id": "entry_evt_track_055_event_007_20260501_180427",
+    "time_delta_seconds": 1394.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_138_event_025_20260501_182741",
+    "candidate_session_id": "entry_session_011",
+    "candidate_event_id": "entry_evt_track_059_event_008_20260501_180518",
+    "time_delta_seconds": 1343.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_138_event_025_20260501_182741",
+    "candidate_session_id": "entry_session_012",
+    "candidate_event_id": "entry_evt_track_061_event_009_20260501_180533",
+    "time_delta_seconds": 1328.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_138_event_025_20260501_182741",
+    "candidate_session_id": "entry_session_013",
+    "candidate_event_id": "entry_evt_track_065_event_011_20260501_180547",
+    "time_delta_seconds": 1314.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_138_event_025_20260501_182741",
+    "candidate_session_id": "entry_session_014",
+    "candidate_event_id": "entry_evt_track_070_event_012_20260501_180559",
+    "time_delta_seconds": 1302.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_138_event_025_20260501_182741",
+    "candidate_session_id": "entry_session_015",
+    "candidate_event_id": "entry_evt_track_071_event_013_20260501_180601",
+    "time_delta_seconds": 1300.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_138_event_025_20260501_182741",
+    "candidate_session_id": "entry_session_016",
+    "candidate_event_id": "entry_evt_track_073_event_014_20260501_180611",
+    "time_delta_seconds": 1290.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_138_event_025_20260501_182741",
+    "candidate_session_id": "entry_session_017",
+    "candidate_event_id": "entry_evt_track_076_event_015_20260501_180634",
+    "time_delta_seconds": 1267.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_138_event_025_20260501_182741",
+    "candidate_session_id": "entry_session_018",
+    "candidate_event_id": "entry_evt_track_088_event_016_20260501_180746",
+    "time_delta_seconds": 1195.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_138_event_025_20260501_182741",
+    "candidate_session_id": "entry_session_019",
+    "candidate_event_id": "entry_evt_track_108_event_017_20260501_180929",
+    "time_delta_seconds": 1092.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_138_event_025_20260501_182741",
+    "candidate_session_id": "entry_session_020",
+    "candidate_event_id": "entry_evt_track_109_event_018_20260501_180933",
+    "time_delta_seconds": 1088.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_138_event_025_20260501_182741",
+    "candidate_session_id": "entry_session_021",
+    "candidate_event_id": "entry_evt_track_115_event_019_20260501_181528",
+    "time_delta_seconds": 733.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_138_event_025_20260501_182741",
+    "candidate_session_id": "entry_session_022",
+    "candidate_event_id": "entry_evt_track_130_event_020_20260501_181945",
+    "time_delta_seconds": 476.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_138_event_025_20260501_182741",
+    "candidate_session_id": "entry_session_023",
+    "candidate_event_id": "entry_evt_track_131_event_021_20260501_181947",
+    "time_delta_seconds": 474.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_138_event_025_20260501_182741",
+    "candidate_session_id": "entry_session_024",
+    "candidate_event_id": "entry_evt_track_132_event_022_20260501_181959",
+    "time_delta_seconds": 462.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_138_event_025_20260501_182741",
+    "candidate_session_id": "entry_session_025",
+    "candidate_event_id": "entry_evt_track_136_event_023_20260501_182419",
+    "time_delta_seconds": 202.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_138_event_025_20260501_182741",
+    "candidate_session_id": "entry_session_026",
+    "candidate_event_id": "entry_evt_track_137_event_024_20260501_182732",
+    "time_delta_seconds": 9.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_150_event_026_20260501_183051",
+    "candidate_session_id": "entry_session_001",
+    "candidate_event_id": "entry_evt_track_005_event_001_20260501_174054",
+    "time_delta_seconds": 2997.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_150_event_026_20260501_183051",
+    "candidate_session_id": "entry_session_002",
+    "candidate_event_id": "entry_evt_track_008_event_003_20260501_174236",
+    "time_delta_seconds": 2895.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_150_event_026_20260501_183051",
+    "candidate_session_id": "entry_session_003",
+    "candidate_event_id": "entry_evt_track_009_event_004_20260501_174415",
+    "time_delta_seconds": 2796.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_150_event_026_20260501_183051",
+    "candidate_session_id": "entry_session_004",
+    "candidate_event_id": "entry_evt_track_001_event_001_20260501_175631",
+    "time_delta_seconds": 2060.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_150_event_026_20260501_183051",
+    "candidate_session_id": "entry_session_005",
+    "candidate_event_id": "entry_evt_track_003_event_002_20260501_175633",
+    "time_delta_seconds": 2058.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_150_event_026_20260501_183051",
+    "candidate_session_id": "entry_session_006",
+    "candidate_event_id": "entry_evt_track_018_event_003_20260501_175857",
+    "time_delta_seconds": 1914.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_150_event_026_20260501_183051",
+    "candidate_session_id": "entry_session_007",
+    "candidate_event_id": "entry_evt_track_019_event_004_20260501_175904",
+    "time_delta_seconds": 1907.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_150_event_026_20260501_183051",
+    "candidate_session_id": "entry_session_008",
+    "candidate_event_id": "entry_evt_track_045_event_005_20260501_180231",
+    "time_delta_seconds": 1700.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_150_event_026_20260501_183051",
+    "candidate_session_id": "entry_session_009",
+    "candidate_event_id": "entry_evt_track_048_event_006_20260501_180258",
+    "time_delta_seconds": 1673.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_150_event_026_20260501_183051",
+    "candidate_session_id": "entry_session_010",
+    "candidate_event_id": "entry_evt_track_055_event_007_20260501_180427",
+    "time_delta_seconds": 1584.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_150_event_026_20260501_183051",
+    "candidate_session_id": "entry_session_011",
+    "candidate_event_id": "entry_evt_track_059_event_008_20260501_180518",
+    "time_delta_seconds": 1533.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_150_event_026_20260501_183051",
+    "candidate_session_id": "entry_session_012",
+    "candidate_event_id": "entry_evt_track_061_event_009_20260501_180533",
+    "time_delta_seconds": 1518.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_150_event_026_20260501_183051",
+    "candidate_session_id": "entry_session_013",
+    "candidate_event_id": "entry_evt_track_065_event_011_20260501_180547",
+    "time_delta_seconds": 1504.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_150_event_026_20260501_183051",
+    "candidate_session_id": "entry_session_014",
+    "candidate_event_id": "entry_evt_track_070_event_012_20260501_180559",
+    "time_delta_seconds": 1492.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_150_event_026_20260501_183051",
+    "candidate_session_id": "entry_session_015",
+    "candidate_event_id": "entry_evt_track_071_event_013_20260501_180601",
+    "time_delta_seconds": 1490.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_150_event_026_20260501_183051",
+    "candidate_session_id": "entry_session_016",
+    "candidate_event_id": "entry_evt_track_073_event_014_20260501_180611",
+    "time_delta_seconds": 1480.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_150_event_026_20260501_183051",
+    "candidate_session_id": "entry_session_017",
+    "candidate_event_id": "entry_evt_track_076_event_015_20260501_180634",
+    "time_delta_seconds": 1457.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_150_event_026_20260501_183051",
+    "candidate_session_id": "entry_session_018",
+    "candidate_event_id": "entry_evt_track_088_event_016_20260501_180746",
+    "time_delta_seconds": 1385.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_150_event_026_20260501_183051",
+    "candidate_session_id": "entry_session_019",
+    "candidate_event_id": "entry_evt_track_108_event_017_20260501_180929",
+    "time_delta_seconds": 1282.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_150_event_026_20260501_183051",
+    "candidate_session_id": "entry_session_020",
+    "candidate_event_id": "entry_evt_track_109_event_018_20260501_180933",
+    "time_delta_seconds": 1278.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_150_event_026_20260501_183051",
+    "candidate_session_id": "entry_session_021",
+    "candidate_event_id": "entry_evt_track_115_event_019_20260501_181528",
+    "time_delta_seconds": 923.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_150_event_026_20260501_183051",
+    "candidate_session_id": "entry_session_022",
+    "candidate_event_id": "entry_evt_track_130_event_020_20260501_181945",
+    "time_delta_seconds": 666.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_150_event_026_20260501_183051",
+    "candidate_session_id": "entry_session_023",
+    "candidate_event_id": "entry_evt_track_131_event_021_20260501_181947",
+    "time_delta_seconds": 664.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_150_event_026_20260501_183051",
+    "candidate_session_id": "entry_session_024",
+    "candidate_event_id": "entry_evt_track_132_event_022_20260501_181959",
+    "time_delta_seconds": 652.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_150_event_026_20260501_183051",
+    "candidate_session_id": "entry_session_025",
+    "candidate_event_id": "entry_evt_track_136_event_023_20260501_182419",
+    "time_delta_seconds": 392.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_150_event_026_20260501_183051",
+    "candidate_session_id": "entry_session_026",
+    "candidate_event_id": "entry_evt_track_137_event_024_20260501_182732",
+    "time_delta_seconds": 199.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  },
+  {
+    "incoming_event_id": "entry_evt_track_150_event_026_20260501_183051",
+    "candidate_session_id": "entry_session_027",
+    "candidate_event_id": "entry_evt_track_138_event_025_20260501_182741",
+    "time_delta_seconds": 190.0,
+    "face_similarity": null,
+    "same_camera": true,
+    "decision": "kept_separate",
+    "reason": "outside_merge_window"
+  }
+]

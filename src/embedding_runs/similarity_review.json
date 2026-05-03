@@ -1,0 +1,3222 @@
+[
+  {
+    "event_name": "track_001_event_001_20260501_175631",
+    "face_count": 9,
+    "best_image": "post_00_frame_000451_score_0.67.jpg",
+    "neighbors": [
+      {
+        "event_name": "track_131_event_021_20260501_181947",
+        "cosine_similarity": 0.7069926261901855
+      },
+      {
+        "event_name": "track_130_event_020_20260501_181945",
+        "cosine_similarity": 0.631278932094574
+      },
+      {
+        "event_name": "track_055_event_007_20260501_180427",
+        "cosine_similarity": 0.5726762413978577
+      },
+      {
+        "event_name": "track_073_event_014_20260501_180611",
+        "cosine_similarity": 0.5267311334609985
+      },
+      {
+        "event_name": "track_076_event_015_20260501_180634",
+        "cosine_similarity": 0.49437546730041504
+      },
+      {
+        "event_name": "track_065_event_011_20260501_180547",
+        "cosine_similarity": 0.4897496700286865
+      },
+      {
+        "event_name": "track_132_event_022_20260501_181959",
+        "cosine_similarity": 0.45785337686538696
+      },
+      {
+        "event_name": "track_088_event_016_20260501_180746",
+        "cosine_similarity": 0.4288124442100525
+      },
+      {
+        "event_name": "track_059_event_008_20260501_180518",
+        "cosine_similarity": 0.2964474856853485
+      },
+      {
+        "event_name": "track_003_event_002_20260501_175633",
+        "cosine_similarity": 0.27192121744155884
+      },
+      {
+        "event_name": "track_108_event_017_20260501_180929",
+        "cosine_similarity": 0.23787948489189148
+      },
+      {
+        "event_name": "track_136_event_023_20260501_182419",
+        "cosine_similarity": 0.22523994743824005
+      },
+      {
+        "event_name": "track_045_event_005_20260501_180231",
+        "cosine_similarity": 0.1936752200126648
+      },
+      {
+        "event_name": "track_109_event_018_20260501_180933",
+        "cosine_similarity": 0.16991247236728668
+      },
+      {
+        "event_name": "track_008_event_003_20260501_174236",
+        "cosine_similarity": 0.14490219950675964
+      },
+      {
+        "event_name": "track_018_event_003_20260501_175857",
+        "cosine_similarity": 0.1433975100517273
+      },
+      {
+        "event_name": "track_005_event_001_20260501_174054",
+        "cosine_similarity": 0.13711227476596832
+      },
+      {
+        "event_name": "track_070_event_012_20260501_180559",
+        "cosine_similarity": 0.1076129823923111
+      },
+      {
+        "event_name": "track_061_event_009_20260501_180533",
+        "cosine_similarity": 0.09534655511379242
+      },
+      {
+        "event_name": "track_009_event_004_20260501_174415",
+        "cosine_similarity": 0.0932803750038147
+      },
+      {
+        "event_name": "track_137_event_024_20260501_182732",
+        "cosine_similarity": 0.08717340230941772
+      },
+      {
+        "event_name": "track_048_event_006_20260501_180258",
+        "cosine_similarity": 0.07694111764431
+      },
+      {
+        "event_name": "track_150_event_026_20260501_183051",
+        "cosine_similarity": 0.07425076514482498
+      },
+      {
+        "event_name": "track_071_event_013_20260501_180601",
+        "cosine_similarity": 0.06699345260858536
+      },
+      {
+        "event_name": "track_019_event_004_20260501_175904",
+        "cosine_similarity": 0.06556975841522217
+      },
+      {
+        "event_name": "track_138_event_025_20260501_182741",
+        "cosine_similarity": 0.06244886294007301
+      },
+      {
+        "event_name": "track_115_event_019_20260501_181528",
+        "cosine_similarity": 0.04287079721689224
+      }
+    ]
+  },
+  {
+    "event_name": "track_003_event_002_20260501_175633",
+    "face_count": 9,
+    "best_image": "post_02_frame_000486_score_0.65.jpg",
+    "neighbors": [
+      {
+        "event_name": "track_059_event_008_20260501_180518",
+        "cosine_similarity": 0.6912479400634766
+      },
+      {
+        "event_name": "track_070_event_012_20260501_180559",
+        "cosine_similarity": 0.5440313816070557
+      },
+      {
+        "event_name": "track_108_event_017_20260501_180929",
+        "cosine_similarity": 0.5387920141220093
+      },
+      {
+        "event_name": "track_132_event_022_20260501_181959",
+        "cosine_similarity": 0.4787070155143738
+      },
+      {
+        "event_name": "track_019_event_004_20260501_175904",
+        "cosine_similarity": 0.4548933804035187
+      },
+      {
+        "event_name": "track_076_event_015_20260501_180634",
+        "cosine_similarity": 0.4036737382411957
+      },
+      {
+        "event_name": "track_045_event_005_20260501_180231",
+        "cosine_similarity": 0.39612293243408203
+      },
+      {
+        "event_name": "track_018_event_003_20260501_175857",
+        "cosine_similarity": 0.39248088002204895
+      },
+      {
+        "event_name": "track_055_event_007_20260501_180427",
+        "cosine_similarity": 0.3908643424510956
+      },
+      {
+        "event_name": "track_008_event_003_20260501_174236",
+        "cosine_similarity": 0.3610667586326599
+      },
+      {
+        "event_name": "track_150_event_026_20260501_183051",
+        "cosine_similarity": 0.35412001609802246
+      },
+      {
+        "event_name": "track_073_event_014_20260501_180611",
+        "cosine_similarity": 0.31962060928344727
+      },
+      {
+        "event_name": "track_130_event_020_20260501_181945",
+        "cosine_similarity": 0.3030188977718353
+      },
+      {
+        "event_name": "track_071_event_013_20260501_180601",
+        "cosine_similarity": 0.2931995689868927
+      },
+      {
+        "event_name": "track_009_event_004_20260501_174415",
+        "cosine_similarity": 0.29169076681137085
+      },
+      {
+        "event_name": "track_088_event_016_20260501_180746",
+        "cosine_similarity": 0.275956928730011
+      },
+      {
+        "event_name": "track_001_event_001_20260501_175631",
+        "cosine_similarity": 0.27192121744155884
+      },
+      {
+        "event_name": "track_136_event_023_20260501_182419",
+        "cosine_similarity": 0.2531161606311798
+      },
+      {
+        "event_name": "track_137_event_024_20260501_182732",
+        "cosine_similarity": 0.24848869442939758
+      },
+      {
+        "event_name": "track_131_event_021_20260501_181947",
+        "cosine_similarity": 0.2135705053806305
+      },
+      {
+        "event_name": "track_109_event_018_20260501_180933",
+        "cosine_similarity": 0.19007521867752075
+      },
+      {
+        "event_name": "track_061_event_009_20260501_180533",
+        "cosine_similarity": 0.18236038088798523
+      },
+      {
+        "event_name": "track_048_event_006_20260501_180258",
+        "cosine_similarity": 0.18178331851959229
+      },
+      {
+        "event_name": "track_138_event_025_20260501_182741",
+        "cosine_similarity": 0.17406752705574036
+      },
+      {
+        "event_name": "track_065_event_011_20260501_180547",
+        "cosine_similarity": 0.1717010736465454
+      },
+      {
+        "event_name": "track_115_event_019_20260501_181528",
+        "cosine_similarity": 0.07116637378931046
+      },
+      {
+        "event_name": "track_005_event_001_20260501_174054",
+        "cosine_similarity": 0.028807885944843292
+      }
+    ]
+  },
+  {
+    "event_name": "track_005_event_001_20260501_174054",
+    "face_count": 9,
+    "best_image": "pre_00_frame_001189_score_0.80.jpg",
+    "neighbors": [
+      {
+        "event_name": "track_132_event_022_20260501_181959",
+        "cosine_similarity": 0.14267085492610931
+      },
+      {
+        "event_name": "track_001_event_001_20260501_175631",
+        "cosine_similarity": 0.13711227476596832
+      },
+      {
+        "event_name": "track_130_event_020_20260501_181945",
+        "cosine_similarity": 0.13384775817394257
+      },
+      {
+        "event_name": "track_073_event_014_20260501_180611",
+        "cosine_similarity": 0.09986577928066254
+      },
+      {
+        "event_name": "track_065_event_011_20260501_180547",
+        "cosine_similarity": 0.07339511811733246
+      },
+      {
+        "event_name": "track_115_event_019_20260501_181528",
+        "cosine_similarity": 0.07019056379795074
+      },
+      {
+        "event_name": "track_131_event_021_20260501_181947",
+        "cosine_similarity": 0.0684652104973793
+      },
+      {
+        "event_name": "track_070_event_012_20260501_180559",
+        "cosine_similarity": 0.06433504819869995
+      },
+      {
+        "event_name": "track_136_event_023_20260501_182419",
+        "cosine_similarity": 0.06342433393001556
+      },
+      {
+        "event_name": "track_059_event_008_20260501_180518",
+        "cosine_similarity": 0.06033260375261307
+      },
+      {
+        "event_name": "track_045_event_005_20260501_180231",
+        "cosine_similarity": 0.05279586464166641
+      },
+      {
+        "event_name": "track_061_event_009_20260501_180533",
+        "cosine_similarity": 0.049443572759628296
+      },
+      {
+        "event_name": "track_088_event_016_20260501_180746",
+        "cosine_similarity": 0.03523322194814682
+      },
+      {
+        "event_name": "track_003_event_002_20260501_175633",
+        "cosine_similarity": 0.028807885944843292
+      },
+      {
+        "event_name": "track_150_event_026_20260501_183051",
+        "cosine_similarity": 0.025430483743548393
+      },
+      {
+        "event_name": "track_108_event_017_20260501_180929",
+        "cosine_similarity": 0.012052061036229134
+      },
+      {
+        "event_name": "track_055_event_007_20260501_180427",
+        "cosine_similarity": 0.0035423748195171356
+      },
+      {
+        "event_name": "track_076_event_015_20260501_180634",
+        "cosine_similarity": 0.0008864700794219971
+      },
+      {
+        "event_name": "track_019_event_004_20260501_175904",
+        "cosine_similarity": 0.00039653643034398556
+      },
+      {
+        "event_name": "track_008_event_003_20260501_174236",
+        "cosine_similarity": -0.003341933712363243
+      },
+      {
+        "event_name": "track_109_event_018_20260501_180933",
+        "cosine_similarity": -0.01248997449874878
+      },
+      {
+        "event_name": "track_009_event_004_20260501_174415",
+        "cosine_similarity": -0.019170111045241356
+      },
+      {
+        "event_name": "track_018_event_003_20260501_175857",
+        "cosine_similarity": -0.020455703139305115
+      },
+      {
+        "event_name": "track_071_event_013_20260501_180601",
+        "cosine_similarity": -0.023374609649181366
+      },
+      {
+        "event_name": "track_137_event_024_20260501_182732",
+        "cosine_similarity": -0.036278992891311646
+      },
+      {
+        "event_name": "track_048_event_006_20260501_180258",
+        "cosine_similarity": -0.0433681383728981
+      },
+      {
+        "event_name": "track_138_event_025_20260501_182741",
+        "cosine_similarity": -0.11555871367454529
+      }
+    ]
+  },
+  {
+    "event_name": "track_008_event_003_20260501_174236",
+    "face_count": 8,
+    "best_image": "pre_01_frame_002674_score_0.71.jpg",
+    "neighbors": [
+      {
+        "event_name": "track_009_event_004_20260501_174415",
+        "cosine_similarity": 0.829016923904419
+      },
+      {
+        "event_name": "track_109_event_018_20260501_180933",
+        "cosine_similarity": 0.5035786032676697
+      },
+      {
+        "event_name": "track_108_event_017_20260501_180929",
+        "cosine_similarity": 0.4113442301750183
+      },
+      {
+        "event_name": "track_045_event_005_20260501_180231",
+        "cosine_similarity": 0.3796777129173279
+      },
+      {
+        "event_name": "track_003_event_002_20260501_175633",
+        "cosine_similarity": 0.3610667586326599
+      },
+      {
+        "event_name": "track_055_event_007_20260501_180427",
+        "cosine_similarity": 0.20138810575008392
+      },
+      {
+        "event_name": "track_138_event_025_20260501_182741",
+        "cosine_similarity": 0.18718969821929932
+      },
+      {
+        "event_name": "track_059_event_008_20260501_180518",
+        "cosine_similarity": 0.1521187126636505
+      },
+      {
+        "event_name": "track_061_event_009_20260501_180533",
+        "cosine_similarity": 0.14596675336360931
+      },
+      {
+        "event_name": "track_001_event_001_20260501_175631",
+        "cosine_similarity": 0.14490219950675964
+      },
+      {
+        "event_name": "track_088_event_016_20260501_180746",
+        "cosine_similarity": 0.13495713472366333
+      },
+      {
+        "event_name": "track_132_event_022_20260501_181959",
+        "cosine_similarity": 0.12463140487670898
+      },
+      {
+        "event_name": "track_071_event_013_20260501_180601",
+        "cosine_similarity": 0.10807137191295624
+      },
+      {
+        "event_name": "track_076_event_015_20260501_180634",
+        "cosine_similarity": 0.10065985471010208
+      },
+      {
+        "event_name": "track_070_event_012_20260501_180559",
+        "cosine_similarity": 0.09976290166378021
+      },
+      {
+        "event_name": "track_130_event_020_20260501_181945",
+        "cosine_similarity": 0.09883026778697968
+      },
+      {
+        "event_name": "track_048_event_006_20260501_180258",
+        "cosine_similarity": 0.09830904752016068
+      },
+      {
+        "event_name": "track_136_event_023_20260501_182419",
+        "cosine_similarity": 0.09678773581981659
+      },
+      {
+        "event_name": "track_131_event_021_20260501_181947",
+        "cosine_similarity": 0.09182386100292206
+      },
+      {
+        "event_name": "track_115_event_019_20260501_181528",
+        "cosine_similarity": 0.0892832800745964
+      },
+      {
+        "event_name": "track_018_event_003_20260501_175857",
+        "cosine_similarity": 0.08566173166036606
+      },
+      {
+        "event_name": "track_073_event_014_20260501_180611",
+        "cosine_similarity": 0.05661218613386154
+      },
+      {
+        "event_name": "track_019_event_004_20260501_175904",
+        "cosine_similarity": 0.05488967522978783
+      },
+      {
+        "event_name": "track_137_event_024_20260501_182732",
+        "cosine_similarity": 0.047792255878448486
+      },
+      {
+        "event_name": "track_065_event_011_20260501_180547",
+        "cosine_similarity": 0.03100290335714817
+      },
+      {
+        "event_name": "track_150_event_026_20260501_183051",
+        "cosine_similarity": 0.028550365939736366
+      },
+      {
+        "event_name": "track_005_event_001_20260501_174054",
+        "cosine_similarity": -0.003341933712363243
+      }
+    ]
+  },
+  {
+    "event_name": "track_009_event_004_20260501_174415",
+    "face_count": 9,
+    "best_image": "pre_01_frame_004107_score_0.70.jpg",
+    "neighbors": [
+      {
+        "event_name": "track_008_event_003_20260501_174236",
+        "cosine_similarity": 0.829016923904419
+      },
+      {
+        "event_name": "track_109_event_018_20260501_180933",
+        "cosine_similarity": 0.5348778963088989
+      },
+      {
+        "event_name": "track_045_event_005_20260501_180231",
+        "cosine_similarity": 0.3524148464202881
+      },
+      {
+        "event_name": "track_108_event_017_20260501_180929",
+        "cosine_similarity": 0.34820613265037537
+      },
+      {
+        "event_name": "track_003_event_002_20260501_175633",
+        "cosine_similarity": 0.29169076681137085
+      },
+      {
+        "event_name": "track_088_event_016_20260501_180746",
+        "cosine_similarity": 0.17470242083072662
+      },
+      {
+        "event_name": "track_061_event_009_20260501_180533",
+        "cosine_similarity": 0.16942666471004486
+      },
+      {
+        "event_name": "track_055_event_007_20260501_180427",
+        "cosine_similarity": 0.15409168601036072
+      },
+      {
+        "event_name": "track_048_event_006_20260501_180258",
+        "cosine_similarity": 0.14687785506248474
+      },
+      {
+        "event_name": "track_138_event_025_20260501_182741",
+        "cosine_similarity": 0.13872916996479034
+      },
+      {
+        "event_name": "track_059_event_008_20260501_180518",
+        "cosine_similarity": 0.13566048443317413
+      },
+      {
+        "event_name": "track_071_event_013_20260501_180601",
+        "cosine_similarity": 0.1339898556470871
+      },
+      {
+        "event_name": "track_132_event_022_20260501_181959",
+        "cosine_similarity": 0.11955061554908752
+      },
+      {
+        "event_name": "track_076_event_015_20260501_180634",
+        "cosine_similarity": 0.10371401906013489
+      },
+      {
+        "event_name": "track_001_event_001_20260501_175631",
+        "cosine_similarity": 0.0932803750038147
+      },
+      {
+        "event_name": "track_131_event_021_20260501_181947",
+        "cosine_similarity": 0.08913222700357437
+      },
+      {
+        "event_name": "track_065_event_011_20260501_180547",
+        "cosine_similarity": 0.06545808911323547
+      },
+      {
+        "event_name": "track_073_event_014_20260501_180611",
+        "cosine_similarity": 0.06517444550991058
+      },
+      {
+        "event_name": "track_130_event_020_20260501_181945",
+        "cosine_similarity": 0.0651378184556961
+      },
+      {
+        "event_name": "track_115_event_019_20260501_181528",
+        "cosine_similarity": 0.060774508863687515
+      },
+      {
+        "event_name": "track_070_event_012_20260501_180559",
+        "cosine_similarity": 0.04904846474528313
+      },
+      {
+        "event_name": "track_137_event_024_20260501_182732",
+        "cosine_similarity": 0.047806642949581146
+      },
+      {
+        "event_name": "track_150_event_026_20260501_183051",
+        "cosine_similarity": 0.044532373547554016
+      },
+      {
+        "event_name": "track_018_event_003_20260501_175857",
+        "cosine_similarity": 0.03166438639163971
+      },
+      {
+        "event_name": "track_136_event_023_20260501_182419",
+        "cosine_similarity": 0.023986298590898514
+      },
+      {
+        "event_name": "track_019_event_004_20260501_175904",
+        "cosine_similarity": 0.023830020800232887
+      },
+      {
+        "event_name": "track_005_event_001_20260501_174054",
+        "cosine_similarity": -0.019170111045241356
+      }
+    ]
+  },
+  {
+    "event_name": "track_018_event_003_20260501_175857",
+    "face_count": 5,
+    "best_image": "pre_00_frame_002568_score_0.73.jpg",
+    "neighbors": [
+      {
+        "event_name": "track_019_event_004_20260501_175904",
+        "cosine_similarity": 0.5859017372131348
+      },
+      {
+        "event_name": "track_070_event_012_20260501_180559",
+        "cosine_similarity": 0.532237708568573
+      },
+      {
+        "event_name": "track_059_event_008_20260501_180518",
+        "cosine_similarity": 0.45971328020095825
+      },
+      {
+        "event_name": "track_150_event_026_20260501_183051",
+        "cosine_similarity": 0.4362248182296753
+      },
+      {
+        "event_name": "track_137_event_024_20260501_182732",
+        "cosine_similarity": 0.39665916562080383
+      },
+      {
+        "event_name": "track_003_event_002_20260501_175633",
+        "cosine_similarity": 0.39248088002204895
+      },
+      {
+        "event_name": "track_108_event_017_20260501_180929",
+        "cosine_similarity": 0.36285459995269775
+      },
+      {
+        "event_name": "track_045_event_005_20260501_180231",
+        "cosine_similarity": 0.34436744451522827
+      },
+      {
+        "event_name": "track_076_event_015_20260501_180634",
+        "cosine_similarity": 0.2552613615989685
+      },
+      {
+        "event_name": "track_132_event_022_20260501_181959",
+        "cosine_similarity": 0.23182232677936554
+      },
+      {
+        "event_name": "track_071_event_013_20260501_180601",
+        "cosine_similarity": 0.2248428463935852
+      },
+      {
+        "event_name": "track_138_event_025_20260501_182741",
+        "cosine_similarity": 0.1989145129919052
+      },
+      {
+        "event_name": "track_001_event_001_20260501_175631",
+        "cosine_similarity": 0.1433975100517273
+      },
+      {
+        "event_name": "track_055_event_007_20260501_180427",
+        "cosine_similarity": 0.14053869247436523
+      },
+      {
+        "event_name": "track_048_event_006_20260501_180258",
+        "cosine_similarity": 0.11714867502450943
+      },
+      {
+        "event_name": "track_073_event_014_20260501_180611",
+        "cosine_similarity": 0.11366733908653259
+      },
+      {
+        "event_name": "track_109_event_018_20260501_180933",
+        "cosine_similarity": 0.10260142385959625
+      },
+      {
+        "event_name": "track_115_event_019_20260501_181528",
+        "cosine_similarity": 0.09796028584241867
+      },
+      {
+        "event_name": "track_008_event_003_20260501_174236",
+        "cosine_similarity": 0.08566173166036606
+      },
+      {
+        "event_name": "track_061_event_009_20260501_180533",
+        "cosine_similarity": 0.08407934755086899
+      },
+      {
+        "event_name": "track_130_event_020_20260501_181945",
+        "cosine_similarity": 0.06294718384742737
+      },
+      {
+        "event_name": "track_136_event_023_20260501_182419",
+        "cosine_similarity": 0.036905687302351
+      },
+      {
+        "event_name": "track_131_event_021_20260501_181947",
+        "cosine_similarity": 0.03639277443289757
+      },
+      {
+        "event_name": "track_009_event_004_20260501_174415",
+        "cosine_similarity": 0.03166438639163971
+      },
+      {
+        "event_name": "track_088_event_016_20260501_180746",
+        "cosine_similarity": 0.028078511357307434
+      },
+      {
+        "event_name": "track_005_event_001_20260501_174054",
+        "cosine_similarity": -0.020455703139305115
+      },
+      {
+        "event_name": "track_065_event_011_20260501_180547",
+        "cosine_similarity": -0.024333316832780838
+      }
+    ]
+  },
+  {
+    "event_name": "track_019_event_004_20260501_175904",
+    "face_count": 9,
+    "best_image": "pre_02_frame_002674_score_0.70.jpg",
+    "neighbors": [
+      {
+        "event_name": "track_070_event_012_20260501_180559",
+        "cosine_similarity": 0.6994775533676147
+      },
+      {
+        "event_name": "track_018_event_003_20260501_175857",
+        "cosine_similarity": 0.5859017372131348
+      },
+      {
+        "event_name": "track_150_event_026_20260501_183051",
+        "cosine_similarity": 0.5704700946807861
+      },
+      {
+        "event_name": "track_059_event_008_20260501_180518",
+        "cosine_similarity": 0.4712907671928406
+      },
+      {
+        "event_name": "track_003_event_002_20260501_175633",
+        "cosine_similarity": 0.4548933804035187
+      },
+      {
+        "event_name": "track_137_event_024_20260501_182732",
+        "cosine_similarity": 0.3313736915588379
+      },
+      {
+        "event_name": "track_076_event_015_20260501_180634",
+        "cosine_similarity": 0.3249439001083374
+      },
+      {
+        "event_name": "track_108_event_017_20260501_180929",
+        "cosine_similarity": 0.2747163772583008
+      },
+      {
+        "event_name": "track_045_event_005_20260501_180231",
+        "cosine_similarity": 0.20041224360466003
+      },
+      {
+        "event_name": "track_132_event_022_20260501_181959",
+        "cosine_similarity": 0.18430113792419434
+      },
+      {
+        "event_name": "track_071_event_013_20260501_180601",
+        "cosine_similarity": 0.15555471181869507
+      },
+      {
+        "event_name": "track_055_event_007_20260501_180427",
+        "cosine_similarity": 0.11958470195531845
+      },
+      {
+        "event_name": "track_138_event_025_20260501_182741",
+        "cosine_similarity": 0.0881248414516449
+      },
+      {
+        "event_name": "track_073_event_014_20260501_180611",
+        "cosine_similarity": 0.0671265572309494
+      },
+      {
+        "event_name": "track_001_event_001_20260501_175631",
+        "cosine_similarity": 0.06556975841522217
+      },
+      {
+        "event_name": "track_008_event_003_20260501_174236",
+        "cosine_similarity": 0.05488967522978783
+      },
+      {
+        "event_name": "track_109_event_018_20260501_180933",
+        "cosine_similarity": 0.052976690232753754
+      },
+      {
+        "event_name": "track_130_event_020_20260501_181945",
+        "cosine_similarity": 0.0505451001226902
+      },
+      {
+        "event_name": "track_131_event_021_20260501_181947",
+        "cosine_similarity": 0.049661457538604736
+      },
+      {
+        "event_name": "track_048_event_006_20260501_180258",
+        "cosine_similarity": 0.046193789690732956
+      },
+      {
+        "event_name": "track_065_event_011_20260501_180547",
+        "cosine_similarity": 0.029545174911618233
+      },
+      {
+        "event_name": "track_136_event_023_20260501_182419",
+        "cosine_similarity": 0.02902951091527939
+      },
+      {
+        "event_name": "track_061_event_009_20260501_180533",
+        "cosine_similarity": 0.027082260698080063
+      },
+      {
+        "event_name": "track_088_event_016_20260501_180746",
+        "cosine_similarity": 0.026750309392809868
+      },
+      {
+        "event_name": "track_009_event_004_20260501_174415",
+        "cosine_similarity": 0.023830020800232887
+      },
+      {
+        "event_name": "track_115_event_019_20260501_181528",
+        "cosine_similarity": 0.0228993259370327
+      },
+      {
+        "event_name": "track_005_event_001_20260501_174054",
+        "cosine_similarity": 0.00039653643034398556
+      }
+    ]
+  },
+  {
+    "event_name": "track_045_event_005_20260501_180231",
+    "face_count": 9,
+    "best_image": "pre_00_frame_005650_score_0.57.jpg",
+    "neighbors": [
+      {
+        "event_name": "track_108_event_017_20260501_180929",
+        "cosine_similarity": 0.6044719815254211
+      },
+      {
+        "event_name": "track_003_event_002_20260501_175633",
+        "cosine_similarity": 0.39612293243408203
+      },
+      {
+        "event_name": "track_008_event_003_20260501_174236",
+        "cosine_similarity": 0.3796777129173279
+      },
+      {
+        "event_name": "track_059_event_008_20260501_180518",
+        "cosine_similarity": 0.37136590480804443
+      },
+      {
+        "event_name": "track_109_event_018_20260501_180933",
+        "cosine_similarity": 0.35278749465942383
+      },
+      {
+        "event_name": "track_009_event_004_20260501_174415",
+        "cosine_similarity": 0.3524148464202881
+      },
+      {
+        "event_name": "track_018_event_003_20260501_175857",
+        "cosine_similarity": 0.34436744451522827
+      },
+      {
+        "event_name": "track_132_event_022_20260501_181959",
+        "cosine_similarity": 0.3086218535900116
+      },
+      {
+        "event_name": "track_070_event_012_20260501_180559",
+        "cosine_similarity": 0.28943538665771484
+      },
+      {
+        "event_name": "track_150_event_026_20260501_183051",
+        "cosine_similarity": 0.2615504264831543
+      },
+      {
+        "event_name": "track_071_event_013_20260501_180601",
+        "cosine_similarity": 0.2456953525543213
+      },
+      {
+        "event_name": "track_076_event_015_20260501_180634",
+        "cosine_similarity": 0.24521712958812714
+      },
+      {
+        "event_name": "track_048_event_006_20260501_180258",
+        "cosine_similarity": 0.23968505859375
+      },
+      {
+        "event_name": "track_055_event_007_20260501_180427",
+        "cosine_similarity": 0.22759030759334564
+      },
+      {
+        "event_name": "track_061_event_009_20260501_180533",
+        "cosine_similarity": 0.22108674049377441
+      },
+      {
+        "event_name": "track_138_event_025_20260501_182741",
+        "cosine_similarity": 0.21485832333564758
+      },
+      {
+        "event_name": "track_019_event_004_20260501_175904",
+        "cosine_similarity": 0.20041224360466003
+      },
+      {
+        "event_name": "track_001_event_001_20260501_175631",
+        "cosine_similarity": 0.1936752200126648
+      },
+      {
+        "event_name": "track_115_event_019_20260501_181528",
+        "cosine_similarity": 0.1905445158481598
+      },
+      {
+        "event_name": "track_131_event_021_20260501_181947",
+        "cosine_similarity": 0.14640659093856812
+      },
+      {
+        "event_name": "track_137_event_024_20260501_182732",
+        "cosine_similarity": 0.13031913340091705
+      },
+      {
+        "event_name": "track_073_event_014_20260501_180611",
+        "cosine_similarity": 0.12635914981365204
+      },
+      {
+        "event_name": "track_088_event_016_20260501_180746",
+        "cosine_similarity": 0.10835827887058258
+      },
+      {
+        "event_name": "track_136_event_023_20260501_182419",
+        "cosine_similarity": 0.09133896231651306
+      },
+      {
+        "event_name": "track_130_event_020_20260501_181945",
+        "cosine_similarity": 0.08066114783287048
+      },
+      {
+        "event_name": "track_005_event_001_20260501_174054",
+        "cosine_similarity": 0.05279586464166641
+      },
+      {
+        "event_name": "track_065_event_011_20260501_180547",
+        "cosine_similarity": 0.016461851075291634
+      }
+    ]
+  },
+  {
+    "event_name": "track_048_event_006_20260501_180258",
+    "face_count": 9,
+    "best_image": "post_00_frame_006038_score_0.52.jpg",
+    "neighbors": [
+      {
+        "event_name": "track_061_event_009_20260501_180533",
+        "cosine_similarity": 0.643803596496582
+      },
+      {
+        "event_name": "track_115_event_019_20260501_181528",
+        "cosine_similarity": 0.58488929271698
+      },
+      {
+        "event_name": "track_071_event_013_20260501_180601",
+        "cosine_similarity": 0.4148392677307129
+      },
+      {
+        "event_name": "track_138_event_025_20260501_182741",
+        "cosine_similarity": 0.4001307487487793
+      },
+      {
+        "event_name": "track_076_event_015_20260501_180634",
+        "cosine_similarity": 0.2889060080051422
+      },
+      {
+        "event_name": "track_045_event_005_20260501_180231",
+        "cosine_similarity": 0.23968505859375
+      },
+      {
+        "event_name": "track_109_event_018_20260501_180933",
+        "cosine_similarity": 0.22525277733802795
+      },
+      {
+        "event_name": "track_055_event_007_20260501_180427",
+        "cosine_similarity": 0.20973055064678192
+      },
+      {
+        "event_name": "track_065_event_011_20260501_180547",
+        "cosine_similarity": 0.20132948458194733
+      },
+      {
+        "event_name": "track_131_event_021_20260501_181947",
+        "cosine_similarity": 0.18280279636383057
+      },
+      {
+        "event_name": "track_003_event_002_20260501_175633",
+        "cosine_similarity": 0.18178331851959229
+      },
+      {
+        "event_name": "track_070_event_012_20260501_180559",
+        "cosine_similarity": 0.16340340673923492
+      },
+      {
+        "event_name": "track_009_event_004_20260501_174415",
+        "cosine_similarity": 0.14687785506248474
+      },
+      {
+        "event_name": "track_108_event_017_20260501_180929",
+        "cosine_similarity": 0.1346891075372696
+      },
+      {
+        "event_name": "track_059_event_008_20260501_180518",
+        "cosine_similarity": 0.13117118179798126
+      },
+      {
+        "event_name": "track_073_event_014_20260501_180611",
+        "cosine_similarity": 0.125365749001503
+      },
+      {
+        "event_name": "track_018_event_003_20260501_175857",
+        "cosine_similarity": 0.11714867502450943
+      },
+      {
+        "event_name": "track_008_event_003_20260501_174236",
+        "cosine_similarity": 0.09830904752016068
+      },
+      {
+        "event_name": "track_130_event_020_20260501_181945",
+        "cosine_similarity": 0.08994296193122864
+      },
+      {
+        "event_name": "track_132_event_022_20260501_181959",
+        "cosine_similarity": 0.08502456545829773
+      },
+      {
+        "event_name": "track_001_event_001_20260501_175631",
+        "cosine_similarity": 0.07694111764431
+      },
+      {
+        "event_name": "track_088_event_016_20260501_180746",
+        "cosine_similarity": 0.0763784646987915
+      },
+      {
+        "event_name": "track_019_event_004_20260501_175904",
+        "cosine_similarity": 0.046193789690732956
+      },
+      {
+        "event_name": "track_150_event_026_20260501_183051",
+        "cosine_similarity": 0.03437531739473343
+      },
+      {
+        "event_name": "track_137_event_024_20260501_182732",
+        "cosine_similarity": 0.028676837682724
+      },
+      {
+        "event_name": "track_136_event_023_20260501_182419",
+        "cosine_similarity": -0.016658352687954903
+      },
+      {
+        "event_name": "track_005_event_001_20260501_174054",
+        "cosine_similarity": -0.0433681383728981
+      }
+    ]
+  },
+  {
+    "event_name": "track_055_event_007_20260501_180427",
+    "face_count": 5,
+    "best_image": "pre_01_frame_007339_score_0.70.jpg",
+    "neighbors": [
+      {
+        "event_name": "track_131_event_021_20260501_181947",
+        "cosine_similarity": 0.619009256362915
+      },
+      {
+        "event_name": "track_001_event_001_20260501_175631",
+        "cosine_similarity": 0.5726762413978577
+      },
+      {
+        "event_name": "track_073_event_014_20260501_180611",
+        "cosine_similarity": 0.4975937008857727
+      },
+      {
+        "event_name": "track_130_event_020_20260501_181945",
+        "cosine_similarity": 0.49396881461143494
+      },
+      {
+        "event_name": "track_076_event_015_20260501_180634",
+        "cosine_similarity": 0.4709642827510834
+      },
+      {
+        "event_name": "track_065_event_011_20260501_180547",
+        "cosine_similarity": 0.4498059153556824
+      },
+      {
+        "event_name": "track_132_event_022_20260501_181959",
+        "cosine_similarity": 0.41012120246887207
+      },
+      {
+        "event_name": "track_088_event_016_20260501_180746",
+        "cosine_similarity": 0.3917142152786255
+      },
+      {
+        "event_name": "track_003_event_002_20260501_175633",
+        "cosine_similarity": 0.3908643424510956
+      },
+      {
+        "event_name": "track_059_event_008_20260501_180518",
+        "cosine_similarity": 0.3618578612804413
+      },
+      {
+        "event_name": "track_136_event_023_20260501_182419",
+        "cosine_similarity": 0.3125048279762268
+      },
+      {
+        "event_name": "track_108_event_017_20260501_180929",
+        "cosine_similarity": 0.25533580780029297
+      },
+      {
+        "event_name": "track_045_event_005_20260501_180231",
+        "cosine_similarity": 0.22759030759334564
+      },
+      {
+        "event_name": "track_048_event_006_20260501_180258",
+        "cosine_similarity": 0.20973055064678192
+      },
+      {
+        "event_name": "track_008_event_003_20260501_174236",
+        "cosine_similarity": 0.20138810575008392
+      },
+      {
+        "event_name": "track_061_event_009_20260501_180533",
+        "cosine_similarity": 0.19314560294151306
+      },
+      {
+        "event_name": "track_137_event_024_20260501_182732",
+        "cosine_similarity": 0.17780804634094238
+      },
+      {
+        "event_name": "track_109_event_018_20260501_180933",
+        "cosine_similarity": 0.1760472059249878
+      },
+      {
+        "event_name": "track_070_event_012_20260501_180559",
+        "cosine_similarity": 0.1553429365158081
+      },
+      {
+        "event_name": "track_009_event_004_20260501_174415",
+        "cosine_similarity": 0.15409168601036072
+      },
+      {
+        "event_name": "track_138_event_025_20260501_182741",
+        "cosine_similarity": 0.1502951681613922
+      },
+      {
+        "event_name": "track_018_event_003_20260501_175857",
+        "cosine_similarity": 0.14053869247436523
+      },
+      {
+        "event_name": "track_115_event_019_20260501_181528",
+        "cosine_similarity": 0.1357281357049942
+      },
+      {
+        "event_name": "track_071_event_013_20260501_180601",
+        "cosine_similarity": 0.13206513226032257
+      },
+      {
+        "event_name": "track_019_event_004_20260501_175904",
+        "cosine_similarity": 0.11958470195531845
+      },
+      {
+        "event_name": "track_150_event_026_20260501_183051",
+        "cosine_similarity": 0.11175085604190826
+      },
+      {
+        "event_name": "track_005_event_001_20260501_174054",
+        "cosine_similarity": 0.0035423748195171356
+      }
+    ]
+  },
+  {
+    "event_name": "track_059_event_008_20260501_180518",
+    "face_count": 9,
+    "best_image": "post_02_frame_008069_score_0.66.jpg",
+    "neighbors": [
+      {
+        "event_name": "track_003_event_002_20260501_175633",
+        "cosine_similarity": 0.6912479400634766
+      },
+      {
+        "event_name": "track_132_event_022_20260501_181959",
+        "cosine_similarity": 0.5672945976257324
+      },
+      {
+        "event_name": "track_070_event_012_20260501_180559",
+        "cosine_similarity": 0.5536079406738281
+      },
+      {
+        "event_name": "track_150_event_026_20260501_183051",
+        "cosine_similarity": 0.49985095858573914
+      },
+      {
+        "event_name": "track_019_event_004_20260501_175904",
+        "cosine_similarity": 0.4712907671928406
+      },
+      {
+        "event_name": "track_018_event_003_20260501_175857",
+        "cosine_similarity": 0.45971328020095825
+      },
+      {
+        "event_name": "track_108_event_017_20260501_180929",
+        "cosine_similarity": 0.43835383653640747
+      },
+      {
+        "event_name": "track_045_event_005_20260501_180231",
+        "cosine_similarity": 0.37136590480804443
+      },
+      {
+        "event_name": "track_055_event_007_20260501_180427",
+        "cosine_similarity": 0.3618578612804413
+      },
+      {
+        "event_name": "track_076_event_015_20260501_180634",
+        "cosine_similarity": 0.3498389720916748
+      },
+      {
+        "event_name": "track_137_event_024_20260501_182732",
+        "cosine_similarity": 0.3148505389690399
+      },
+      {
+        "event_name": "track_073_event_014_20260501_180611",
+        "cosine_similarity": 0.3137637972831726
+      },
+      {
+        "event_name": "track_130_event_020_20260501_181945",
+        "cosine_similarity": 0.2970041036605835
+      },
+      {
+        "event_name": "track_001_event_001_20260501_175631",
+        "cosine_similarity": 0.2964474856853485
+      },
+      {
+        "event_name": "track_088_event_016_20260501_180746",
+        "cosine_similarity": 0.2740744352340698
+      },
+      {
+        "event_name": "track_071_event_013_20260501_180601",
+        "cosine_similarity": 0.27369993925094604
+      },
+      {
+        "event_name": "track_136_event_023_20260501_182419",
+        "cosine_similarity": 0.193169966340065
+      },
+      {
+        "event_name": "track_131_event_021_20260501_181947",
+        "cosine_similarity": 0.19122639298439026
+      },
+      {
+        "event_name": "track_008_event_003_20260501_174236",
+        "cosine_similarity": 0.1521187126636505
+      },
+      {
+        "event_name": "track_138_event_025_20260501_182741",
+        "cosine_similarity": 0.1487894058227539
+      },
+      {
+        "event_name": "track_115_event_019_20260501_181528",
+        "cosine_similarity": 0.1381448656320572
+      },
+      {
+        "event_name": "track_009_event_004_20260501_174415",
+        "cosine_similarity": 0.13566048443317413
+      },
+      {
+        "event_name": "track_061_event_009_20260501_180533",
+        "cosine_similarity": 0.13232184946537018
+      },
+      {
+        "event_name": "track_065_event_011_20260501_180547",
+        "cosine_similarity": 0.13206441700458527
+      },
+      {
+        "event_name": "track_048_event_006_20260501_180258",
+        "cosine_similarity": 0.13117118179798126
+      },
+      {
+        "event_name": "track_109_event_018_20260501_180933",
+        "cosine_similarity": 0.08714979141950607
+      },
+      {
+        "event_name": "track_005_event_001_20260501_174054",
+        "cosine_similarity": 0.06033260375261307
+      }
+    ]
+  },
+  {
+    "event_name": "track_061_event_009_20260501_180533",
+    "face_count": 9,
+    "best_image": "event_frame_008275_score_0.60.jpg",
+    "neighbors": [
+      {
+        "event_name": "track_048_event_006_20260501_180258",
+        "cosine_similarity": 0.643803596496582
+      },
+      {
+        "event_name": "track_115_event_019_20260501_181528",
+        "cosine_similarity": 0.6039136648178101
+      },
+      {
+        "event_name": "track_071_event_013_20260501_180601",
+        "cosine_similarity": 0.42333656549453735
+      },
+      {
+        "event_name": "track_138_event_025_20260501_182741",
+        "cosine_similarity": 0.33107519149780273
+      },
+      {
+        "event_name": "track_076_event_015_20260501_180634",
+        "cosine_similarity": 0.24593551456928253
+      },
+      {
+        "event_name": "track_109_event_018_20260501_180933",
+        "cosine_similarity": 0.22609783709049225
+      },
+      {
+        "event_name": "track_045_event_005_20260501_180231",
+        "cosine_similarity": 0.22108674049377441
+      },
+      {
+        "event_name": "track_055_event_007_20260501_180427",
+        "cosine_similarity": 0.19314560294151306
+      },
+      {
+        "event_name": "track_003_event_002_20260501_175633",
+        "cosine_similarity": 0.18236038088798523
+      },
+      {
+        "event_name": "track_130_event_020_20260501_181945",
+        "cosine_similarity": 0.17791754007339478
+      },
+      {
+        "event_name": "track_009_event_004_20260501_174415",
+        "cosine_similarity": 0.16942666471004486
+      },
+      {
+        "event_name": "track_088_event_016_20260501_180746",
+        "cosine_similarity": 0.1621575951576233
+      },
+      {
+        "event_name": "track_070_event_012_20260501_180559",
+        "cosine_similarity": 0.14905977249145508
+      },
+      {
+        "event_name": "track_008_event_003_20260501_174236",
+        "cosine_similarity": 0.14596675336360931
+      },
+      {
+        "event_name": "track_137_event_024_20260501_182732",
+        "cosine_similarity": 0.14479045569896698
+      },
+      {
+        "event_name": "track_073_event_014_20260501_180611",
+        "cosine_similarity": 0.14003479480743408
+      },
+      {
+        "event_name": "track_065_event_011_20260501_180547",
+        "cosine_similarity": 0.13854780793190002
+      },
+      {
+        "event_name": "track_059_event_008_20260501_180518",
+        "cosine_similarity": 0.13232184946537018
+      },
+      {
+        "event_name": "track_108_event_017_20260501_180929",
+        "cosine_similarity": 0.13021934032440186
+      },
+      {
+        "event_name": "track_132_event_022_20260501_181959",
+        "cosine_similarity": 0.12612831592559814
+      },
+      {
+        "event_name": "track_131_event_021_20260501_181947",
+        "cosine_similarity": 0.12455184757709503
+      },
+      {
+        "event_name": "track_001_event_001_20260501_175631",
+        "cosine_similarity": 0.09534655511379242
+      },
+      {
+        "event_name": "track_018_event_003_20260501_175857",
+        "cosine_similarity": 0.08407934755086899
+      },
+      {
+        "event_name": "track_150_event_026_20260501_183051",
+        "cosine_similarity": 0.06774763762950897
+      },
+      {
+        "event_name": "track_005_event_001_20260501_174054",
+        "cosine_similarity": 0.049443572759628296
+      },
+      {
+        "event_name": "track_136_event_023_20260501_182419",
+        "cosine_similarity": 0.03292537108063698
+      },
+      {
+        "event_name": "track_019_event_004_20260501_175904",
+        "cosine_similarity": 0.027082260698080063
+      }
+    ]
+  },
+  {
+    "event_name": "track_065_event_011_20260501_180547",
+    "face_count": 6,
+    "best_image": "pre_00_frame_008475_score_0.52.jpg",
+    "neighbors": [
+      {
+        "event_name": "track_131_event_021_20260501_181947",
+        "cosine_similarity": 0.6465246677398682
+      },
+      {
+        "event_name": "track_076_event_015_20260501_180634",
+        "cosine_similarity": 0.6014682054519653
+      },
+      {
+        "event_name": "track_001_event_001_20260501_175631",
+        "cosine_similarity": 0.4897496700286865
+      },
+      {
+        "event_name": "track_055_event_007_20260501_180427",
+        "cosine_similarity": 0.4498059153556824
+      },
+      {
+        "event_name": "track_073_event_014_20260501_180611",
+        "cosine_similarity": 0.4421875774860382
+      },
+      {
+        "event_name": "track_130_event_020_20260501_181945",
+        "cosine_similarity": 0.4301505982875824
+      },
+      {
+        "event_name": "track_136_event_023_20260501_182419",
+        "cosine_similarity": 0.3593158721923828
+      },
+      {
+        "event_name": "track_132_event_022_20260501_181959",
+        "cosine_similarity": 0.3280688226222992
+      },
+      {
+        "event_name": "track_088_event_016_20260501_180746",
+        "cosine_similarity": 0.28615570068359375
+      },
+      {
+        "event_name": "track_048_event_006_20260501_180258",
+        "cosine_similarity": 0.20132948458194733
+      },
+      {
+        "event_name": "track_003_event_002_20260501_175633",
+        "cosine_similarity": 0.1717010736465454
+      },
+      {
+        "event_name": "track_109_event_018_20260501_180933",
+        "cosine_similarity": 0.14295241236686707
+      },
+      {
+        "event_name": "track_061_event_009_20260501_180533",
+        "cosine_similarity": 0.13854780793190002
+      },
+      {
+        "event_name": "track_115_event_019_20260501_181528",
+        "cosine_similarity": 0.13220760226249695
+      },
+      {
+        "event_name": "track_059_event_008_20260501_180518",
+        "cosine_similarity": 0.13206441700458527
+      },
+      {
+        "event_name": "track_108_event_017_20260501_180929",
+        "cosine_similarity": 0.10990554839372635
+      },
+      {
+        "event_name": "track_005_event_001_20260501_174054",
+        "cosine_similarity": 0.07339511811733246
+      },
+      {
+        "event_name": "track_009_event_004_20260501_174415",
+        "cosine_similarity": 0.06545808911323547
+      },
+      {
+        "event_name": "track_150_event_026_20260501_183051",
+        "cosine_similarity": 0.06103132665157318
+      },
+      {
+        "event_name": "track_071_event_013_20260501_180601",
+        "cosine_similarity": 0.04893594607710838
+      },
+      {
+        "event_name": "track_008_event_003_20260501_174236",
+        "cosine_similarity": 0.03100290335714817
+      },
+      {
+        "event_name": "track_019_event_004_20260501_175904",
+        "cosine_similarity": 0.029545174911618233
+      },
+      {
+        "event_name": "track_070_event_012_20260501_180559",
+        "cosine_similarity": 0.02237168326973915
+      },
+      {
+        "event_name": "track_138_event_025_20260501_182741",
+        "cosine_similarity": 0.016954176127910614
+      },
+      {
+        "event_name": "track_045_event_005_20260501_180231",
+        "cosine_similarity": 0.016461851075291634
+      },
+      {
+        "event_name": "track_018_event_003_20260501_175857",
+        "cosine_similarity": -0.024333316832780838
+      },
+      {
+        "event_name": "track_137_event_024_20260501_182732",
+        "cosine_similarity": -0.030663589015603065
+      }
+    ]
+  },
+  {
+    "event_name": "track_070_event_012_20260501_180559",
+    "face_count": 1,
+    "best_image": "post_00_frame_008657_score_0.52.jpg",
+    "neighbors": [
+      {
+        "event_name": "track_019_event_004_20260501_175904",
+        "cosine_similarity": 0.6994775533676147
+      },
+      {
+        "event_name": "track_059_event_008_20260501_180518",
+        "cosine_similarity": 0.5536079406738281
+      },
+      {
+        "event_name": "track_150_event_026_20260501_183051",
+        "cosine_similarity": 0.5468793511390686
+      },
+      {
+        "event_name": "track_003_event_002_20260501_175633",
+        "cosine_similarity": 0.5440313816070557
+      },
+      {
+        "event_name": "track_018_event_003_20260501_175857",
+        "cosine_similarity": 0.532237708568573
+      },
+      {
+        "event_name": "track_137_event_024_20260501_182732",
+        "cosine_similarity": 0.41862648725509644
+      },
+      {
+        "event_name": "track_108_event_017_20260501_180929",
+        "cosine_similarity": 0.35872721672058105
+      },
+      {
+        "event_name": "track_076_event_015_20260501_180634",
+        "cosine_similarity": 0.3503834903240204
+      },
+      {
+        "event_name": "track_045_event_005_20260501_180231",
+        "cosine_similarity": 0.28943538665771484
+      },
+      {
+        "event_name": "track_132_event_022_20260501_181959",
+        "cosine_similarity": 0.23773416876792908
+      },
+      {
+        "event_name": "track_071_event_013_20260501_180601",
+        "cosine_similarity": 0.22989630699157715
+      },
+      {
+        "event_name": "track_048_event_006_20260501_180258",
+        "cosine_similarity": 0.16340340673923492
+      },
+      {
+        "event_name": "track_055_event_007_20260501_180427",
+        "cosine_similarity": 0.1553429365158081
+      },
+      {
+        "event_name": "track_061_event_009_20260501_180533",
+        "cosine_similarity": 0.14905977249145508
+      },
+      {
+        "event_name": "track_130_event_020_20260501_181945",
+        "cosine_similarity": 0.1312134712934494
+      },
+      {
+        "event_name": "track_073_event_014_20260501_180611",
+        "cosine_similarity": 0.1253381073474884
+      },
+      {
+        "event_name": "track_001_event_001_20260501_175631",
+        "cosine_similarity": 0.1076129823923111
+      },
+      {
+        "event_name": "track_138_event_025_20260501_182741",
+        "cosine_similarity": 0.1051214337348938
+      },
+      {
+        "event_name": "track_008_event_003_20260501_174236",
+        "cosine_similarity": 0.09976290166378021
+      },
+      {
+        "event_name": "track_136_event_023_20260501_182419",
+        "cosine_similarity": 0.09101475030183792
+      },
+      {
+        "event_name": "track_115_event_019_20260501_181528",
+        "cosine_similarity": 0.08896900713443756
+      },
+      {
+        "event_name": "track_109_event_018_20260501_180933",
+        "cosine_similarity": 0.0790342390537262
+      },
+      {
+        "event_name": "track_088_event_016_20260501_180746",
+        "cosine_similarity": 0.07114681601524353
+      },
+      {
+        "event_name": "track_131_event_021_20260501_181947",
+        "cosine_similarity": 0.06936424970626831
+      },
+      {
+        "event_name": "track_005_event_001_20260501_174054",
+        "cosine_similarity": 0.06433504819869995
+      },
+      {
+        "event_name": "track_009_event_004_20260501_174415",
+        "cosine_similarity": 0.04904846474528313
+      },
+      {
+        "event_name": "track_065_event_011_20260501_180547",
+        "cosine_similarity": 0.02237168326973915
+      }
+    ]
+  },
+  {
+    "event_name": "track_071_event_013_20260501_180601",
+    "face_count": 8,
+    "best_image": "post_03_frame_008692_score_0.56.jpg",
+    "neighbors": [
+      {
+        "event_name": "track_061_event_009_20260501_180533",
+        "cosine_similarity": 0.42333656549453735
+      },
+      {
+        "event_name": "track_048_event_006_20260501_180258",
+        "cosine_similarity": 0.4148392677307129
+      },
+      {
+        "event_name": "track_115_event_019_20260501_181528",
+        "cosine_similarity": 0.3114468455314636
+      },
+      {
+        "event_name": "track_138_event_025_20260501_182741",
+        "cosine_similarity": 0.30697596073150635
+      },
+      {
+        "event_name": "track_003_event_002_20260501_175633",
+        "cosine_similarity": 0.2931995689868927
+      },
+      {
+        "event_name": "track_076_event_015_20260501_180634",
+        "cosine_similarity": 0.27817678451538086
+      },
+      {
+        "event_name": "track_059_event_008_20260501_180518",
+        "cosine_similarity": 0.27369993925094604
+      },
+      {
+        "event_name": "track_150_event_026_20260501_183051",
+        "cosine_similarity": 0.2654588222503662
+      },
+      {
+        "event_name": "track_045_event_005_20260501_180231",
+        "cosine_similarity": 0.2456953525543213
+      },
+      {
+        "event_name": "track_108_event_017_20260501_180929",
+        "cosine_similarity": 0.23469260334968567
+      },
+      {
+        "event_name": "track_070_event_012_20260501_180559",
+        "cosine_similarity": 0.22989630699157715
+      },
+      {
+        "event_name": "track_018_event_003_20260501_175857",
+        "cosine_similarity": 0.2248428463935852
+      },
+      {
+        "event_name": "track_019_event_004_20260501_175904",
+        "cosine_similarity": 0.15555471181869507
+      },
+      {
+        "event_name": "track_009_event_004_20260501_174415",
+        "cosine_similarity": 0.1339898556470871
+      },
+      {
+        "event_name": "track_055_event_007_20260501_180427",
+        "cosine_similarity": 0.13206513226032257
+      },
+      {
+        "event_name": "track_109_event_018_20260501_180933",
+        "cosine_similarity": 0.12034758180379868
+      },
+      {
+        "event_name": "track_132_event_022_20260501_181959",
+        "cosine_similarity": 0.10934969782829285
+      },
+      {
+        "event_name": "track_008_event_003_20260501_174236",
+        "cosine_similarity": 0.10807137191295624
+      },
+      {
+        "event_name": "track_088_event_016_20260501_180746",
+        "cosine_similarity": 0.10384559631347656
+      },
+      {
+        "event_name": "track_137_event_024_20260501_182732",
+        "cosine_similarity": 0.10287369787693024
+      },
+      {
+        "event_name": "track_131_event_021_20260501_181947",
+        "cosine_similarity": 0.09322768449783325
+      },
+      {
+        "event_name": "track_073_event_014_20260501_180611",
+        "cosine_similarity": 0.0876135304570198
+      },
+      {
+        "event_name": "track_130_event_020_20260501_181945",
+        "cosine_similarity": 0.07420401275157928
+      },
+      {
+        "event_name": "track_001_event_001_20260501_175631",
+        "cosine_similarity": 0.06699345260858536
+      },
+      {
+        "event_name": "track_065_event_011_20260501_180547",
+        "cosine_similarity": 0.04893594607710838
+      },
+      {
+        "event_name": "track_136_event_023_20260501_182419",
+        "cosine_similarity": -0.006174065172672272
+      },
+      {
+        "event_name": "track_005_event_001_20260501_174054",
+        "cosine_similarity": -0.023374609649181366
+      }
+    ]
+  },
+  {
+    "event_name": "track_073_event_014_20260501_180611",
+    "face_count": 6,
+    "best_image": "pre_02_frame_008827_score_0.52.jpg",
+    "neighbors": [
+      {
+        "event_name": "track_131_event_021_20260501_181947",
+        "cosine_similarity": 0.5349437594413757
+      },
+      {
+        "event_name": "track_130_event_020_20260501_181945",
+        "cosine_similarity": 0.5269429683685303
+      },
+      {
+        "event_name": "track_001_event_001_20260501_175631",
+        "cosine_similarity": 0.5267311334609985
+      },
+      {
+        "event_name": "track_055_event_007_20260501_180427",
+        "cosine_similarity": 0.4975937008857727
+      },
+      {
+        "event_name": "track_076_event_015_20260501_180634",
+        "cosine_similarity": 0.4712769091129303
+      },
+      {
+        "event_name": "track_065_event_011_20260501_180547",
+        "cosine_similarity": 0.4421875774860382
+      },
+      {
+        "event_name": "track_132_event_022_20260501_181959",
+        "cosine_similarity": 0.40183138847351074
+      },
+      {
+        "event_name": "track_003_event_002_20260501_175633",
+        "cosine_similarity": 0.31962060928344727
+      },
+      {
+        "event_name": "track_059_event_008_20260501_180518",
+        "cosine_similarity": 0.3137637972831726
+      },
+      {
+        "event_name": "track_088_event_016_20260501_180746",
+        "cosine_similarity": 0.29761967062950134
+      },
+      {
+        "event_name": "track_136_event_023_20260501_182419",
+        "cosine_similarity": 0.2767074406147003
+      },
+      {
+        "event_name": "track_108_event_017_20260501_180929",
+        "cosine_similarity": 0.16138917207717896
+      },
+      {
+        "event_name": "track_061_event_009_20260501_180533",
+        "cosine_similarity": 0.14003479480743408
+      },
+      {
+        "event_name": "track_045_event_005_20260501_180231",
+        "cosine_similarity": 0.12635914981365204
+      },
+      {
+        "event_name": "track_048_event_006_20260501_180258",
+        "cosine_similarity": 0.125365749001503
+      },
+      {
+        "event_name": "track_070_event_012_20260501_180559",
+        "cosine_similarity": 0.1253381073474884
+      },
+      {
+        "event_name": "track_018_event_003_20260501_175857",
+        "cosine_similarity": 0.11366733908653259
+      },
+      {
+        "event_name": "track_005_event_001_20260501_174054",
+        "cosine_similarity": 0.09986577928066254
+      },
+      {
+        "event_name": "track_109_event_018_20260501_180933",
+        "cosine_similarity": 0.09780299663543701
+      },
+      {
+        "event_name": "track_150_event_026_20260501_183051",
+        "cosine_similarity": 0.09438648819923401
+      },
+      {
+        "event_name": "track_137_event_024_20260501_182732",
+        "cosine_similarity": 0.08905017375946045
+      },
+      {
+        "event_name": "track_071_event_013_20260501_180601",
+        "cosine_similarity": 0.0876135304570198
+      },
+      {
+        "event_name": "track_019_event_004_20260501_175904",
+        "cosine_similarity": 0.0671265572309494
+      },
+      {
+        "event_name": "track_115_event_019_20260501_181528",
+        "cosine_similarity": 0.06662824749946594
+      },
+      {
+        "event_name": "track_009_event_004_20260501_174415",
+        "cosine_similarity": 0.06517444550991058
+      },
+      {
+        "event_name": "track_008_event_003_20260501_174236",
+        "cosine_similarity": 0.05661218613386154
+      },
+      {
+        "event_name": "track_138_event_025_20260501_182741",
+        "cosine_similarity": 0.0380885936319828
+      }
+    ]
+  },
+  {
+    "event_name": "track_076_event_015_20260501_180634",
+    "face_count": 8,
+    "best_image": "pre_00_frame_009156_score_0.60.jpg",
+    "neighbors": [
+      {
+        "event_name": "track_065_event_011_20260501_180547",
+        "cosine_similarity": 0.6014682054519653
+      },
+      {
+        "event_name": "track_131_event_021_20260501_181947",
+        "cosine_similarity": 0.5985714793205261
+      },
+      {
+        "event_name": "track_001_event_001_20260501_175631",
+        "cosine_similarity": 0.49437546730041504
+      },
+      {
+        "event_name": "track_073_event_014_20260501_180611",
+        "cosine_similarity": 0.4712769091129303
+      },
+      {
+        "event_name": "track_055_event_007_20260501_180427",
+        "cosine_similarity": 0.4709642827510834
+      },
+      {
+        "event_name": "track_130_event_020_20260501_181945",
+        "cosine_similarity": 0.4357515573501587
+      },
+      {
+        "event_name": "track_003_event_002_20260501_175633",
+        "cosine_similarity": 0.4036737382411957
+      },
+      {
+        "event_name": "track_070_event_012_20260501_180559",
+        "cosine_similarity": 0.3503834903240204
+      },
+      {
+        "event_name": "track_059_event_008_20260501_180518",
+        "cosine_similarity": 0.3498389720916748
+      },
+      {
+        "event_name": "track_019_event_004_20260501_175904",
+        "cosine_similarity": 0.3249439001083374
+      },
+      {
+        "event_name": "track_150_event_026_20260501_183051",
+        "cosine_similarity": 0.3129461407661438
+      },
+      {
+        "event_name": "track_088_event_016_20260501_180746",
+        "cosine_similarity": 0.30835282802581787
+      },
+      {
+        "event_name": "track_132_event_022_20260501_181959",
+        "cosine_similarity": 0.3043694496154785
+      },
+      {
+        "event_name": "track_048_event_006_20260501_180258",
+        "cosine_similarity": 0.2889060080051422
+      },
+      {
+        "event_name": "track_136_event_023_20260501_182419",
+        "cosine_similarity": 0.2823064923286438
+      },
+      {
+        "event_name": "track_071_event_013_20260501_180601",
+        "cosine_similarity": 0.27817678451538086
+      },
+      {
+        "event_name": "track_018_event_003_20260501_175857",
+        "cosine_similarity": 0.2552613615989685
+      },
+      {
+        "event_name": "track_108_event_017_20260501_180929",
+        "cosine_similarity": 0.25013482570648193
+      },
+      {
+        "event_name": "track_061_event_009_20260501_180533",
+        "cosine_similarity": 0.24593551456928253
+      },
+      {
+        "event_name": "track_045_event_005_20260501_180231",
+        "cosine_similarity": 0.24521712958812714
+      },
+      {
+        "event_name": "track_109_event_018_20260501_180933",
+        "cosine_similarity": 0.17287415266036987
+      },
+      {
+        "event_name": "track_115_event_019_20260501_181528",
+        "cosine_similarity": 0.17074134945869446
+      },
+      {
+        "event_name": "track_138_event_025_20260501_182741",
+        "cosine_similarity": 0.14750689268112183
+      },
+      {
+        "event_name": "track_137_event_024_20260501_182732",
+        "cosine_similarity": 0.1102934181690216
+      },
+      {
+        "event_name": "track_009_event_004_20260501_174415",
+        "cosine_similarity": 0.10371401906013489
+      },
+      {
+        "event_name": "track_008_event_003_20260501_174236",
+        "cosine_similarity": 0.10065985471010208
+      },
+      {
+        "event_name": "track_005_event_001_20260501_174054",
+        "cosine_similarity": 0.0008864700794219971
+      }
+    ]
+  },
+  {
+    "event_name": "track_088_event_016_20260501_180746",
+    "face_count": 9,
+    "best_image": "pre_00_frame_010207_score_0.76.jpg",
+    "neighbors": [
+      {
+        "event_name": "track_001_event_001_20260501_175631",
+        "cosine_similarity": 0.4288124442100525
+      },
+      {
+        "event_name": "track_130_event_020_20260501_181945",
+        "cosine_similarity": 0.41400566697120667
+      },
+      {
+        "event_name": "track_131_event_021_20260501_181947",
+        "cosine_similarity": 0.4028276801109314
+      },
+      {
+        "event_name": "track_055_event_007_20260501_180427",
+        "cosine_similarity": 0.3917142152786255
+      },
+      {
+        "event_name": "track_136_event_023_20260501_182419",
+        "cosine_similarity": 0.3754802942276001
+      },
+      {
+        "event_name": "track_132_event_022_20260501_181959",
+        "cosine_similarity": 0.3615370988845825
+      },
+      {
+        "event_name": "track_076_event_015_20260501_180634",
+        "cosine_similarity": 0.30835282802581787
+      },
+      {
+        "event_name": "track_073_event_014_20260501_180611",
+        "cosine_similarity": 0.29761967062950134
+      },
+      {
+        "event_name": "track_065_event_011_20260501_180547",
+        "cosine_similarity": 0.28615570068359375
+      },
+      {
+        "event_name": "track_003_event_002_20260501_175633",
+        "cosine_similarity": 0.275956928730011
+      },
+      {
+        "event_name": "track_059_event_008_20260501_180518",
+        "cosine_similarity": 0.2740744352340698
+      },
+      {
+        "event_name": "track_109_event_018_20260501_180933",
+        "cosine_similarity": 0.17503583431243896
+      },
+      {
+        "event_name": "track_009_event_004_20260501_174415",
+        "cosine_similarity": 0.17470242083072662
+      },
+      {
+        "event_name": "track_061_event_009_20260501_180533",
+        "cosine_similarity": 0.1621575951576233
+      },
+      {
+        "event_name": "track_137_event_024_20260501_182732",
+        "cosine_similarity": 0.1365123838186264
+      },
+      {
+        "event_name": "track_008_event_003_20260501_174236",
+        "cosine_similarity": 0.13495713472366333
+      },
+      {
+        "event_name": "track_108_event_017_20260501_180929",
+        "cosine_similarity": 0.13104687631130219
+      },
+      {
+        "event_name": "track_045_event_005_20260501_180231",
+        "cosine_similarity": 0.10835827887058258
+      },
+      {
+        "event_name": "track_071_event_013_20260501_180601",
+        "cosine_similarity": 0.10384559631347656
+      },
+      {
+        "event_name": "track_048_event_006_20260501_180258",
+        "cosine_similarity": 0.0763784646987915
+      },
+      {
+        "event_name": "track_070_event_012_20260501_180559",
+        "cosine_similarity": 0.07114681601524353
+      },
+      {
+        "event_name": "track_115_event_019_20260501_181528",
+        "cosine_similarity": 0.06072685867547989
+      },
+      {
+        "event_name": "track_138_event_025_20260501_182741",
+        "cosine_similarity": 0.036740925163030624
+      },
+      {
+        "event_name": "track_005_event_001_20260501_174054",
+        "cosine_similarity": 0.03523322194814682
+      },
+      {
+        "event_name": "track_018_event_003_20260501_175857",
+        "cosine_similarity": 0.028078511357307434
+      },
+      {
+        "event_name": "track_019_event_004_20260501_175904",
+        "cosine_similarity": 0.026750309392809868
+      },
+      {
+        "event_name": "track_150_event_026_20260501_183051",
+        "cosine_similarity": 0.012022331357002258
+      }
+    ]
+  },
+  {
+    "event_name": "track_108_event_017_20260501_180929",
+    "face_count": 7,
+    "best_image": "pre_00_frame_011697_score_0.60.jpg",
+    "neighbors": [
+      {
+        "event_name": "track_045_event_005_20260501_180231",
+        "cosine_similarity": 0.6044719815254211
+      },
+      {
+        "event_name": "track_003_event_002_20260501_175633",
+        "cosine_similarity": 0.5387920141220093
+      },
+      {
+        "event_name": "track_059_event_008_20260501_180518",
+        "cosine_similarity": 0.43835383653640747
+      },
+      {
+        "event_name": "track_008_event_003_20260501_174236",
+        "cosine_similarity": 0.4113442301750183
+      },
+      {
+        "event_name": "track_018_event_003_20260501_175857",
+        "cosine_similarity": 0.36285459995269775
+      },
+      {
+        "event_name": "track_070_event_012_20260501_180559",
+        "cosine_similarity": 0.35872721672058105
+      },
+      {
+        "event_name": "track_109_event_018_20260501_180933",
+        "cosine_similarity": 0.35180845856666565
+      },
+      {
+        "event_name": "track_009_event_004_20260501_174415",
+        "cosine_similarity": 0.34820613265037537
+      },
+      {
+        "event_name": "track_132_event_022_20260501_181959",
+        "cosine_similarity": 0.27516669034957886
+      },
+      {
+        "event_name": "track_019_event_004_20260501_175904",
+        "cosine_similarity": 0.2747163772583008
+      },
+      {
+        "event_name": "track_150_event_026_20260501_183051",
+        "cosine_similarity": 0.2603498101234436
+      },
+      {
+        "event_name": "track_055_event_007_20260501_180427",
+        "cosine_similarity": 0.25533580780029297
+      },
+      {
+        "event_name": "track_076_event_015_20260501_180634",
+        "cosine_similarity": 0.25013482570648193
+      },
+      {
+        "event_name": "track_001_event_001_20260501_175631",
+        "cosine_similarity": 0.23787948489189148
+      },
+      {
+        "event_name": "track_071_event_013_20260501_180601",
+        "cosine_similarity": 0.23469260334968567
+      },
+      {
+        "event_name": "track_136_event_023_20260501_182419",
+        "cosine_similarity": 0.18886485695838928
+      },
+      {
+        "event_name": "track_130_event_020_20260501_181945",
+        "cosine_similarity": 0.16412897408008575
+      },
+      {
+        "event_name": "track_073_event_014_20260501_180611",
+        "cosine_similarity": 0.16138917207717896
+      },
+      {
+        "event_name": "track_138_event_025_20260501_182741",
+        "cosine_similarity": 0.15525496006011963
+      },
+      {
+        "event_name": "track_048_event_006_20260501_180258",
+        "cosine_similarity": 0.1346891075372696
+      },
+      {
+        "event_name": "track_088_event_016_20260501_180746",
+        "cosine_similarity": 0.13104687631130219
+      },
+      {
+        "event_name": "track_061_event_009_20260501_180533",
+        "cosine_similarity": 0.13021934032440186
+      },
+      {
+        "event_name": "track_131_event_021_20260501_181947",
+        "cosine_similarity": 0.12730029225349426
+      },
+      {
+        "event_name": "track_065_event_011_20260501_180547",
+        "cosine_similarity": 0.10990554839372635
+      },
+      {
+        "event_name": "track_115_event_019_20260501_181528",
+        "cosine_similarity": 0.10196417570114136
+      },
+      {
+        "event_name": "track_137_event_024_20260501_182732",
+        "cosine_similarity": 0.09731978178024292
+      },
+      {
+        "event_name": "track_005_event_001_20260501_174054",
+        "cosine_similarity": 0.012052061036229134
+      }
+    ]
+  },
+  {
+    "event_name": "track_109_event_018_20260501_180933",
+    "face_count": 9,
+    "best_image": "post_03_frame_011758_score_0.80.jpg",
+    "neighbors": [
+      {
+        "event_name": "track_009_event_004_20260501_174415",
+        "cosine_similarity": 0.5348778963088989
+      },
+      {
+        "event_name": "track_008_event_003_20260501_174236",
+        "cosine_similarity": 0.5035786032676697
+      },
+      {
+        "event_name": "track_045_event_005_20260501_180231",
+        "cosine_similarity": 0.35278749465942383
+      },
+      {
+        "event_name": "track_108_event_017_20260501_180929",
+        "cosine_similarity": 0.35180845856666565
+      },
+      {
+        "event_name": "track_138_event_025_20260501_182741",
+        "cosine_similarity": 0.2321314811706543
+      },
+      {
+        "event_name": "track_061_event_009_20260501_180533",
+        "cosine_similarity": 0.22609783709049225
+      },
+      {
+        "event_name": "track_048_event_006_20260501_180258",
+        "cosine_similarity": 0.22525277733802795
+      },
+      {
+        "event_name": "track_131_event_021_20260501_181947",
+        "cosine_similarity": 0.21639665961265564
+      },
+      {
+        "event_name": "track_003_event_002_20260501_175633",
+        "cosine_similarity": 0.19007521867752075
+      },
+      {
+        "event_name": "track_055_event_007_20260501_180427",
+        "cosine_similarity": 0.1760472059249878
+      },
+      {
+        "event_name": "track_088_event_016_20260501_180746",
+        "cosine_similarity": 0.17503583431243896
+      },
+      {
+        "event_name": "track_076_event_015_20260501_180634",
+        "cosine_similarity": 0.17287415266036987
+      },
+      {
+        "event_name": "track_001_event_001_20260501_175631",
+        "cosine_similarity": 0.16991247236728668
+      },
+      {
+        "event_name": "track_115_event_019_20260501_181528",
+        "cosine_similarity": 0.1623762845993042
+      },
+      {
+        "event_name": "track_130_event_020_20260501_181945",
+        "cosine_similarity": 0.1467985212802887
+      },
+      {
+        "event_name": "track_065_event_011_20260501_180547",
+        "cosine_similarity": 0.14295241236686707
+      },
+      {
+        "event_name": "track_132_event_022_20260501_181959",
+        "cosine_similarity": 0.12568703293800354
+      },
+      {
+        "event_name": "track_071_event_013_20260501_180601",
+        "cosine_similarity": 0.12034758180379868
+      },
+      {
+        "event_name": "track_136_event_023_20260501_182419",
+        "cosine_similarity": 0.10695383697748184
+      },
+      {
+        "event_name": "track_018_event_003_20260501_175857",
+        "cosine_similarity": 0.10260142385959625
+      },
+      {
+        "event_name": "track_073_event_014_20260501_180611",
+        "cosine_similarity": 0.09780299663543701
+      },
+      {
+        "event_name": "track_137_event_024_20260501_182732",
+        "cosine_similarity": 0.0958799421787262
+      },
+      {
+        "event_name": "track_059_event_008_20260501_180518",
+        "cosine_similarity": 0.08714979141950607
+      },
+      {
+        "event_name": "track_070_event_012_20260501_180559",
+        "cosine_similarity": 0.0790342390537262
+      },
+      {
+        "event_name": "track_150_event_026_20260501_183051",
+        "cosine_similarity": 0.05542156845331192
+      },
+      {
+        "event_name": "track_019_event_004_20260501_175904",
+        "cosine_similarity": 0.052976690232753754
+      },
+      {
+        "event_name": "track_005_event_001_20260501_174054",
+        "cosine_similarity": -0.01248997449874878
+      }
+    ]
+  },
+  {
+    "event_name": "track_115_event_019_20260501_181528",
+    "face_count": 9,
+    "best_image": "post_01_frame_016853_score_0.75.jpg",
+    "neighbors": [
+      {
+        "event_name": "track_061_event_009_20260501_180533",
+        "cosine_similarity": 0.6039136648178101
+      },
+      {
+        "event_name": "track_048_event_006_20260501_180258",
+        "cosine_similarity": 0.58488929271698
+      },
+      {
+        "event_name": "track_138_event_025_20260501_182741",
+        "cosine_similarity": 0.37097203731536865
+      },
+      {
+        "event_name": "track_071_event_013_20260501_180601",
+        "cosine_similarity": 0.3114468455314636
+      },
+      {
+        "event_name": "track_045_event_005_20260501_180231",
+        "cosine_similarity": 0.1905445158481598
+      },
+      {
+        "event_name": "track_076_event_015_20260501_180634",
+        "cosine_similarity": 0.17074134945869446
+      },
+      {
+        "event_name": "track_109_event_018_20260501_180933",
+        "cosine_similarity": 0.1623762845993042
+      },
+      {
+        "event_name": "track_059_event_008_20260501_180518",
+        "cosine_similarity": 0.1381448656320572
+      },
+      {
+        "event_name": "track_055_event_007_20260501_180427",
+        "cosine_similarity": 0.1357281357049942
+      },
+      {
+        "event_name": "track_065_event_011_20260501_180547",
+        "cosine_similarity": 0.13220760226249695
+      },
+      {
+        "event_name": "track_108_event_017_20260501_180929",
+        "cosine_similarity": 0.10196417570114136
+      },
+      {
+        "event_name": "track_018_event_003_20260501_175857",
+        "cosine_similarity": 0.09796028584241867
+      },
+      {
+        "event_name": "track_008_event_003_20260501_174236",
+        "cosine_similarity": 0.0892832800745964
+      },
+      {
+        "event_name": "track_070_event_012_20260501_180559",
+        "cosine_similarity": 0.08896900713443756
+      },
+      {
+        "event_name": "track_130_event_020_20260501_181945",
+        "cosine_similarity": 0.08338925242424011
+      },
+      {
+        "event_name": "track_003_event_002_20260501_175633",
+        "cosine_similarity": 0.07116637378931046
+      },
+      {
+        "event_name": "track_150_event_026_20260501_183051",
+        "cosine_similarity": 0.07021769881248474
+      },
+      {
+        "event_name": "track_005_event_001_20260501_174054",
+        "cosine_similarity": 0.07019056379795074
+      },
+      {
+        "event_name": "track_073_event_014_20260501_180611",
+        "cosine_similarity": 0.06662824749946594
+      },
+      {
+        "event_name": "track_132_event_022_20260501_181959",
+        "cosine_similarity": 0.06434668600559235
+      },
+      {
+        "event_name": "track_009_event_004_20260501_174415",
+        "cosine_similarity": 0.060774508863687515
+      },
+      {
+        "event_name": "track_088_event_016_20260501_180746",
+        "cosine_similarity": 0.06072685867547989
+      },
+      {
+        "event_name": "track_137_event_024_20260501_182732",
+        "cosine_similarity": 0.057853154838085175
+      },
+      {
+        "event_name": "track_131_event_021_20260501_181947",
+        "cosine_similarity": 0.044087544083595276
+      },
+      {
+        "event_name": "track_001_event_001_20260501_175631",
+        "cosine_similarity": 0.04287079721689224
+      },
+      {
+        "event_name": "track_019_event_004_20260501_175904",
+        "cosine_similarity": 0.0228993259370327
+      },
+      {
+        "event_name": "track_136_event_023_20260501_182419",
+        "cosine_similarity": -0.021901417523622513
+      }
+    ]
+  },
+  {
+    "event_name": "track_130_event_020_20260501_181945",
+    "face_count": 9,
+    "best_image": "pre_00_frame_020474_score_0.61.jpg",
+    "neighbors": [
+      {
+        "event_name": "track_001_event_001_20260501_175631",
+        "cosine_similarity": 0.631278932094574
+      },
+      {
+        "event_name": "track_131_event_021_20260501_181947",
+        "cosine_similarity": 0.5740162134170532
+      },
+      {
+        "event_name": "track_073_event_014_20260501_180611",
+        "cosine_similarity": 0.5269429683685303
+      },
+      {
+        "event_name": "track_055_event_007_20260501_180427",
+        "cosine_similarity": 0.49396881461143494
+      },
+      {
+        "event_name": "track_076_event_015_20260501_180634",
+        "cosine_similarity": 0.4357515573501587
+      },
+      {
+        "event_name": "track_065_event_011_20260501_180547",
+        "cosine_similarity": 0.4301505982875824
+      },
+      {
+        "event_name": "track_088_event_016_20260501_180746",
+        "cosine_similarity": 0.41400566697120667
+      },
+      {
+        "event_name": "track_136_event_023_20260501_182419",
+        "cosine_similarity": 0.3540838062763214
+      },
+      {
+        "event_name": "track_132_event_022_20260501_181959",
+        "cosine_similarity": 0.33068010210990906
+      },
+      {
+        "event_name": "track_003_event_002_20260501_175633",
+        "cosine_similarity": 0.3030188977718353
+      },
+      {
+        "event_name": "track_059_event_008_20260501_180518",
+        "cosine_similarity": 0.2970041036605835
+      },
+      {
+        "event_name": "track_061_event_009_20260501_180533",
+        "cosine_similarity": 0.17791754007339478
+      },
+      {
+        "event_name": "track_108_event_017_20260501_180929",
+        "cosine_similarity": 0.16412897408008575
+      },
+      {
+        "event_name": "track_109_event_018_20260501_180933",
+        "cosine_similarity": 0.1467985212802887
+      },
+      {
+        "event_name": "track_005_event_001_20260501_174054",
+        "cosine_similarity": 0.13384775817394257
+      },
+      {
+        "event_name": "track_070_event_012_20260501_180559",
+        "cosine_similarity": 0.1312134712934494
+      },
+      {
+        "event_name": "track_008_event_003_20260501_174236",
+        "cosine_similarity": 0.09883026778697968
+      },
+      {
+        "event_name": "track_048_event_006_20260501_180258",
+        "cosine_similarity": 0.08994296193122864
+      },
+      {
+        "event_name": "track_137_event_024_20260501_182732",
+        "cosine_similarity": 0.08728650957345963
+      },
+      {
+        "event_name": "track_115_event_019_20260501_181528",
+        "cosine_similarity": 0.08338925242424011
+      },
+      {
+        "event_name": "track_045_event_005_20260501_180231",
+        "cosine_similarity": 0.08066114783287048
+      },
+      {
+        "event_name": "track_071_event_013_20260501_180601",
+        "cosine_similarity": 0.07420401275157928
+      },
+      {
+        "event_name": "track_150_event_026_20260501_183051",
+        "cosine_similarity": 0.06720443814992905
+      },
+      {
+        "event_name": "track_009_event_004_20260501_174415",
+        "cosine_similarity": 0.0651378184556961
+      },
+      {
+        "event_name": "track_018_event_003_20260501_175857",
+        "cosine_similarity": 0.06294718384742737
+      },
+      {
+        "event_name": "track_019_event_004_20260501_175904",
+        "cosine_similarity": 0.0505451001226902
+      },
+      {
+        "event_name": "track_138_event_025_20260501_182741",
+        "cosine_similarity": 0.042990610003471375
+      }
+    ]
+  },
+  {
+    "event_name": "track_131_event_021_20260501_181947",
+    "face_count": 9,
+    "best_image": "pre_01_frame_020507_score_0.69.jpg",
+    "neighbors": [
+      {
+        "event_name": "track_001_event_001_20260501_175631",
+        "cosine_similarity": 0.7069926261901855
+      },
+      {
+        "event_name": "track_065_event_011_20260501_180547",
+        "cosine_similarity": 0.6465246677398682
+      },
+      {
+        "event_name": "track_055_event_007_20260501_180427",
+        "cosine_similarity": 0.619009256362915
+      },
+      {
+        "event_name": "track_076_event_015_20260501_180634",
+        "cosine_similarity": 0.5985714793205261
+      },
+      {
+        "event_name": "track_130_event_020_20260501_181945",
+        "cosine_similarity": 0.5740162134170532
+      },
+      {
+        "event_name": "track_073_event_014_20260501_180611",
+        "cosine_similarity": 0.5349437594413757
+      },
+      {
+        "event_name": "track_088_event_016_20260501_180746",
+        "cosine_similarity": 0.4028276801109314
+      },
+      {
+        "event_name": "track_132_event_022_20260501_181959",
+        "cosine_similarity": 0.3444772958755493
+      },
+      {
+        "event_name": "track_136_event_023_20260501_182419",
+        "cosine_similarity": 0.279094398021698
+      },
+      {
+        "event_name": "track_109_event_018_20260501_180933",
+        "cosine_similarity": 0.21639665961265564
+      },
+      {
+        "event_name": "track_003_event_002_20260501_175633",
+        "cosine_similarity": 0.2135705053806305
+      },
+      {
+        "event_name": "track_059_event_008_20260501_180518",
+        "cosine_similarity": 0.19122639298439026
+      },
+      {
+        "event_name": "track_048_event_006_20260501_180258",
+        "cosine_similarity": 0.18280279636383057
+      },
+      {
+        "event_name": "track_045_event_005_20260501_180231",
+        "cosine_similarity": 0.14640659093856812
+      },
+      {
+        "event_name": "track_108_event_017_20260501_180929",
+        "cosine_similarity": 0.12730029225349426
+      },
+      {
+        "event_name": "track_061_event_009_20260501_180533",
+        "cosine_similarity": 0.12455184757709503
+      },
+      {
+        "event_name": "track_071_event_013_20260501_180601",
+        "cosine_similarity": 0.09322768449783325
+      },
+      {
+        "event_name": "track_008_event_003_20260501_174236",
+        "cosine_similarity": 0.09182386100292206
+      },
+      {
+        "event_name": "track_009_event_004_20260501_174415",
+        "cosine_similarity": 0.08913222700357437
+      },
+      {
+        "event_name": "track_070_event_012_20260501_180559",
+        "cosine_similarity": 0.06936424970626831
+      },
+      {
+        "event_name": "track_005_event_001_20260501_174054",
+        "cosine_similarity": 0.0684652104973793
+      },
+      {
+        "event_name": "track_150_event_026_20260501_183051",
+        "cosine_similarity": 0.05908994376659393
+      },
+      {
+        "event_name": "track_138_event_025_20260501_182741",
+        "cosine_similarity": 0.05836152657866478
+      },
+      {
+        "event_name": "track_019_event_004_20260501_175904",
+        "cosine_similarity": 0.049661457538604736
+      },
+      {
+        "event_name": "track_115_event_019_20260501_181528",
+        "cosine_similarity": 0.044087544083595276
+      },
+      {
+        "event_name": "track_018_event_003_20260501_175857",
+        "cosine_similarity": 0.03639277443289757
+      },
+      {
+        "event_name": "track_137_event_024_20260501_182732",
+        "cosine_similarity": 0.03367261961102486
+      }
+    ]
+  },
+  {
+    "event_name": "track_132_event_022_20260501_181959",
+    "face_count": 7,
+    "best_image": "post_02_frame_020692_score_0.62.jpg",
+    "neighbors": [
+      {
+        "event_name": "track_059_event_008_20260501_180518",
+        "cosine_similarity": 0.5672945976257324
+      },
+      {
+        "event_name": "track_003_event_002_20260501_175633",
+        "cosine_similarity": 0.4787070155143738
+      },
+      {
+        "event_name": "track_001_event_001_20260501_175631",
+        "cosine_similarity": 0.45785337686538696
+      },
+      {
+        "event_name": "track_055_event_007_20260501_180427",
+        "cosine_similarity": 0.41012120246887207
+      },
+      {
+        "event_name": "track_073_event_014_20260501_180611",
+        "cosine_similarity": 0.40183138847351074
+      },
+      {
+        "event_name": "track_088_event_016_20260501_180746",
+        "cosine_similarity": 0.3615370988845825
+      },
+      {
+        "event_name": "track_131_event_021_20260501_181947",
+        "cosine_similarity": 0.3444772958755493
+      },
+      {
+        "event_name": "track_130_event_020_20260501_181945",
+        "cosine_similarity": 0.33068010210990906
+      },
+      {
+        "event_name": "track_065_event_011_20260501_180547",
+        "cosine_similarity": 0.3280688226222992
+      },
+      {
+        "event_name": "track_045_event_005_20260501_180231",
+        "cosine_similarity": 0.3086218535900116
+      },
+      {
+        "event_name": "track_076_event_015_20260501_180634",
+        "cosine_similarity": 0.3043694496154785
+      },
+      {
+        "event_name": "track_136_event_023_20260501_182419",
+        "cosine_similarity": 0.28184086084365845
+      },
+      {
+        "event_name": "track_108_event_017_20260501_180929",
+        "cosine_similarity": 0.27516669034957886
+      },
+      {
+        "event_name": "track_150_event_026_20260501_183051",
+        "cosine_similarity": 0.25110191106796265
+      },
+      {
+        "event_name": "track_070_event_012_20260501_180559",
+        "cosine_similarity": 0.23773416876792908
+      },
+      {
+        "event_name": "track_018_event_003_20260501_175857",
+        "cosine_similarity": 0.23182232677936554
+      },
+      {
+        "event_name": "track_137_event_024_20260501_182732",
+        "cosine_similarity": 0.2089509665966034
+      },
+      {
+        "event_name": "track_019_event_004_20260501_175904",
+        "cosine_similarity": 0.18430113792419434
+      },
+      {
+        "event_name": "track_005_event_001_20260501_174054",
+        "cosine_similarity": 0.14267085492610931
+      },
+      {
+        "event_name": "track_061_event_009_20260501_180533",
+        "cosine_similarity": 0.12612831592559814
+      },
+      {
+        "event_name": "track_109_event_018_20260501_180933",
+        "cosine_similarity": 0.12568703293800354
+      },
+      {
+        "event_name": "track_008_event_003_20260501_174236",
+        "cosine_similarity": 0.12463140487670898
+      },
+      {
+        "event_name": "track_009_event_004_20260501_174415",
+        "cosine_similarity": 0.11955061554908752
+      },
+      {
+        "event_name": "track_071_event_013_20260501_180601",
+        "cosine_similarity": 0.10934969782829285
+      },
+      {
+        "event_name": "track_048_event_006_20260501_180258",
+        "cosine_similarity": 0.08502456545829773
+      },
+      {
+        "event_name": "track_115_event_019_20260501_181528",
+        "cosine_similarity": 0.06434668600559235
+      },
+      {
+        "event_name": "track_138_event_025_20260501_182741",
+        "cosine_similarity": 0.06311771273612976
+      }
+    ]
+  },
+  {
+    "event_name": "track_136_event_023_20260501_182419",
+    "face_count": 9,
+    "best_image": "post_00_frame_024401_score_0.74.jpg",
+    "neighbors": [
+      {
+        "event_name": "track_088_event_016_20260501_180746",
+        "cosine_similarity": 0.3754802942276001
+      },
+      {
+        "event_name": "track_065_event_011_20260501_180547",
+        "cosine_similarity": 0.3593158721923828
+      },
+      {
+        "event_name": "track_130_event_020_20260501_181945",
+        "cosine_similarity": 0.3540838062763214
+      },
+      {
+        "event_name": "track_055_event_007_20260501_180427",
+        "cosine_similarity": 0.3125048279762268
+      },
+      {
+        "event_name": "track_076_event_015_20260501_180634",
+        "cosine_similarity": 0.2823064923286438
+      },
+      {
+        "event_name": "track_132_event_022_20260501_181959",
+        "cosine_similarity": 0.28184086084365845
+      },
+      {
+        "event_name": "track_131_event_021_20260501_181947",
+        "cosine_similarity": 0.279094398021698
+      },
+      {
+        "event_name": "track_073_event_014_20260501_180611",
+        "cosine_similarity": 0.2767074406147003
+      },
+      {
+        "event_name": "track_003_event_002_20260501_175633",
+        "cosine_similarity": 0.2531161606311798
+      },
+      {
+        "event_name": "track_001_event_001_20260501_175631",
+        "cosine_similarity": 0.22523994743824005
+      },
+      {
+        "event_name": "track_059_event_008_20260501_180518",
+        "cosine_similarity": 0.193169966340065
+      },
+      {
+        "event_name": "track_108_event_017_20260501_180929",
+        "cosine_similarity": 0.18886485695838928
+      },
+      {
+        "event_name": "track_109_event_018_20260501_180933",
+        "cosine_similarity": 0.10695383697748184
+      },
+      {
+        "event_name": "track_008_event_003_20260501_174236",
+        "cosine_similarity": 0.09678773581981659
+      },
+      {
+        "event_name": "track_045_event_005_20260501_180231",
+        "cosine_similarity": 0.09133896231651306
+      },
+      {
+        "event_name": "track_070_event_012_20260501_180559",
+        "cosine_similarity": 0.09101475030183792
+      },
+      {
+        "event_name": "track_138_event_025_20260501_182741",
+        "cosine_similarity": 0.0730225071310997
+      },
+      {
+        "event_name": "track_005_event_001_20260501_174054",
+        "cosine_similarity": 0.06342433393001556
+      },
+      {
+        "event_name": "track_150_event_026_20260501_183051",
+        "cosine_similarity": 0.044013798236846924
+      },
+      {
+        "event_name": "track_018_event_003_20260501_175857",
+        "cosine_similarity": 0.036905687302351
+      },
+      {
+        "event_name": "track_061_event_009_20260501_180533",
+        "cosine_similarity": 0.03292537108063698
+      },
+      {
+        "event_name": "track_019_event_004_20260501_175904",
+        "cosine_similarity": 0.02902951091527939
+      },
+      {
+        "event_name": "track_009_event_004_20260501_174415",
+        "cosine_similarity": 0.023986298590898514
+      },
+      {
+        "event_name": "track_071_event_013_20260501_180601",
+        "cosine_similarity": -0.006174065172672272
+      },
+      {
+        "event_name": "track_048_event_006_20260501_180258",
+        "cosine_similarity": -0.016658352687954903
+      },
+      {
+        "event_name": "track_137_event_024_20260501_182732",
+        "cosine_similarity": -0.01680213212966919
+      },
+      {
+        "event_name": "track_115_event_019_20260501_181528",
+        "cosine_similarity": -0.021901417523622513
+      }
+    ]
+  },
+  {
+    "event_name": "track_137_event_024_20260501_182732",
+    "face_count": 1,
+    "best_image": "post_01_frame_027189_score_0.74.jpg",
+    "neighbors": [
+      {
+        "event_name": "track_070_event_012_20260501_180559",
+        "cosine_similarity": 0.41862648725509644
+      },
+      {
+        "event_name": "track_018_event_003_20260501_175857",
+        "cosine_similarity": 0.39665916562080383
+      },
+      {
+        "event_name": "track_150_event_026_20260501_183051",
+        "cosine_similarity": 0.3451901078224182
+      },
+      {
+        "event_name": "track_019_event_004_20260501_175904",
+        "cosine_similarity": 0.3313736915588379
+      },
+      {
+        "event_name": "track_059_event_008_20260501_180518",
+        "cosine_similarity": 0.3148505389690399
+      },
+      {
+        "event_name": "track_003_event_002_20260501_175633",
+        "cosine_similarity": 0.24848869442939758
+      },
+      {
+        "event_name": "track_132_event_022_20260501_181959",
+        "cosine_similarity": 0.2089509665966034
+      },
+      {
+        "event_name": "track_055_event_007_20260501_180427",
+        "cosine_similarity": 0.17780804634094238
+      },
+      {
+        "event_name": "track_061_event_009_20260501_180533",
+        "cosine_similarity": 0.14479045569896698
+      },
+      {
+        "event_name": "track_088_event_016_20260501_180746",
+        "cosine_similarity": 0.1365123838186264
+      },
+      {
+        "event_name": "track_045_event_005_20260501_180231",
+        "cosine_similarity": 0.13031913340091705
+      },
+      {
+        "event_name": "track_076_event_015_20260501_180634",
+        "cosine_similarity": 0.1102934181690216
+      },
+      {
+        "event_name": "track_071_event_013_20260501_180601",
+        "cosine_similarity": 0.10287369787693024
+      },
+      {
+        "event_name": "track_108_event_017_20260501_180929",
+        "cosine_similarity": 0.09731978178024292
+      },
+      {
+        "event_name": "track_109_event_018_20260501_180933",
+        "cosine_similarity": 0.0958799421787262
+      },
+      {
+        "event_name": "track_138_event_025_20260501_182741",
+        "cosine_similarity": 0.09389945864677429
+      },
+      {
+        "event_name": "track_073_event_014_20260501_180611",
+        "cosine_similarity": 0.08905017375946045
+      },
+      {
+        "event_name": "track_130_event_020_20260501_181945",
+        "cosine_similarity": 0.08728650957345963
+      },
+      {
+        "event_name": "track_001_event_001_20260501_175631",
+        "cosine_similarity": 0.08717340230941772
+      },
+      {
+        "event_name": "track_115_event_019_20260501_181528",
+        "cosine_similarity": 0.057853154838085175
+      },
+      {
+        "event_name": "track_009_event_004_20260501_174415",
+        "cosine_similarity": 0.047806642949581146
+      },
+      {
+        "event_name": "track_008_event_003_20260501_174236",
+        "cosine_similarity": 0.047792255878448486
+      },
+      {
+        "event_name": "track_131_event_021_20260501_181947",
+        "cosine_similarity": 0.03367261961102486
+      },
+      {
+        "event_name": "track_048_event_006_20260501_180258",
+        "cosine_similarity": 0.028676837682724
+      },
+      {
+        "event_name": "track_136_event_023_20260501_182419",
+        "cosine_similarity": -0.01680213212966919
+      },
+      {
+        "event_name": "track_065_event_011_20260501_180547",
+        "cosine_similarity": -0.030663589015603065
+      },
+      {
+        "event_name": "track_005_event_001_20260501_174054",
+        "cosine_similarity": -0.036278992891311646
+      }
+    ]
+  },
+  {
+    "event_name": "track_138_event_025_20260501_182741",
+    "face_count": 9,
+    "best_image": "pre_00_frame_027308_score_0.73.jpg",
+    "neighbors": [
+      {
+        "event_name": "track_048_event_006_20260501_180258",
+        "cosine_similarity": 0.4001307487487793
+      },
+      {
+        "event_name": "track_115_event_019_20260501_181528",
+        "cosine_similarity": 0.37097203731536865
+      },
+      {
+        "event_name": "track_061_event_009_20260501_180533",
+        "cosine_similarity": 0.33107519149780273
+      },
+      {
+        "event_name": "track_071_event_013_20260501_180601",
+        "cosine_similarity": 0.30697596073150635
+      },
+      {
+        "event_name": "track_109_event_018_20260501_180933",
+        "cosine_similarity": 0.2321314811706543
+      },
+      {
+        "event_name": "track_045_event_005_20260501_180231",
+        "cosine_similarity": 0.21485832333564758
+      },
+      {
+        "event_name": "track_018_event_003_20260501_175857",
+        "cosine_similarity": 0.1989145129919052
+      },
+      {
+        "event_name": "track_008_event_003_20260501_174236",
+        "cosine_similarity": 0.18718969821929932
+      },
+      {
+        "event_name": "track_003_event_002_20260501_175633",
+        "cosine_similarity": 0.17406752705574036
+      },
+      {
+        "event_name": "track_108_event_017_20260501_180929",
+        "cosine_similarity": 0.15525496006011963
+      },
+      {
+        "event_name": "track_055_event_007_20260501_180427",
+        "cosine_similarity": 0.1502951681613922
+      },
+      {
+        "event_name": "track_059_event_008_20260501_180518",
+        "cosine_similarity": 0.1487894058227539
+      },
+      {
+        "event_name": "track_076_event_015_20260501_180634",
+        "cosine_similarity": 0.14750689268112183
+      },
+      {
+        "event_name": "track_009_event_004_20260501_174415",
+        "cosine_similarity": 0.13872916996479034
+      },
+      {
+        "event_name": "track_070_event_012_20260501_180559",
+        "cosine_similarity": 0.1051214337348938
+      },
+      {
+        "event_name": "track_137_event_024_20260501_182732",
+        "cosine_similarity": 0.09389945864677429
+      },
+      {
+        "event_name": "track_150_event_026_20260501_183051",
+        "cosine_similarity": 0.08885477483272552
+      },
+      {
+        "event_name": "track_019_event_004_20260501_175904",
+        "cosine_similarity": 0.0881248414516449
+      },
+      {
+        "event_name": "track_136_event_023_20260501_182419",
+        "cosine_similarity": 0.0730225071310997
+      },
+      {
+        "event_name": "track_132_event_022_20260501_181959",
+        "cosine_similarity": 0.06311771273612976
+      },
+      {
+        "event_name": "track_001_event_001_20260501_175631",
+        "cosine_similarity": 0.06244886294007301
+      },
+      {
+        "event_name": "track_131_event_021_20260501_181947",
+        "cosine_similarity": 0.05836152657866478
+      },
+      {
+        "event_name": "track_130_event_020_20260501_181945",
+        "cosine_similarity": 0.042990610003471375
+      },
+      {
+        "event_name": "track_073_event_014_20260501_180611",
+        "cosine_similarity": 0.0380885936319828
+      },
+      {
+        "event_name": "track_088_event_016_20260501_180746",
+        "cosine_similarity": 0.036740925163030624
+      },
+      {
+        "event_name": "track_065_event_011_20260501_180547",
+        "cosine_similarity": 0.016954176127910614
+      },
+      {
+        "event_name": "track_005_event_001_20260501_174054",
+        "cosine_similarity": -0.11555871367454529
+      }
+    ]
+  },
+  {
+    "event_name": "track_150_event_026_20260501_183051",
+    "face_count": 1,
+    "best_image": "post_02_frame_030047_score_0.57.jpg",
+    "neighbors": [
+      {
+        "event_name": "track_019_event_004_20260501_175904",
+        "cosine_similarity": 0.5704700946807861
+      },
+      {
+        "event_name": "track_070_event_012_20260501_180559",
+        "cosine_similarity": 0.5468793511390686
+      },
+      {
+        "event_name": "track_059_event_008_20260501_180518",
+        "cosine_similarity": 0.49985095858573914
+      },
+      {
+        "event_name": "track_018_event_003_20260501_175857",
+        "cosine_similarity": 0.4362248182296753
+      },
+      {
+        "event_name": "track_003_event_002_20260501_175633",
+        "cosine_similarity": 0.35412001609802246
+      },
+      {
+        "event_name": "track_137_event_024_20260501_182732",
+        "cosine_similarity": 0.3451901078224182
+      },
+      {
+        "event_name": "track_076_event_015_20260501_180634",
+        "cosine_similarity": 0.3129461407661438
+      },
+      {
+        "event_name": "track_071_event_013_20260501_180601",
+        "cosine_similarity": 0.2654588222503662
+      },
+      {
+        "event_name": "track_045_event_005_20260501_180231",
+        "cosine_similarity": 0.2615504264831543
+      },
+      {
+        "event_name": "track_108_event_017_20260501_180929",
+        "cosine_similarity": 0.2603498101234436
+      },
+      {
+        "event_name": "track_132_event_022_20260501_181959",
+        "cosine_similarity": 0.25110191106796265
+      },
+      {
+        "event_name": "track_055_event_007_20260501_180427",
+        "cosine_similarity": 0.11175085604190826
+      },
+      {
+        "event_name": "track_073_event_014_20260501_180611",
+        "cosine_similarity": 0.09438648819923401
+      },
+      {
+        "event_name": "track_138_event_025_20260501_182741",
+        "cosine_similarity": 0.08885477483272552
+      },
+      {
+        "event_name": "track_001_event_001_20260501_175631",
+        "cosine_similarity": 0.07425076514482498
+      },
+      {
+        "event_name": "track_115_event_019_20260501_181528",
+        "cosine_similarity": 0.07021769881248474
+      },
+      {
+        "event_name": "track_061_event_009_20260501_180533",
+        "cosine_similarity": 0.06774763762950897
+      },
+      {
+        "event_name": "track_130_event_020_20260501_181945",
+        "cosine_similarity": 0.06720443814992905
+      },
+      {
+        "event_name": "track_065_event_011_20260501_180547",
+        "cosine_similarity": 0.06103132665157318
+      },
+      {
+        "event_name": "track_131_event_021_20260501_181947",
+        "cosine_similarity": 0.05908994376659393
+      },
+      {
+        "event_name": "track_109_event_018_20260501_180933",
+        "cosine_similarity": 0.05542156845331192
+      },
+      {
+        "event_name": "track_009_event_004_20260501_174415",
+        "cosine_similarity": 0.044532373547554016
+      },
+      {
+        "event_name": "track_136_event_023_20260501_182419",
+        "cosine_similarity": 0.044013798236846924
+      },
+      {
+        "event_name": "track_048_event_006_20260501_180258",
+        "cosine_similarity": 0.03437531739473343
+      },
+      {
+        "event_name": "track_008_event_003_20260501_174236",
+        "cosine_similarity": 0.028550365939736366
+      },
+      {
+        "event_name": "track_005_event_001_20260501_174054",
+        "cosine_similarity": 0.025430483743548393
+      },
+      {
+        "event_name": "track_088_event_016_20260501_180746",
+        "cosine_similarity": 0.012022331357002258
+      }
+    ]
+  }
+]

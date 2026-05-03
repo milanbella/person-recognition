@@ -1,0 +1,5 @@
+depthai
+insightface
+numpy
+opencv-python
+onnxruntime-gpu

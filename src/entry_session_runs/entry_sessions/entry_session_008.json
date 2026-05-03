@@ -1,0 +1,41 @@
+{
+  "schema_version": "2026-05-02",
+  "entry_session_id": "entry_session_008",
+  "shop_id": "shop_001",
+  "started_at_utc": "2026-05-01T18:02:31Z",
+  "ended_at_utc": "2026-05-01T18:02:31Z",
+  "contributing_event_ids": [
+    "entry_evt_track_045_event_005_20260501_180231"
+  ],
+  "contributing_camera_ids": [
+    "entrance_cam_001"
+  ],
+  "primary_entry_event_id": "entry_evt_track_045_event_005_20260501_180231",
+  "representative_images": [
+    {
+      "path": "C:\\wi\\luxonis\\person-recognition\\src\\evidence\\track_045_event_005_20260501_180231\\pre_00_frame_005650_score_0.57.jpg",
+      "kind": "best",
+      "score": null
+    }
+  ],
+  "merged_face_embedding": {
+    "model_name": "arcface",
+    "vector_path": "C:\\wi\\luxonis\\person-recognition\\src\\entry_session_runs\\entry_sessions\\entry_session_008\\merged_face_embedding.npy",
+    "dimension": 512,
+    "source_image_path": "C:\\wi\\luxonis\\person-recognition\\src\\evidence\\track_045_event_005_20260501_180231\\pre_00_frame_005650_score_0.57.jpg",
+    "mean_vector_path": "C:\\wi\\luxonis\\person-recognition\\src\\entry_session_runs\\entry_sessions\\entry_session_008\\merged_face_embedding.npy"
+  },
+  "merged_body_embedding": null,
+  "aggregate_quality_score": 0.8550230652093886,
+  "local_person_id": null,
+  "shopping_customer_id": null,
+  "association_state": "unassigned",
+  "metadata": {
+    "event_count": 1,
+    "merge_strategy": "time_window_plus_similarity",
+    "quality_scores": [
+      0.8550230652093886
+    ],
+    "merge_reasons": []
+  }
+}

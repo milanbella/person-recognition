@@ -1,0 +1,8 @@
+{
+  "event_dir": "C:\\wi\\luxonis\\person-recognition\\src\\evidence\\track_007_event_002_20260501_174205",
+  "output_dir": "C:\\wi\\luxonis\\person-recognition\\src\\embedding_runs\\track_007_event_002_20260501_174205",
+  "face_count": 0,
+  "embedding_dim": 0,
+  "images": [],
+  "mean_embedding_file": null
+}

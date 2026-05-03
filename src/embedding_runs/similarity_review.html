@@ -1,0 +1,986 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Embedding Similarity Review</title>
+  <style>
+    body {
+      font-family: Segoe UI, Arial, sans-serif;
+      margin: 24px;
+      background: #f3f0e8;
+      color: #1f1f1f;
+    }
+    h1 {
+      margin-bottom: 8px;
+    }
+    .intro {
+      margin-bottom: 24px;
+      color: #404040;
+    }
+    .event-card {
+      border: 1px solid #d0c8b8;
+      background: #fffdf8;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    }
+    .event-main {
+      display: flex;
+      gap: 20px;
+      align-items: flex-start;
+      margin-bottom: 16px;
+    }
+    .event-meta {
+      min-width: 360px;
+    }
+    .event-meta h2 {
+      margin: 0 0 10px 0;
+      font-size: 20px;
+    }
+    .event-image img, .neighbor-card img {
+      width: 220px;
+      max-width: 100%;
+      border-radius: 8px;
+      border: 1px solid #d8d2c4;
+    }
+    .neighbors {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .neighbor-card {
+      width: 240px;
+      background: #faf7ef;
+      border: 1px solid #e2dbcb;
+      border-radius: 10px;
+      padding: 12px;
+    }
+    .neighbor-score {
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+    .neighbor-name {
+      font-size: 13px;
+      color: #4d4d4d;
+      margin-bottom: 10px;
+      word-break: break-word;
+    }
+    .missing {
+      width: 220px;
+      height: 220px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #ece7db;
+      border-radius: 8px;
+      border: 1px dashed #bdb5a3;
+      color: #555;
+    }
+  </style>
+</head>
+<body>
+  <h1>Embedding Similarity Review</h1>
+  <div class="intro">
+    Each event shows its best evidence crop and the top similar events by cosine similarity.
+    Use this to visually decide whether high-similarity pairs are actually the same person.
+  </div>
+  
+    <section class="event-card">
+      <div class="event-main">
+        <div class="event-meta">
+          <h2>track_001_event_001_20260501_175631</h2>
+          <div>face_count=9</div>
+          <div>best_image=post_00_frame_000451_score_0.67.jpg</div>
+        </div>
+        <div class="event-image"><img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_001_event_001_20260501_175631/post_00_frame_000451_score_0.67.jpg" alt="track_001_event_001_20260501_175631"></div>
+      </div>
+      <div class="neighbors">
+        
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.7070</div>
+              <div class="neighbor-name">track_131_event_021_20260501_181947</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_131_event_021_20260501_181947/pre_01_frame_020507_score_0.69.jpg" alt="track_131_event_021_20260501_181947">
+            </div>
+            
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.6313</div>
+              <div class="neighbor-name">track_130_event_020_20260501_181945</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_130_event_020_20260501_181945/pre_00_frame_020474_score_0.61.jpg" alt="track_130_event_020_20260501_181945">
+            </div>
+            
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.5727</div>
+              <div class="neighbor-name">track_055_event_007_20260501_180427</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_055_event_007_20260501_180427/pre_01_frame_007339_score_0.70.jpg" alt="track_055_event_007_20260501_180427">
+            </div>
+            
+      </div>
+    </section>
+    
+    <section class="event-card">
+      <div class="event-main">
+        <div class="event-meta">
+          <h2>track_003_event_002_20260501_175633</h2>
+          <div>face_count=9</div>
+          <div>best_image=post_02_frame_000486_score_0.65.jpg</div>
+        </div>
+        <div class="event-image"><img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_003_event_002_20260501_175633/post_02_frame_000486_score_0.65.jpg" alt="track_003_event_002_20260501_175633"></div>
+      </div>
+      <div class="neighbors">
+        
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.6912</div>
+              <div class="neighbor-name">track_059_event_008_20260501_180518</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_059_event_008_20260501_180518/post_02_frame_008069_score_0.66.jpg" alt="track_059_event_008_20260501_180518">
+            </div>
+            
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.5440</div>
+              <div class="neighbor-name">track_070_event_012_20260501_180559</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_070_event_012_20260501_180559/post_00_frame_008657_score_0.52.jpg" alt="track_070_event_012_20260501_180559">
+            </div>
+            
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.5388</div>
+              <div class="neighbor-name">track_108_event_017_20260501_180929</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_108_event_017_20260501_180929/pre_00_frame_011697_score_0.60.jpg" alt="track_108_event_017_20260501_180929">
+            </div>
+            
+      </div>
+    </section>
+    
+    <section class="event-card">
+      <div class="event-main">
+        <div class="event-meta">
+          <h2>track_005_event_001_20260501_174054</h2>
+          <div>face_count=9</div>
+          <div>best_image=pre_00_frame_001189_score_0.80.jpg</div>
+        </div>
+        <div class="event-image"><img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_005_event_001_20260501_174054/pre_00_frame_001189_score_0.80.jpg" alt="track_005_event_001_20260501_174054"></div>
+      </div>
+      <div class="neighbors">
+        
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.1427</div>
+              <div class="neighbor-name">track_132_event_022_20260501_181959</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_132_event_022_20260501_181959/post_02_frame_020692_score_0.62.jpg" alt="track_132_event_022_20260501_181959">
+            </div>
+            
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.1371</div>
+              <div class="neighbor-name">track_001_event_001_20260501_175631</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_001_event_001_20260501_175631/post_00_frame_000451_score_0.67.jpg" alt="track_001_event_001_20260501_175631">
+            </div>
+            
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.1338</div>
+              <div class="neighbor-name">track_130_event_020_20260501_181945</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_130_event_020_20260501_181945/pre_00_frame_020474_score_0.61.jpg" alt="track_130_event_020_20260501_181945">
+            </div>
+            
+      </div>
+    </section>
+    
+    <section class="event-card">
+      <div class="event-main">
+        <div class="event-meta">
+          <h2>track_008_event_003_20260501_174236</h2>
+          <div>face_count=8</div>
+          <div>best_image=pre_01_frame_002674_score_0.71.jpg</div>
+        </div>
+        <div class="event-image"><img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_008_event_003_20260501_174236/pre_01_frame_002674_score_0.71.jpg" alt="track_008_event_003_20260501_174236"></div>
+      </div>
+      <div class="neighbors">
+        
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.8290</div>
+              <div class="neighbor-name">track_009_event_004_20260501_174415</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_009_event_004_20260501_174415/pre_01_frame_004107_score_0.70.jpg" alt="track_009_event_004_20260501_174415">
+            </div>
+            
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.5036</div>
+              <div class="neighbor-name">track_109_event_018_20260501_180933</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_109_event_018_20260501_180933/post_03_frame_011758_score_0.80.jpg" alt="track_109_event_018_20260501_180933">
+            </div>
+            
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.4113</div>
+              <div class="neighbor-name">track_108_event_017_20260501_180929</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_108_event_017_20260501_180929/pre_00_frame_011697_score_0.60.jpg" alt="track_108_event_017_20260501_180929">
+            </div>
+            
+      </div>
+    </section>
+    
+    <section class="event-card">
+      <div class="event-main">
+        <div class="event-meta">
+          <h2>track_009_event_004_20260501_174415</h2>
+          <div>face_count=9</div>
+          <div>best_image=pre_01_frame_004107_score_0.70.jpg</div>
+        </div>
+        <div class="event-image"><img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_009_event_004_20260501_174415/pre_01_frame_004107_score_0.70.jpg" alt="track_009_event_004_20260501_174415"></div>
+      </div>
+      <div class="neighbors">
+        
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.8290</div>
+              <div class="neighbor-name">track_008_event_003_20260501_174236</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_008_event_003_20260501_174236/pre_01_frame_002674_score_0.71.jpg" alt="track_008_event_003_20260501_174236">
+            </div>
+            
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.5349</div>
+              <div class="neighbor-name">track_109_event_018_20260501_180933</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_109_event_018_20260501_180933/post_03_frame_011758_score_0.80.jpg" alt="track_109_event_018_20260501_180933">
+            </div>
+            
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.3524</div>
+              <div class="neighbor-name">track_045_event_005_20260501_180231</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_045_event_005_20260501_180231/pre_00_frame_005650_score_0.57.jpg" alt="track_045_event_005_20260501_180231">
+            </div>
+            
+      </div>
+    </section>
+    
+    <section class="event-card">
+      <div class="event-main">
+        <div class="event-meta">
+          <h2>track_018_event_003_20260501_175857</h2>
+          <div>face_count=5</div>
+          <div>best_image=pre_00_frame_002568_score_0.73.jpg</div>
+        </div>
+        <div class="event-image"><img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_018_event_003_20260501_175857/pre_00_frame_002568_score_0.73.jpg" alt="track_018_event_003_20260501_175857"></div>
+      </div>
+      <div class="neighbors">
+        
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.5859</div>
+              <div class="neighbor-name">track_019_event_004_20260501_175904</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_019_event_004_20260501_175904/pre_02_frame_002674_score_0.70.jpg" alt="track_019_event_004_20260501_175904">
+            </div>
+            
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.5322</div>
+              <div class="neighbor-name">track_070_event_012_20260501_180559</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_070_event_012_20260501_180559/post_00_frame_008657_score_0.52.jpg" alt="track_070_event_012_20260501_180559">
+            </div>
+            
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.4597</div>
+              <div class="neighbor-name">track_059_event_008_20260501_180518</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_059_event_008_20260501_180518/post_02_frame_008069_score_0.66.jpg" alt="track_059_event_008_20260501_180518">
+            </div>
+            
+      </div>
+    </section>
+    
+    <section class="event-card">
+      <div class="event-main">
+        <div class="event-meta">
+          <h2>track_019_event_004_20260501_175904</h2>
+          <div>face_count=9</div>
+          <div>best_image=pre_02_frame_002674_score_0.70.jpg</div>
+        </div>
+        <div class="event-image"><img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_019_event_004_20260501_175904/pre_02_frame_002674_score_0.70.jpg" alt="track_019_event_004_20260501_175904"></div>
+      </div>
+      <div class="neighbors">
+        
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.6995</div>
+              <div class="neighbor-name">track_070_event_012_20260501_180559</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_070_event_012_20260501_180559/post_00_frame_008657_score_0.52.jpg" alt="track_070_event_012_20260501_180559">
+            </div>
+            
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.5859</div>
+              <div class="neighbor-name">track_018_event_003_20260501_175857</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_018_event_003_20260501_175857/pre_00_frame_002568_score_0.73.jpg" alt="track_018_event_003_20260501_175857">
+            </div>
+            
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.5705</div>
+              <div class="neighbor-name">track_150_event_026_20260501_183051</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_150_event_026_20260501_183051/post_02_frame_030047_score_0.57.jpg" alt="track_150_event_026_20260501_183051">
+            </div>
+            
+      </div>
+    </section>
+    
+    <section class="event-card">
+      <div class="event-main">
+        <div class="event-meta">
+          <h2>track_045_event_005_20260501_180231</h2>
+          <div>face_count=9</div>
+          <div>best_image=pre_00_frame_005650_score_0.57.jpg</div>
+        </div>
+        <div class="event-image"><img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_045_event_005_20260501_180231/pre_00_frame_005650_score_0.57.jpg" alt="track_045_event_005_20260501_180231"></div>
+      </div>
+      <div class="neighbors">
+        
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.6045</div>
+              <div class="neighbor-name">track_108_event_017_20260501_180929</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_108_event_017_20260501_180929/pre_00_frame_011697_score_0.60.jpg" alt="track_108_event_017_20260501_180929">
+            </div>
+            
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.3961</div>
+              <div class="neighbor-name">track_003_event_002_20260501_175633</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_003_event_002_20260501_175633/post_02_frame_000486_score_0.65.jpg" alt="track_003_event_002_20260501_175633">
+            </div>
+            
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.3797</div>
+              <div class="neighbor-name">track_008_event_003_20260501_174236</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_008_event_003_20260501_174236/pre_01_frame_002674_score_0.71.jpg" alt="track_008_event_003_20260501_174236">
+            </div>
+            
+      </div>
+    </section>
+    
+    <section class="event-card">
+      <div class="event-main">
+        <div class="event-meta">
+          <h2>track_048_event_006_20260501_180258</h2>
+          <div>face_count=9</div>
+          <div>best_image=post_00_frame_006038_score_0.52.jpg</div>
+        </div>
+        <div class="event-image"><img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_048_event_006_20260501_180258/post_00_frame_006038_score_0.52.jpg" alt="track_048_event_006_20260501_180258"></div>
+      </div>
+      <div class="neighbors">
+        
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.6438</div>
+              <div class="neighbor-name">track_061_event_009_20260501_180533</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_061_event_009_20260501_180533/event_frame_008275_score_0.60.jpg" alt="track_061_event_009_20260501_180533">
+            </div>
+            
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.5849</div>
+              <div class="neighbor-name">track_115_event_019_20260501_181528</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_115_event_019_20260501_181528/post_01_frame_016853_score_0.75.jpg" alt="track_115_event_019_20260501_181528">
+            </div>
+            
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.4148</div>
+              <div class="neighbor-name">track_071_event_013_20260501_180601</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_071_event_013_20260501_180601/post_03_frame_008692_score_0.56.jpg" alt="track_071_event_013_20260501_180601">
+            </div>
+            
+      </div>
+    </section>
+    
+    <section class="event-card">
+      <div class="event-main">
+        <div class="event-meta">
+          <h2>track_055_event_007_20260501_180427</h2>
+          <div>face_count=5</div>
+          <div>best_image=pre_01_frame_007339_score_0.70.jpg</div>
+        </div>
+        <div class="event-image"><img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_055_event_007_20260501_180427/pre_01_frame_007339_score_0.70.jpg" alt="track_055_event_007_20260501_180427"></div>
+      </div>
+      <div class="neighbors">
+        
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.6190</div>
+              <div class="neighbor-name">track_131_event_021_20260501_181947</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_131_event_021_20260501_181947/pre_01_frame_020507_score_0.69.jpg" alt="track_131_event_021_20260501_181947">
+            </div>
+            
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.5727</div>
+              <div class="neighbor-name">track_001_event_001_20260501_175631</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_001_event_001_20260501_175631/post_00_frame_000451_score_0.67.jpg" alt="track_001_event_001_20260501_175631">
+            </div>
+            
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.4976</div>
+              <div class="neighbor-name">track_073_event_014_20260501_180611</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_073_event_014_20260501_180611/pre_02_frame_008827_score_0.52.jpg" alt="track_073_event_014_20260501_180611">
+            </div>
+            
+      </div>
+    </section>
+    
+    <section class="event-card">
+      <div class="event-main">
+        <div class="event-meta">
+          <h2>track_059_event_008_20260501_180518</h2>
+          <div>face_count=9</div>
+          <div>best_image=post_02_frame_008069_score_0.66.jpg</div>
+        </div>
+        <div class="event-image"><img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_059_event_008_20260501_180518/post_02_frame_008069_score_0.66.jpg" alt="track_059_event_008_20260501_180518"></div>
+      </div>
+      <div class="neighbors">
+        
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.6912</div>
+              <div class="neighbor-name">track_003_event_002_20260501_175633</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_003_event_002_20260501_175633/post_02_frame_000486_score_0.65.jpg" alt="track_003_event_002_20260501_175633">
+            </div>
+            
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.5673</div>
+              <div class="neighbor-name">track_132_event_022_20260501_181959</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_132_event_022_20260501_181959/post_02_frame_020692_score_0.62.jpg" alt="track_132_event_022_20260501_181959">
+            </div>
+            
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.5536</div>
+              <div class="neighbor-name">track_070_event_012_20260501_180559</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_070_event_012_20260501_180559/post_00_frame_008657_score_0.52.jpg" alt="track_070_event_012_20260501_180559">
+            </div>
+            
+      </div>
+    </section>
+    
+    <section class="event-card">
+      <div class="event-main">
+        <div class="event-meta">
+          <h2>track_061_event_009_20260501_180533</h2>
+          <div>face_count=9</div>
+          <div>best_image=event_frame_008275_score_0.60.jpg</div>
+        </div>
+        <div class="event-image"><img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_061_event_009_20260501_180533/event_frame_008275_score_0.60.jpg" alt="track_061_event_009_20260501_180533"></div>
+      </div>
+      <div class="neighbors">
+        
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.6438</div>
+              <div class="neighbor-name">track_048_event_006_20260501_180258</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_048_event_006_20260501_180258/post_00_frame_006038_score_0.52.jpg" alt="track_048_event_006_20260501_180258">
+            </div>
+            
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.6039</div>
+              <div class="neighbor-name">track_115_event_019_20260501_181528</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_115_event_019_20260501_181528/post_01_frame_016853_score_0.75.jpg" alt="track_115_event_019_20260501_181528">
+            </div>
+            
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.4233</div>
+              <div class="neighbor-name">track_071_event_013_20260501_180601</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_071_event_013_20260501_180601/post_03_frame_008692_score_0.56.jpg" alt="track_071_event_013_20260501_180601">
+            </div>
+            
+      </div>
+    </section>
+    
+    <section class="event-card">
+      <div class="event-main">
+        <div class="event-meta">
+          <h2>track_065_event_011_20260501_180547</h2>
+          <div>face_count=6</div>
+          <div>best_image=pre_00_frame_008475_score_0.52.jpg</div>
+        </div>
+        <div class="event-image"><img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_065_event_011_20260501_180547/pre_00_frame_008475_score_0.52.jpg" alt="track_065_event_011_20260501_180547"></div>
+      </div>
+      <div class="neighbors">
+        
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.6465</div>
+              <div class="neighbor-name">track_131_event_021_20260501_181947</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_131_event_021_20260501_181947/pre_01_frame_020507_score_0.69.jpg" alt="track_131_event_021_20260501_181947">
+            </div>
+            
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.6015</div>
+              <div class="neighbor-name">track_076_event_015_20260501_180634</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_076_event_015_20260501_180634/pre_00_frame_009156_score_0.60.jpg" alt="track_076_event_015_20260501_180634">
+            </div>
+            
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.4897</div>
+              <div class="neighbor-name">track_001_event_001_20260501_175631</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_001_event_001_20260501_175631/post_00_frame_000451_score_0.67.jpg" alt="track_001_event_001_20260501_175631">
+            </div>
+            
+      </div>
+    </section>
+    
+    <section class="event-card">
+      <div class="event-main">
+        <div class="event-meta">
+          <h2>track_070_event_012_20260501_180559</h2>
+          <div>face_count=1</div>
+          <div>best_image=post_00_frame_008657_score_0.52.jpg</div>
+        </div>
+        <div class="event-image"><img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_070_event_012_20260501_180559/post_00_frame_008657_score_0.52.jpg" alt="track_070_event_012_20260501_180559"></div>
+      </div>
+      <div class="neighbors">
+        
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.6995</div>
+              <div class="neighbor-name">track_019_event_004_20260501_175904</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_019_event_004_20260501_175904/pre_02_frame_002674_score_0.70.jpg" alt="track_019_event_004_20260501_175904">
+            </div>
+            
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.5536</div>
+              <div class="neighbor-name">track_059_event_008_20260501_180518</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_059_event_008_20260501_180518/post_02_frame_008069_score_0.66.jpg" alt="track_059_event_008_20260501_180518">
+            </div>
+            
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.5469</div>
+              <div class="neighbor-name">track_150_event_026_20260501_183051</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_150_event_026_20260501_183051/post_02_frame_030047_score_0.57.jpg" alt="track_150_event_026_20260501_183051">
+            </div>
+            
+      </div>
+    </section>
+    
+    <section class="event-card">
+      <div class="event-main">
+        <div class="event-meta">
+          <h2>track_071_event_013_20260501_180601</h2>
+          <div>face_count=8</div>
+          <div>best_image=post_03_frame_008692_score_0.56.jpg</div>
+        </div>
+        <div class="event-image"><img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_071_event_013_20260501_180601/post_03_frame_008692_score_0.56.jpg" alt="track_071_event_013_20260501_180601"></div>
+      </div>
+      <div class="neighbors">
+        
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.4233</div>
+              <div class="neighbor-name">track_061_event_009_20260501_180533</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_061_event_009_20260501_180533/event_frame_008275_score_0.60.jpg" alt="track_061_event_009_20260501_180533">
+            </div>
+            
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.4148</div>
+              <div class="neighbor-name">track_048_event_006_20260501_180258</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_048_event_006_20260501_180258/post_00_frame_006038_score_0.52.jpg" alt="track_048_event_006_20260501_180258">
+            </div>
+            
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.3114</div>
+              <div class="neighbor-name">track_115_event_019_20260501_181528</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_115_event_019_20260501_181528/post_01_frame_016853_score_0.75.jpg" alt="track_115_event_019_20260501_181528">
+            </div>
+            
+      </div>
+    </section>
+    
+    <section class="event-card">
+      <div class="event-main">
+        <div class="event-meta">
+          <h2>track_073_event_014_20260501_180611</h2>
+          <div>face_count=6</div>
+          <div>best_image=pre_02_frame_008827_score_0.52.jpg</div>
+        </div>
+        <div class="event-image"><img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_073_event_014_20260501_180611/pre_02_frame_008827_score_0.52.jpg" alt="track_073_event_014_20260501_180611"></div>
+      </div>
+      <div class="neighbors">
+        
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.5349</div>
+              <div class="neighbor-name">track_131_event_021_20260501_181947</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_131_event_021_20260501_181947/pre_01_frame_020507_score_0.69.jpg" alt="track_131_event_021_20260501_181947">
+            </div>
+            
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.5269</div>
+              <div class="neighbor-name">track_130_event_020_20260501_181945</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_130_event_020_20260501_181945/pre_00_frame_020474_score_0.61.jpg" alt="track_130_event_020_20260501_181945">
+            </div>
+            
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.5267</div>
+              <div class="neighbor-name">track_001_event_001_20260501_175631</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_001_event_001_20260501_175631/post_00_frame_000451_score_0.67.jpg" alt="track_001_event_001_20260501_175631">
+            </div>
+            
+      </div>
+    </section>
+    
+    <section class="event-card">
+      <div class="event-main">
+        <div class="event-meta">
+          <h2>track_076_event_015_20260501_180634</h2>
+          <div>face_count=8</div>
+          <div>best_image=pre_00_frame_009156_score_0.60.jpg</div>
+        </div>
+        <div class="event-image"><img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_076_event_015_20260501_180634/pre_00_frame_009156_score_0.60.jpg" alt="track_076_event_015_20260501_180634"></div>
+      </div>
+      <div class="neighbors">
+        
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.6015</div>
+              <div class="neighbor-name">track_065_event_011_20260501_180547</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_065_event_011_20260501_180547/pre_00_frame_008475_score_0.52.jpg" alt="track_065_event_011_20260501_180547">
+            </div>
+            
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.5986</div>
+              <div class="neighbor-name">track_131_event_021_20260501_181947</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_131_event_021_20260501_181947/pre_01_frame_020507_score_0.69.jpg" alt="track_131_event_021_20260501_181947">
+            </div>
+            
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.4944</div>
+              <div class="neighbor-name">track_001_event_001_20260501_175631</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_001_event_001_20260501_175631/post_00_frame_000451_score_0.67.jpg" alt="track_001_event_001_20260501_175631">
+            </div>
+            
+      </div>
+    </section>
+    
+    <section class="event-card">
+      <div class="event-main">
+        <div class="event-meta">
+          <h2>track_088_event_016_20260501_180746</h2>
+          <div>face_count=9</div>
+          <div>best_image=pre_00_frame_010207_score_0.76.jpg</div>
+        </div>
+        <div class="event-image"><img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_088_event_016_20260501_180746/pre_00_frame_010207_score_0.76.jpg" alt="track_088_event_016_20260501_180746"></div>
+      </div>
+      <div class="neighbors">
+        
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.4288</div>
+              <div class="neighbor-name">track_001_event_001_20260501_175631</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_001_event_001_20260501_175631/post_00_frame_000451_score_0.67.jpg" alt="track_001_event_001_20260501_175631">
+            </div>
+            
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.4140</div>
+              <div class="neighbor-name">track_130_event_020_20260501_181945</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_130_event_020_20260501_181945/pre_00_frame_020474_score_0.61.jpg" alt="track_130_event_020_20260501_181945">
+            </div>
+            
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.4028</div>
+              <div class="neighbor-name">track_131_event_021_20260501_181947</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_131_event_021_20260501_181947/pre_01_frame_020507_score_0.69.jpg" alt="track_131_event_021_20260501_181947">
+            </div>
+            
+      </div>
+    </section>
+    
+    <section class="event-card">
+      <div class="event-main">
+        <div class="event-meta">
+          <h2>track_108_event_017_20260501_180929</h2>
+          <div>face_count=7</div>
+          <div>best_image=pre_00_frame_011697_score_0.60.jpg</div>
+        </div>
+        <div class="event-image"><img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_108_event_017_20260501_180929/pre_00_frame_011697_score_0.60.jpg" alt="track_108_event_017_20260501_180929"></div>
+      </div>
+      <div class="neighbors">
+        
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.6045</div>
+              <div class="neighbor-name">track_045_event_005_20260501_180231</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_045_event_005_20260501_180231/pre_00_frame_005650_score_0.57.jpg" alt="track_045_event_005_20260501_180231">
+            </div>
+            
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.5388</div>
+              <div class="neighbor-name">track_003_event_002_20260501_175633</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_003_event_002_20260501_175633/post_02_frame_000486_score_0.65.jpg" alt="track_003_event_002_20260501_175633">
+            </div>
+            
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.4384</div>
+              <div class="neighbor-name">track_059_event_008_20260501_180518</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_059_event_008_20260501_180518/post_02_frame_008069_score_0.66.jpg" alt="track_059_event_008_20260501_180518">
+            </div>
+            
+      </div>
+    </section>
+    
+    <section class="event-card">
+      <div class="event-main">
+        <div class="event-meta">
+          <h2>track_109_event_018_20260501_180933</h2>
+          <div>face_count=9</div>
+          <div>best_image=post_03_frame_011758_score_0.80.jpg</div>
+        </div>
+        <div class="event-image"><img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_109_event_018_20260501_180933/post_03_frame_011758_score_0.80.jpg" alt="track_109_event_018_20260501_180933"></div>
+      </div>
+      <div class="neighbors">
+        
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.5349</div>
+              <div class="neighbor-name">track_009_event_004_20260501_174415</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_009_event_004_20260501_174415/pre_01_frame_004107_score_0.70.jpg" alt="track_009_event_004_20260501_174415">
+            </div>
+            
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.5036</div>
+              <div class="neighbor-name">track_008_event_003_20260501_174236</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_008_event_003_20260501_174236/pre_01_frame_002674_score_0.71.jpg" alt="track_008_event_003_20260501_174236">
+            </div>
+            
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.3528</div>
+              <div class="neighbor-name">track_045_event_005_20260501_180231</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_045_event_005_20260501_180231/pre_00_frame_005650_score_0.57.jpg" alt="track_045_event_005_20260501_180231">
+            </div>
+            
+      </div>
+    </section>
+    
+    <section class="event-card">
+      <div class="event-main">
+        <div class="event-meta">
+          <h2>track_115_event_019_20260501_181528</h2>
+          <div>face_count=9</div>
+          <div>best_image=post_01_frame_016853_score_0.75.jpg</div>
+        </div>
+        <div class="event-image"><img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_115_event_019_20260501_181528/post_01_frame_016853_score_0.75.jpg" alt="track_115_event_019_20260501_181528"></div>
+      </div>
+      <div class="neighbors">
+        
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.6039</div>
+              <div class="neighbor-name">track_061_event_009_20260501_180533</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_061_event_009_20260501_180533/event_frame_008275_score_0.60.jpg" alt="track_061_event_009_20260501_180533">
+            </div>
+            
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.5849</div>
+              <div class="neighbor-name">track_048_event_006_20260501_180258</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_048_event_006_20260501_180258/post_00_frame_006038_score_0.52.jpg" alt="track_048_event_006_20260501_180258">
+            </div>
+            
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.3710</div>
+              <div class="neighbor-name">track_138_event_025_20260501_182741</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_138_event_025_20260501_182741/pre_00_frame_027308_score_0.73.jpg" alt="track_138_event_025_20260501_182741">
+            </div>
+            
+      </div>
+    </section>
+    
+    <section class="event-card">
+      <div class="event-main">
+        <div class="event-meta">
+          <h2>track_130_event_020_20260501_181945</h2>
+          <div>face_count=9</div>
+          <div>best_image=pre_00_frame_020474_score_0.61.jpg</div>
+        </div>
+        <div class="event-image"><img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_130_event_020_20260501_181945/pre_00_frame_020474_score_0.61.jpg" alt="track_130_event_020_20260501_181945"></div>
+      </div>
+      <div class="neighbors">
+        
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.6313</div>
+              <div class="neighbor-name">track_001_event_001_20260501_175631</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_001_event_001_20260501_175631/post_00_frame_000451_score_0.67.jpg" alt="track_001_event_001_20260501_175631">
+            </div>
+            
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.5740</div>
+              <div class="neighbor-name">track_131_event_021_20260501_181947</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_131_event_021_20260501_181947/pre_01_frame_020507_score_0.69.jpg" alt="track_131_event_021_20260501_181947">
+            </div>
+            
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.5269</div>
+              <div class="neighbor-name">track_073_event_014_20260501_180611</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_073_event_014_20260501_180611/pre_02_frame_008827_score_0.52.jpg" alt="track_073_event_014_20260501_180611">
+            </div>
+            
+      </div>
+    </section>
+    
+    <section class="event-card">
+      <div class="event-main">
+        <div class="event-meta">
+          <h2>track_131_event_021_20260501_181947</h2>
+          <div>face_count=9</div>
+          <div>best_image=pre_01_frame_020507_score_0.69.jpg</div>
+        </div>
+        <div class="event-image"><img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_131_event_021_20260501_181947/pre_01_frame_020507_score_0.69.jpg" alt="track_131_event_021_20260501_181947"></div>
+      </div>
+      <div class="neighbors">
+        
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.7070</div>
+              <div class="neighbor-name">track_001_event_001_20260501_175631</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_001_event_001_20260501_175631/post_00_frame_000451_score_0.67.jpg" alt="track_001_event_001_20260501_175631">
+            </div>
+            
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.6465</div>
+              <div class="neighbor-name">track_065_event_011_20260501_180547</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_065_event_011_20260501_180547/pre_00_frame_008475_score_0.52.jpg" alt="track_065_event_011_20260501_180547">
+            </div>
+            
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.6190</div>
+              <div class="neighbor-name">track_055_event_007_20260501_180427</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_055_event_007_20260501_180427/pre_01_frame_007339_score_0.70.jpg" alt="track_055_event_007_20260501_180427">
+            </div>
+            
+      </div>
+    </section>
+    
+    <section class="event-card">
+      <div class="event-main">
+        <div class="event-meta">
+          <h2>track_132_event_022_20260501_181959</h2>
+          <div>face_count=7</div>
+          <div>best_image=post_02_frame_020692_score_0.62.jpg</div>
+        </div>
+        <div class="event-image"><img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_132_event_022_20260501_181959/post_02_frame_020692_score_0.62.jpg" alt="track_132_event_022_20260501_181959"></div>
+      </div>
+      <div class="neighbors">
+        
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.5673</div>
+              <div class="neighbor-name">track_059_event_008_20260501_180518</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_059_event_008_20260501_180518/post_02_frame_008069_score_0.66.jpg" alt="track_059_event_008_20260501_180518">
+            </div>
+            
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.4787</div>
+              <div class="neighbor-name">track_003_event_002_20260501_175633</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_003_event_002_20260501_175633/post_02_frame_000486_score_0.65.jpg" alt="track_003_event_002_20260501_175633">
+            </div>
+            
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.4579</div>
+              <div class="neighbor-name">track_001_event_001_20260501_175631</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_001_event_001_20260501_175631/post_00_frame_000451_score_0.67.jpg" alt="track_001_event_001_20260501_175631">
+            </div>
+            
+      </div>
+    </section>
+    
+    <section class="event-card">
+      <div class="event-main">
+        <div class="event-meta">
+          <h2>track_136_event_023_20260501_182419</h2>
+          <div>face_count=9</div>
+          <div>best_image=post_00_frame_024401_score_0.74.jpg</div>
+        </div>
+        <div class="event-image"><img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_136_event_023_20260501_182419/post_00_frame_024401_score_0.74.jpg" alt="track_136_event_023_20260501_182419"></div>
+      </div>
+      <div class="neighbors">
+        
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.3755</div>
+              <div class="neighbor-name">track_088_event_016_20260501_180746</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_088_event_016_20260501_180746/pre_00_frame_010207_score_0.76.jpg" alt="track_088_event_016_20260501_180746">
+            </div>
+            
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.3593</div>
+              <div class="neighbor-name">track_065_event_011_20260501_180547</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_065_event_011_20260501_180547/pre_00_frame_008475_score_0.52.jpg" alt="track_065_event_011_20260501_180547">
+            </div>
+            
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.3541</div>
+              <div class="neighbor-name">track_130_event_020_20260501_181945</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_130_event_020_20260501_181945/pre_00_frame_020474_score_0.61.jpg" alt="track_130_event_020_20260501_181945">
+            </div>
+            
+      </div>
+    </section>
+    
+    <section class="event-card">
+      <div class="event-main">
+        <div class="event-meta">
+          <h2>track_137_event_024_20260501_182732</h2>
+          <div>face_count=1</div>
+          <div>best_image=post_01_frame_027189_score_0.74.jpg</div>
+        </div>
+        <div class="event-image"><img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_137_event_024_20260501_182732/post_01_frame_027189_score_0.74.jpg" alt="track_137_event_024_20260501_182732"></div>
+      </div>
+      <div class="neighbors">
+        
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.4186</div>
+              <div class="neighbor-name">track_070_event_012_20260501_180559</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_070_event_012_20260501_180559/post_00_frame_008657_score_0.52.jpg" alt="track_070_event_012_20260501_180559">
+            </div>
+            
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.3967</div>
+              <div class="neighbor-name">track_018_event_003_20260501_175857</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_018_event_003_20260501_175857/pre_00_frame_002568_score_0.73.jpg" alt="track_018_event_003_20260501_175857">
+            </div>
+            
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.3452</div>
+              <div class="neighbor-name">track_150_event_026_20260501_183051</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_150_event_026_20260501_183051/post_02_frame_030047_score_0.57.jpg" alt="track_150_event_026_20260501_183051">
+            </div>
+            
+      </div>
+    </section>
+    
+    <section class="event-card">
+      <div class="event-main">
+        <div class="event-meta">
+          <h2>track_138_event_025_20260501_182741</h2>
+          <div>face_count=9</div>
+          <div>best_image=pre_00_frame_027308_score_0.73.jpg</div>
+        </div>
+        <div class="event-image"><img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_138_event_025_20260501_182741/pre_00_frame_027308_score_0.73.jpg" alt="track_138_event_025_20260501_182741"></div>
+      </div>
+      <div class="neighbors">
+        
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.4001</div>
+              <div class="neighbor-name">track_048_event_006_20260501_180258</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_048_event_006_20260501_180258/post_00_frame_006038_score_0.52.jpg" alt="track_048_event_006_20260501_180258">
+            </div>
+            
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.3710</div>
+              <div class="neighbor-name">track_115_event_019_20260501_181528</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_115_event_019_20260501_181528/post_01_frame_016853_score_0.75.jpg" alt="track_115_event_019_20260501_181528">
+            </div>
+            
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.3311</div>
+              <div class="neighbor-name">track_061_event_009_20260501_180533</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_061_event_009_20260501_180533/event_frame_008275_score_0.60.jpg" alt="track_061_event_009_20260501_180533">
+            </div>
+            
+      </div>
+    </section>
+    
+    <section class="event-card">
+      <div class="event-main">
+        <div class="event-meta">
+          <h2>track_150_event_026_20260501_183051</h2>
+          <div>face_count=1</div>
+          <div>best_image=post_02_frame_030047_score_0.57.jpg</div>
+        </div>
+        <div class="event-image"><img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_150_event_026_20260501_183051/post_02_frame_030047_score_0.57.jpg" alt="track_150_event_026_20260501_183051"></div>
+      </div>
+      <div class="neighbors">
+        
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.5705</div>
+              <div class="neighbor-name">track_019_event_004_20260501_175904</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_019_event_004_20260501_175904/pre_02_frame_002674_score_0.70.jpg" alt="track_019_event_004_20260501_175904">
+            </div>
+            
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.5469</div>
+              <div class="neighbor-name">track_070_event_012_20260501_180559</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_070_event_012_20260501_180559/post_00_frame_008657_score_0.52.jpg" alt="track_070_event_012_20260501_180559">
+            </div>
+            
+            <div class="neighbor-card">
+              <div class="neighbor-score">cosine 0.4999</div>
+              <div class="neighbor-name">track_059_event_008_20260501_180518</div>
+              <img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_059_event_008_20260501_180518/post_02_frame_008069_score_0.66.jpg" alt="track_059_event_008_20260501_180518">
+            </div>
+            
+      </div>
+    </section>
+    
+</body>
+</html>

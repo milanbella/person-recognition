@@ -1,0 +1,562 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Local Identity Review</title>
+  <style>
+    body {
+      font-family: Segoe UI, Arial, sans-serif;
+      margin: 24px;
+      background: #f4f1ea;
+      color: #1e1e1e;
+    }
+    h1 {
+      margin-bottom: 8px;
+    }
+    .intro {
+      margin-bottom: 24px;
+      color: #474747;
+      max-width: 900px;
+    }
+    .identity-section {
+      background: #fffdf8;
+      border: 1px solid #d6cebf;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 22px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    }
+    .identity-section.skipped {
+      background: #fbf7f1;
+    }
+    h2 {
+      margin-top: 0;
+      margin-bottom: 14px;
+    }
+    .count {
+      color: #666;
+      font-size: 16px;
+      font-weight: 400;
+    }
+    .events-grid {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .event-card {
+      width: 260px;
+      background: #faf7ef;
+      border: 1px solid #e0d9ca;
+      border-radius: 10px;
+      padding: 12px;
+    }
+    .event-image img {
+      width: 236px;
+      max-width: 100%;
+      border-radius: 8px;
+      border: 1px solid #d8d0c0;
+      margin-bottom: 10px;
+    }
+    .missing {
+      width: 236px;
+      height: 236px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #ece6d9;
+      border: 1px dashed #b9af9b;
+      border-radius: 8px;
+      margin-bottom: 10px;
+      color: #555;
+    }
+    .event-name {
+      font-weight: 700;
+      margin-bottom: 8px;
+      word-break: break-word;
+    }
+    .event-meta {
+      font-size: 14px;
+      color: #333;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <h1>Local Identity Review</h1>
+  <div class="intro">
+    Each section is one local gallery identity from the offline matcher. Review whether the grouped event crops
+    actually belong to the same person. Skipped items are shown separately.
+  </div>
+  
+    <section class="identity-section">
+      <h2>person_001 <span class="count">(1 events)</span></h2>
+      <div class="events-grid">
+        
+    <div class="event-card">
+      <div class="event-image"><img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_005_event_001_20260501_174054/pre_00_frame_001189_score_0.80.jpg" alt="track_005_event_001_20260501_174054"></div>
+      <div class="event-meta">
+        <div class="event-name">track_005_event_001_20260501_174054</div>
+        <div>decision=created_new_identity</div>
+        <div>face_count=9</div>
+        <div>best_score=n/a</div>
+        <div>best_image=pre_00_frame_001189_score_0.80.jpg</div>
+      </div>
+    </div>
+    
+      </div>
+    </section>
+    
+    <section class="identity-section">
+      <h2>person_002 <span class="count">(2 events)</span></h2>
+      <div class="events-grid">
+        
+    <div class="event-card">
+      <div class="event-image"><img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_008_event_003_20260501_174236/pre_01_frame_002674_score_0.71.jpg" alt="track_008_event_003_20260501_174236"></div>
+      <div class="event-meta">
+        <div class="event-name">track_008_event_003_20260501_174236</div>
+        <div>decision=created_new_identity</div>
+        <div>face_count=8</div>
+        <div>best_score=-0.0033</div>
+        <div>best_image=pre_01_frame_002674_score_0.71.jpg</div>
+      </div>
+    </div>
+    
+    <div class="event-card">
+      <div class="event-image"><img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_009_event_004_20260501_174415/pre_01_frame_004107_score_0.70.jpg" alt="track_009_event_004_20260501_174415"></div>
+      <div class="event-meta">
+        <div class="event-name">track_009_event_004_20260501_174415</div>
+        <div>decision=matched_existing</div>
+        <div>face_count=9</div>
+        <div>best_score=0.8290</div>
+        <div>best_image=pre_01_frame_004107_score_0.70.jpg</div>
+      </div>
+    </div>
+    
+      </div>
+    </section>
+    
+    <section class="identity-section">
+      <h2>person_003 <span class="count">(2 events)</span></h2>
+      <div class="events-grid">
+        
+    <div class="event-card">
+      <div class="event-image"><img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_001_event_001_20260501_175631/post_00_frame_000451_score_0.67.jpg" alt="track_001_event_001_20260501_175631"></div>
+      <div class="event-meta">
+        <div class="event-name">track_001_event_001_20260501_175631</div>
+        <div>decision=created_new_identity</div>
+        <div>face_count=9</div>
+        <div>best_score=0.1371</div>
+        <div>best_image=post_00_frame_000451_score_0.67.jpg</div>
+      </div>
+    </div>
+    
+    <div class="event-card">
+      <div class="event-image"><img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_131_event_021_20260501_181947/pre_01_frame_020507_score_0.69.jpg" alt="track_131_event_021_20260501_181947"></div>
+      <div class="event-meta">
+        <div class="event-name">track_131_event_021_20260501_181947</div>
+        <div>decision=matched_existing</div>
+        <div>face_count=9</div>
+        <div>best_score=0.7070</div>
+        <div>best_image=pre_01_frame_020507_score_0.69.jpg</div>
+      </div>
+    </div>
+    
+      </div>
+    </section>
+    
+    <section class="identity-section">
+      <h2>person_004 <span class="count">(2 events)</span></h2>
+      <div class="events-grid">
+        
+    <div class="event-card">
+      <div class="event-image"><img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_003_event_002_20260501_175633/post_02_frame_000486_score_0.65.jpg" alt="track_003_event_002_20260501_175633"></div>
+      <div class="event-meta">
+        <div class="event-name">track_003_event_002_20260501_175633</div>
+        <div>decision=created_new_identity</div>
+        <div>face_count=9</div>
+        <div>best_score=0.3413</div>
+        <div>best_image=post_02_frame_000486_score_0.65.jpg</div>
+      </div>
+    </div>
+    
+    <div class="event-card">
+      <div class="event-image"><img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_059_event_008_20260501_180518/post_02_frame_008069_score_0.66.jpg" alt="track_059_event_008_20260501_180518"></div>
+      <div class="event-meta">
+        <div class="event-name">track_059_event_008_20260501_180518</div>
+        <div>decision=matched_existing</div>
+        <div>face_count=9</div>
+        <div>best_score=0.6912</div>
+        <div>best_image=post_02_frame_008069_score_0.66.jpg</div>
+      </div>
+    </div>
+    
+      </div>
+    </section>
+    
+    <section class="identity-section">
+      <h2>person_005 <span class="count">(1 events)</span></h2>
+      <div class="events-grid">
+        
+    <div class="event-card">
+      <div class="event-image"><img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_018_event_003_20260501_175857/pre_00_frame_002568_score_0.73.jpg" alt="track_018_event_003_20260501_175857"></div>
+      <div class="event-meta">
+        <div class="event-name">track_018_event_003_20260501_175857</div>
+        <div>decision=created_new_identity</div>
+        <div>face_count=5</div>
+        <div>best_score=0.3925</div>
+        <div>best_image=pre_00_frame_002568_score_0.73.jpg</div>
+      </div>
+    </div>
+    
+      </div>
+    </section>
+    
+    <section class="identity-section">
+      <h2>person_006 <span class="count">(1 events)</span></h2>
+      <div class="events-grid">
+        
+    <div class="event-card">
+      <div class="event-image"><img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_019_event_004_20260501_175904/pre_02_frame_002674_score_0.70.jpg" alt="track_019_event_004_20260501_175904"></div>
+      <div class="event-meta">
+        <div class="event-name">track_019_event_004_20260501_175904</div>
+        <div>decision=created_new_identity</div>
+        <div>face_count=9</div>
+        <div>best_score=0.5859</div>
+        <div>best_image=pre_02_frame_002674_score_0.70.jpg</div>
+      </div>
+    </div>
+    
+      </div>
+    </section>
+    
+    <section class="identity-section">
+      <h2>person_007 <span class="count">(1 events)</span></h2>
+      <div class="events-grid">
+        
+    <div class="event-card">
+      <div class="event-image"><img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_045_event_005_20260501_180231/pre_00_frame_005650_score_0.57.jpg" alt="track_045_event_005_20260501_180231"></div>
+      <div class="event-meta">
+        <div class="event-name">track_045_event_005_20260501_180231</div>
+        <div>decision=created_new_identity</div>
+        <div>face_count=9</div>
+        <div>best_score=0.3961</div>
+        <div>best_image=pre_00_frame_005650_score_0.57.jpg</div>
+      </div>
+    </div>
+    
+      </div>
+    </section>
+    
+    <section class="identity-section">
+      <h2>person_008 <span class="count">(1 events)</span></h2>
+      <div class="events-grid">
+        
+    <div class="event-card">
+      <div class="event-image"><img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_048_event_006_20260501_180258/post_00_frame_006038_score_0.52.jpg" alt="track_048_event_006_20260501_180258"></div>
+      <div class="event-meta">
+        <div class="event-name">track_048_event_006_20260501_180258</div>
+        <div>decision=created_new_identity</div>
+        <div>face_count=9</div>
+        <div>best_score=0.2397</div>
+        <div>best_image=post_00_frame_006038_score_0.52.jpg</div>
+      </div>
+    </div>
+    
+      </div>
+    </section>
+    
+    <section class="identity-section">
+      <h2>person_009 <span class="count">(1 events)</span></h2>
+      <div class="events-grid">
+        
+    <div class="event-card">
+      <div class="event-image"><img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_055_event_007_20260501_180427/pre_01_frame_007339_score_0.70.jpg" alt="track_055_event_007_20260501_180427"></div>
+      <div class="event-meta">
+        <div class="event-name">track_055_event_007_20260501_180427</div>
+        <div>decision=created_new_identity</div>
+        <div>face_count=5</div>
+        <div>best_score=0.5727</div>
+        <div>best_image=pre_01_frame_007339_score_0.70.jpg</div>
+      </div>
+    </div>
+    
+      </div>
+    </section>
+    
+    <section class="identity-section">
+      <h2>person_010 <span class="count">(1 events)</span></h2>
+      <div class="events-grid">
+        
+    <div class="event-card">
+      <div class="event-image"><img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_061_event_009_20260501_180533/event_frame_008275_score_0.60.jpg" alt="track_061_event_009_20260501_180533"></div>
+      <div class="event-meta">
+        <div class="event-name">track_061_event_009_20260501_180533</div>
+        <div>decision=created_new_identity</div>
+        <div>face_count=9</div>
+        <div>best_score=0.6438</div>
+        <div>best_image=event_frame_008275_score_0.60.jpg</div>
+      </div>
+    </div>
+    
+      </div>
+    </section>
+    
+    <section class="identity-section">
+      <h2>person_011 <span class="count">(1 events)</span></h2>
+      <div class="events-grid">
+        
+    <div class="event-card">
+      <div class="event-image"><img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_065_event_011_20260501_180547/pre_00_frame_008475_score_0.52.jpg" alt="track_065_event_011_20260501_180547"></div>
+      <div class="event-meta">
+        <div class="event-name">track_065_event_011_20260501_180547</div>
+        <div>decision=created_new_identity</div>
+        <div>face_count=6</div>
+        <div>best_score=0.4897</div>
+        <div>best_image=pre_00_frame_008475_score_0.52.jpg</div>
+      </div>
+    </div>
+    
+      </div>
+    </section>
+    
+    <section class="identity-section">
+      <h2>person_012 <span class="count">(1 events)</span></h2>
+      <div class="events-grid">
+        
+    <div class="event-card">
+      <div class="event-image"><img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_071_event_013_20260501_180601/post_03_frame_008692_score_0.56.jpg" alt="track_071_event_013_20260501_180601"></div>
+      <div class="event-meta">
+        <div class="event-name">track_071_event_013_20260501_180601</div>
+        <div>decision=created_new_identity</div>
+        <div>face_count=8</div>
+        <div>best_score=0.4233</div>
+        <div>best_image=post_03_frame_008692_score_0.56.jpg</div>
+      </div>
+    </div>
+    
+      </div>
+    </section>
+    
+    <section class="identity-section">
+      <h2>person_013 <span class="count">(1 events)</span></h2>
+      <div class="events-grid">
+        
+    <div class="event-card">
+      <div class="event-image"><img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_073_event_014_20260501_180611/pre_02_frame_008827_score_0.52.jpg" alt="track_073_event_014_20260501_180611"></div>
+      <div class="event-meta">
+        <div class="event-name">track_073_event_014_20260501_180611</div>
+        <div>decision=created_new_identity</div>
+        <div>face_count=6</div>
+        <div>best_score=0.5267</div>
+        <div>best_image=pre_02_frame_008827_score_0.52.jpg</div>
+      </div>
+    </div>
+    
+      </div>
+    </section>
+    
+    <section class="identity-section">
+      <h2>person_014 <span class="count">(1 events)</span></h2>
+      <div class="events-grid">
+        
+    <div class="event-card">
+      <div class="event-image"><img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_076_event_015_20260501_180634/pre_00_frame_009156_score_0.60.jpg" alt="track_076_event_015_20260501_180634"></div>
+      <div class="event-meta">
+        <div class="event-name">track_076_event_015_20260501_180634</div>
+        <div>decision=created_new_identity</div>
+        <div>face_count=8</div>
+        <div>best_score=0.6015</div>
+        <div>best_image=pre_00_frame_009156_score_0.60.jpg</div>
+      </div>
+    </div>
+    
+      </div>
+    </section>
+    
+    <section class="identity-section">
+      <h2>person_015 <span class="count">(1 events)</span></h2>
+      <div class="events-grid">
+        
+    <div class="event-card">
+      <div class="event-image"><img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_088_event_016_20260501_180746/pre_00_frame_010207_score_0.76.jpg" alt="track_088_event_016_20260501_180746"></div>
+      <div class="event-meta">
+        <div class="event-name">track_088_event_016_20260501_180746</div>
+        <div>decision=created_new_identity</div>
+        <div>face_count=9</div>
+        <div>best_score=0.4288</div>
+        <div>best_image=pre_00_frame_010207_score_0.76.jpg</div>
+      </div>
+    </div>
+    
+      </div>
+    </section>
+    
+    <section class="identity-section">
+      <h2>person_016 <span class="count">(1 events)</span></h2>
+      <div class="events-grid">
+        
+    <div class="event-card">
+      <div class="event-image"><img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_108_event_017_20260501_180929/pre_00_frame_011697_score_0.60.jpg" alt="track_108_event_017_20260501_180929"></div>
+      <div class="event-meta">
+        <div class="event-name">track_108_event_017_20260501_180929</div>
+        <div>decision=created_new_identity</div>
+        <div>face_count=7</div>
+        <div>best_score=0.6045</div>
+        <div>best_image=pre_00_frame_011697_score_0.60.jpg</div>
+      </div>
+    </div>
+    
+      </div>
+    </section>
+    
+    <section class="identity-section">
+      <h2>person_017 <span class="count">(1 events)</span></h2>
+      <div class="events-grid">
+        
+    <div class="event-card">
+      <div class="event-image"><img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_109_event_018_20260501_180933/post_03_frame_011758_score_0.80.jpg" alt="track_109_event_018_20260501_180933"></div>
+      <div class="event-meta">
+        <div class="event-name">track_109_event_018_20260501_180933</div>
+        <div>decision=created_new_identity</div>
+        <div>face_count=9</div>
+        <div>best_score=0.5430</div>
+        <div>best_image=post_03_frame_011758_score_0.80.jpg</div>
+      </div>
+    </div>
+    
+      </div>
+    </section>
+    
+    <section class="identity-section">
+      <h2>person_018 <span class="count">(1 events)</span></h2>
+      <div class="events-grid">
+        
+    <div class="event-card">
+      <div class="event-image"><img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_115_event_019_20260501_181528/post_01_frame_016853_score_0.75.jpg" alt="track_115_event_019_20260501_181528"></div>
+      <div class="event-meta">
+        <div class="event-name">track_115_event_019_20260501_181528</div>
+        <div>decision=created_new_identity</div>
+        <div>face_count=9</div>
+        <div>best_score=0.6039</div>
+        <div>best_image=post_01_frame_016853_score_0.75.jpg</div>
+      </div>
+    </div>
+    
+      </div>
+    </section>
+    
+    <section class="identity-section">
+      <h2>person_019 <span class="count">(1 events)</span></h2>
+      <div class="events-grid">
+        
+    <div class="event-card">
+      <div class="event-image"><img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_130_event_020_20260501_181945/pre_00_frame_020474_score_0.61.jpg" alt="track_130_event_020_20260501_181945"></div>
+      <div class="event-meta">
+        <div class="event-name">track_130_event_020_20260501_181945</div>
+        <div>decision=created_new_identity</div>
+        <div>face_count=9</div>
+        <div>best_score=0.6313</div>
+        <div>best_image=pre_00_frame_020474_score_0.61.jpg</div>
+      </div>
+    </div>
+    
+      </div>
+    </section>
+    
+    <section class="identity-section">
+      <h2>person_020 <span class="count">(1 events)</span></h2>
+      <div class="events-grid">
+        
+    <div class="event-card">
+      <div class="event-image"><img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_132_event_022_20260501_181959/post_02_frame_020692_score_0.62.jpg" alt="track_132_event_022_20260501_181959"></div>
+      <div class="event-meta">
+        <div class="event-name">track_132_event_022_20260501_181959</div>
+        <div>decision=created_new_identity</div>
+        <div>face_count=7</div>
+        <div>best_score=0.5687</div>
+        <div>best_image=post_02_frame_020692_score_0.62.jpg</div>
+      </div>
+    </div>
+    
+      </div>
+    </section>
+    
+    <section class="identity-section">
+      <h2>person_021 <span class="count">(1 events)</span></h2>
+      <div class="events-grid">
+        
+    <div class="event-card">
+      <div class="event-image"><img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_136_event_023_20260501_182419/post_00_frame_024401_score_0.74.jpg" alt="track_136_event_023_20260501_182419"></div>
+      <div class="event-meta">
+        <div class="event-name">track_136_event_023_20260501_182419</div>
+        <div>decision=created_new_identity</div>
+        <div>face_count=9</div>
+        <div>best_score=0.3755</div>
+        <div>best_image=post_00_frame_024401_score_0.74.jpg</div>
+      </div>
+    </div>
+    
+      </div>
+    </section>
+    
+    <section class="identity-section">
+      <h2>person_022 <span class="count">(1 events)</span></h2>
+      <div class="events-grid">
+        
+    <div class="event-card">
+      <div class="event-image"><img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_138_event_025_20260501_182741/pre_00_frame_027308_score_0.73.jpg" alt="track_138_event_025_20260501_182741"></div>
+      <div class="event-meta">
+        <div class="event-name">track_138_event_025_20260501_182741</div>
+        <div>decision=created_new_identity</div>
+        <div>face_count=9</div>
+        <div>best_score=0.4001</div>
+        <div>best_image=pre_00_frame_027308_score_0.73.jpg</div>
+      </div>
+    </div>
+    
+      </div>
+    </section>
+    
+  
+    <section class="identity-section skipped">
+      <h2>Skipped / Unassigned <span class="count">(3 events)</span></h2>
+      <div class="events-grid">
+        
+    <div class="event-card">
+      <div class="event-image"><img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_070_event_012_20260501_180559/post_00_frame_008657_score_0.52.jpg" alt="track_070_event_012_20260501_180559"></div>
+      <div class="event-meta">
+        <div class="event-name">track_070_event_012_20260501_180559</div>
+        <div>decision=skip_low_face_count</div>
+        <div>face_count=1</div>
+        <div>best_score=0.6995</div>
+        <div>best_image=post_00_frame_008657_score_0.52.jpg</div>
+      </div>
+    </div>
+    
+    <div class="event-card">
+      <div class="event-image"><img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_137_event_024_20260501_182732/post_01_frame_027189_score_0.74.jpg" alt="track_137_event_024_20260501_182732"></div>
+      <div class="event-meta">
+        <div class="event-name">track_137_event_024_20260501_182732</div>
+        <div>decision=skip_low_face_count</div>
+        <div>face_count=1</div>
+        <div>best_score=0.3967</div>
+        <div>best_image=post_01_frame_027189_score_0.74.jpg</div>
+      </div>
+    </div>
+    
+    <div class="event-card">
+      <div class="event-image"><img src="file:///C:/wi/luxonis/person-recognition/src/evidence/track_150_event_026_20260501_183051/post_02_frame_030047_score_0.57.jpg" alt="track_150_event_026_20260501_183051"></div>
+      <div class="event-meta">
+        <div class="event-name">track_150_event_026_20260501_183051</div>
+        <div>decision=skip_low_face_count</div>
+        <div>face_count=1</div>
+        <div>best_score=0.5705</div>
+        <div>best_image=post_02_frame_030047_score_0.57.jpg</div>
+      </div>
+    </div>
+    
+      </div>
+    </section>
+    
+</body>
+</html>

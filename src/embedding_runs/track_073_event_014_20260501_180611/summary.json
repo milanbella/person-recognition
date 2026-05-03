@@ -1,0 +1,76 @@
+{
+  "event_dir": "C:\\wi\\luxonis\\person-recognition\\src\\evidence\\track_073_event_014_20260501_180611",
+  "output_dir": "C:\\wi\\luxonis\\person-recognition\\src\\embedding_runs\\track_073_event_014_20260501_180611",
+  "face_count": 6,
+  "embedding_dim": 512,
+  "images": [
+    {
+      "image_name": "event_frame_008828_score_0.53.jpg",
+      "det_score": 0.6540905237197876,
+      "bbox": [
+        -25.620832443237305,
+        198.79501342773438,
+        73.33154296875,
+        284.2484130859375
+      ],
+      "embedding_norm": 19.53653907775879
+    },
+    {
+      "image_name": "post_00_frame_008829_score_0.53.jpg",
+      "det_score": 0.5729751586914062,
+      "bbox": [
+        -32.18968963623047,
+        206.17416381835938,
+        62.560794830322266,
+        291.6416931152344
+      ],
+      "embedding_norm": 19.076282501220703
+    },
+    {
+      "image_name": "pre_00_frame_008825_score_0.52.jpg",
+      "det_score": 0.6048235893249512,
+      "bbox": [
+        -39.716400146484375,
+        213.93606567382812,
+        59.98907470703125,
+        290.3908386230469
+      ],
+      "embedding_norm": 18.348609924316406
+    },
+    {
+      "image_name": "pre_01_frame_008826_score_0.52.jpg",
+      "det_score": 0.6165514588356018,
+      "bbox": [
+        -40.322479248046875,
+        201.98594665527344,
+        60.97588348388672,
+        285.4300842285156
+      ],
+      "embedding_norm": 17.08949851989746
+    },
+    {
+      "image_name": "pre_02_frame_008827_score_0.52.jpg",
+      "det_score": 0.6570056676864624,
+      "bbox": [
+        -38.49524688720703,
+        195.0460662841797,
+        59.4424934387207,
+        274.0951843261719
+      ],
+      "embedding_norm": 17.957374572753906
+    },
+    {
+      "image_name": "pre_03_frame_008828_score_0.53.jpg",
+      "det_score": 0.6540905237197876,
+      "bbox": [
+        -25.620832443237305,
+        198.79501342773438,
+        73.33154296875,
+        284.2484130859375
+      ],
+      "embedding_norm": 19.53653907775879
+    }
+  ],
+  "mean_embedding_file": "mean_embedding.npy",
+  "best_image": "pre_02_frame_008827_score_0.52.jpg"
+}

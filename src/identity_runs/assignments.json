@@ -1,0 +1,226 @@
+[
+  {
+    "event_name": "track_005_event_001_20260501_174054",
+    "face_count": 9,
+    "best_image": "pre_00_frame_001189_score_0.80.jpg",
+    "decision": "created_new_identity",
+    "assigned_identity": "person_001",
+    "best_score": null
+  },
+  {
+    "event_name": "track_008_event_003_20260501_174236",
+    "face_count": 8,
+    "best_image": "pre_01_frame_002674_score_0.71.jpg",
+    "decision": "created_new_identity",
+    "assigned_identity": "person_002",
+    "best_score": -0.003341926261782646
+  },
+  {
+    "event_name": "track_009_event_004_20260501_174415",
+    "face_count": 9,
+    "best_image": "pre_01_frame_004107_score_0.70.jpg",
+    "decision": "matched_existing",
+    "assigned_identity": "person_002",
+    "best_score": 0.8290168046951294
+  },
+  {
+    "event_name": "track_001_event_001_20260501_175631",
+    "face_count": 9,
+    "best_image": "post_00_frame_000451_score_0.67.jpg",
+    "decision": "created_new_identity",
+    "assigned_identity": "person_003",
+    "best_score": 0.1371123045682907
+  },
+  {
+    "event_name": "track_003_event_002_20260501_175633",
+    "face_count": 9,
+    "best_image": "post_02_frame_000486_score_0.65.jpg",
+    "decision": "created_new_identity",
+    "assigned_identity": "person_004",
+    "best_score": 0.3412935733795166
+  },
+  {
+    "event_name": "track_018_event_003_20260501_175857",
+    "face_count": 5,
+    "best_image": "pre_00_frame_002568_score_0.73.jpg",
+    "decision": "created_new_identity",
+    "assigned_identity": "person_005",
+    "best_score": 0.39248085021972656
+  },
+  {
+    "event_name": "track_019_event_004_20260501_175904",
+    "face_count": 9,
+    "best_image": "pre_02_frame_002674_score_0.70.jpg",
+    "decision": "created_new_identity",
+    "assigned_identity": "person_006",
+    "best_score": 0.5859017372131348
+  },
+  {
+    "event_name": "track_045_event_005_20260501_180231",
+    "face_count": 9,
+    "best_image": "pre_00_frame_005650_score_0.57.jpg",
+    "decision": "created_new_identity",
+    "assigned_identity": "person_007",
+    "best_score": 0.39612293243408203
+  },
+  {
+    "event_name": "track_048_event_006_20260501_180258",
+    "face_count": 9,
+    "best_image": "post_00_frame_006038_score_0.52.jpg",
+    "decision": "created_new_identity",
+    "assigned_identity": "person_008",
+    "best_score": 0.2396850287914276
+  },
+  {
+    "event_name": "track_055_event_007_20260501_180427",
+    "face_count": 5,
+    "best_image": "pre_01_frame_007339_score_0.70.jpg",
+    "decision": "created_new_identity",
+    "assigned_identity": "person_009",
+    "best_score": 0.5726761817932129
+  },
+  {
+    "event_name": "track_059_event_008_20260501_180518",
+    "face_count": 9,
+    "best_image": "post_02_frame_008069_score_0.66.jpg",
+    "decision": "matched_existing",
+    "assigned_identity": "person_004",
+    "best_score": 0.6912478804588318
+  },
+  {
+    "event_name": "track_061_event_009_20260501_180533",
+    "face_count": 9,
+    "best_image": "event_frame_008275_score_0.60.jpg",
+    "decision": "created_new_identity",
+    "assigned_identity": "person_010",
+    "best_score": 0.6438035368919373
+  },
+  {
+    "event_name": "track_065_event_011_20260501_180547",
+    "face_count": 6,
+    "best_image": "pre_00_frame_008475_score_0.52.jpg",
+    "decision": "created_new_identity",
+    "assigned_identity": "person_011",
+    "best_score": 0.4897497594356537
+  },
+  {
+    "event_name": "track_070_event_012_20260501_180559",
+    "face_count": 1,
+    "best_image": "post_00_frame_008657_score_0.52.jpg",
+    "decision": "skip_low_face_count",
+    "assigned_identity": null,
+    "best_score": 0.6994774341583252
+  },
+  {
+    "event_name": "track_071_event_013_20260501_180601",
+    "face_count": 8,
+    "best_image": "post_03_frame_008692_score_0.56.jpg",
+    "decision": "created_new_identity",
+    "assigned_identity": "person_012",
+    "best_score": 0.4233365058898926
+  },
+  {
+    "event_name": "track_073_event_014_20260501_180611",
+    "face_count": 6,
+    "best_image": "pre_02_frame_008827_score_0.52.jpg",
+    "decision": "created_new_identity",
+    "assigned_identity": "person_013",
+    "best_score": 0.526731014251709
+  },
+  {
+    "event_name": "track_076_event_015_20260501_180634",
+    "face_count": 8,
+    "best_image": "pre_00_frame_009156_score_0.60.jpg",
+    "decision": "created_new_identity",
+    "assigned_identity": "person_014",
+    "best_score": 0.6014682054519653
+  },
+  {
+    "event_name": "track_088_event_016_20260501_180746",
+    "face_count": 9,
+    "best_image": "pre_00_frame_010207_score_0.76.jpg",
+    "decision": "created_new_identity",
+    "assigned_identity": "person_015",
+    "best_score": 0.4288124442100525
+  },
+  {
+    "event_name": "track_108_event_017_20260501_180929",
+    "face_count": 7,
+    "best_image": "pre_00_frame_011697_score_0.60.jpg",
+    "decision": "created_new_identity",
+    "assigned_identity": "person_016",
+    "best_score": 0.6044720411300659
+  },
+  {
+    "event_name": "track_109_event_018_20260501_180933",
+    "face_count": 9,
+    "best_image": "post_03_frame_011758_score_0.80.jpg",
+    "decision": "created_new_identity",
+    "assigned_identity": "person_017",
+    "best_score": 0.5429559946060181
+  },
+  {
+    "event_name": "track_115_event_019_20260501_181528",
+    "face_count": 9,
+    "best_image": "post_01_frame_016853_score_0.75.jpg",
+    "decision": "created_new_identity",
+    "assigned_identity": "person_018",
+    "best_score": 0.6039137840270996
+  },
+  {
+    "event_name": "track_130_event_020_20260501_181945",
+    "face_count": 9,
+    "best_image": "pre_00_frame_020474_score_0.61.jpg",
+    "decision": "created_new_identity",
+    "assigned_identity": "person_019",
+    "best_score": 0.6312788724899292
+  },
+  {
+    "event_name": "track_131_event_021_20260501_181947",
+    "face_count": 9,
+    "best_image": "pre_01_frame_020507_score_0.69.jpg",
+    "decision": "matched_existing",
+    "assigned_identity": "person_003",
+    "best_score": 0.706992506980896
+  },
+  {
+    "event_name": "track_132_event_022_20260501_181959",
+    "face_count": 7,
+    "best_image": "post_02_frame_020692_score_0.62.jpg",
+    "decision": "created_new_identity",
+    "assigned_identity": "person_020",
+    "best_score": 0.5687399506568909
+  },
+  {
+    "event_name": "track_136_event_023_20260501_182419",
+    "face_count": 9,
+    "best_image": "post_00_frame_024401_score_0.74.jpg",
+    "decision": "created_new_identity",
+    "assigned_identity": "person_021",
+    "best_score": 0.37548038363456726
+  },
+  {
+    "event_name": "track_137_event_024_20260501_182732",
+    "face_count": 1,
+    "best_image": "post_01_frame_027189_score_0.74.jpg",
+    "decision": "skip_low_face_count",
+    "assigned_identity": null,
+    "best_score": 0.39665910601615906
+  },
+  {
+    "event_name": "track_138_event_025_20260501_182741",
+    "face_count": 9,
+    "best_image": "pre_00_frame_027308_score_0.73.jpg",
+    "decision": "created_new_identity",
+    "assigned_identity": "person_022",
+    "best_score": 0.40013062953948975
+  },
+  {
+    "event_name": "track_150_event_026_20260501_183051",
+    "face_count": 1,
+    "best_image": "post_02_frame_030047_score_0.57.jpg",
+    "decision": "skip_low_face_count",
+    "assigned_identity": null,
+    "best_score": 0.5704699754714966
+  }
+]

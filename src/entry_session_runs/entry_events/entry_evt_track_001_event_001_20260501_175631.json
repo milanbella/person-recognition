@@ -1,0 +1,84 @@
+{
+  "schema_version": "2026-05-02",
+  "entry_event_id": "entry_evt_track_001_event_001_20260501_175631",
+  "shop_id": "shop_001",
+  "camera_id": "entrance_cam_001",
+  "timestamp_utc": "2026-05-01T17:56:31Z",
+  "track_id": 1,
+  "entry_direction": "outside_to_inside",
+  "line_axis": "x",
+  "line_position": 0.7,
+  "evidence_images": [
+    {
+      "path": "C:\\wi\\luxonis\\person-recognition\\src\\evidence\\track_001_event_001_20260501_175631\\event_frame_000450_score_0.68.jpg",
+      "kind": "event",
+      "score": 0.8304451704025269
+    },
+    {
+      "path": "C:\\wi\\luxonis\\person-recognition\\src\\evidence\\track_001_event_001_20260501_175631\\post_00_frame_000451_score_0.67.jpg",
+      "kind": "post",
+      "score": 0.8318207263946533
+    },
+    {
+      "path": "C:\\wi\\luxonis\\person-recognition\\src\\evidence\\track_001_event_001_20260501_175631\\post_01_frame_000452_score_0.70.jpg",
+      "kind": "post",
+      "score": 0.7906368970870972
+    },
+    {
+      "path": "C:\\wi\\luxonis\\person-recognition\\src\\evidence\\track_001_event_001_20260501_175631\\post_02_frame_000453_score_0.69.jpg",
+      "kind": "post",
+      "score": 0.826775074005127
+    },
+    {
+      "path": "C:\\wi\\luxonis\\person-recognition\\src\\evidence\\track_001_event_001_20260501_175631\\post_03_frame_000454_score_0.68.jpg",
+      "kind": "post",
+      "score": 0.8280457258224487
+    },
+    {
+      "path": "C:\\wi\\luxonis\\person-recognition\\src\\evidence\\track_001_event_001_20260501_175631\\pre_00_frame_000447_score_0.68.jpg",
+      "kind": "pre",
+      "score": 0.7863426208496094
+    },
+    {
+      "path": "C:\\wi\\luxonis\\person-recognition\\src\\evidence\\track_001_event_001_20260501_175631\\pre_01_frame_000448_score_0.68.jpg",
+      "kind": "pre",
+      "score": 0.8047934770584106
+    },
+    {
+      "path": "C:\\wi\\luxonis\\person-recognition\\src\\evidence\\track_001_event_001_20260501_175631\\pre_02_frame_000449_score_0.67.jpg",
+      "kind": "pre",
+      "score": 0.7950672507286072
+    },
+    {
+      "path": "C:\\wi\\luxonis\\person-recognition\\src\\evidence\\track_001_event_001_20260501_175631\\pre_03_frame_000450_score_0.68.jpg",
+      "kind": "pre",
+      "score": 0.8304451704025269
+    },
+    {
+      "path": "C:\\wi\\luxonis\\person-recognition\\src\\evidence\\track_001_event_001_20260501_175631\\post_00_frame_000451_score_0.67.jpg",
+      "kind": "best",
+      "score": null
+    }
+  ],
+  "face_embedding": {
+    "model_name": "arcface",
+    "vector_path": "C:\\wi\\luxonis\\person-recognition\\src\\embedding_runs\\track_001_event_001_20260501_175631\\mean_embedding.npy",
+    "dimension": 512,
+    "source_image_path": "C:\\wi\\luxonis\\person-recognition\\src\\evidence\\track_001_event_001_20260501_175631\\post_00_frame_000451_score_0.67.jpg",
+    "mean_vector_path": "C:\\wi\\luxonis\\person-recognition\\src\\embedding_runs\\track_001_event_001_20260501_175631\\mean_embedding.npy"
+  },
+  "body_embedding": null,
+  "quality": {
+    "face_count": 9,
+    "best_face_det_score": 0.8318207263946533,
+    "embedding_consistency": 0.8748914003372192,
+    "quality_score": 0.9057582080364226,
+    "notes": []
+  },
+  "raw_evidence_dir": "C:\\wi\\luxonis\\person-recognition\\src\\evidence\\track_001_event_001_20260501_175631",
+  "metadata": {
+    "embedding_run_dir": "C:\\wi\\luxonis\\person-recognition\\src\\embedding_runs\\track_001_event_001_20260501_175631",
+    "evidence_dir": "C:\\wi\\luxonis\\person-recognition\\src\\evidence\\track_001_event_001_20260501_175631",
+    "best_image": "post_00_frame_000451_score_0.67.jpg"
+  }
+}

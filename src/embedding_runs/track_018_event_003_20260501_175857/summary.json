@@ -1,0 +1,65 @@
+{
+  "event_dir": "C:\\wi\\luxonis\\person-recognition\\src\\evidence\\track_018_event_003_20260501_175857",
+  "output_dir": "C:\\wi\\luxonis\\person-recognition\\src\\embedding_runs\\track_018_event_003_20260501_175857",
+  "face_count": 5,
+  "embedding_dim": 512,
+  "images": [
+    {
+      "image_name": "event_frame_002571_score_0.67.jpg",
+      "det_score": 0.5361034274101257,
+      "bbox": [
+        174.99024963378906,
+        96.80958557128906,
+        199.91522216796875,
+        137.75526428222656
+      ],
+      "embedding_norm": 10.685456275939941
+    },
+    {
+      "image_name": "pre_00_frame_002568_score_0.73.jpg",
+      "det_score": 0.5934588313102722,
+      "bbox": [
+        173.62437438964844,
+        101.40750122070312,
+        198.996826171875,
+        142.59605407714844
+      ],
+      "embedding_norm": 13.077431678771973
+    },
+    {
+      "image_name": "pre_01_frame_002569_score_0.68.jpg",
+      "det_score": 0.5780788660049438,
+      "bbox": [
+        182.1787872314453,
+        93.61550903320312,
+        209.23489379882812,
+        135.03733825683594
+      ],
+      "embedding_norm": 11.304044723510742
+    },
+    {
+      "image_name": "pre_02_frame_002570_score_0.68.jpg",
+      "det_score": 0.49619928002357483,
+      "bbox": [
+        175.3145751953125,
+        99.36038208007812,
+        201.51742553710938,
+        144.28561401367188
+      ],
+      "embedding_norm": 12.932677268981934
+    },
+    {
+      "image_name": "pre_03_frame_002571_score_0.67.jpg",
+      "det_score": 0.5361034274101257,
+      "bbox": [
+        174.99024963378906,
+        96.80958557128906,
+        199.91522216796875,
+        137.75526428222656
+      ],
+      "embedding_norm": 10.685456275939941
+    }
+  ],
+  "mean_embedding_file": "mean_embedding.npy",
+  "best_image": "pre_00_frame_002568_score_0.73.jpg"
+}
