@@ -1,17 +1,10 @@
-from __future__ import annotations
-
-import argparse
 from pipeline.entry_session import build_entry_session_argparser, run_entry_session_pipeline
 
 
-def build_argparser() -> argparse.ArgumentParser:
-    return build_entry_session_argparser(
-        description="Build typed EntryEvent and EntrySessionPacket artifacts from saved evidence."
-    )
-
 def main() -> None:
-    args = build_argparser().parse_args()
-    print("Phase 8: build typed EntryEvent and EntrySessionPacket artifacts.")
+    args = build_entry_session_argparser(
+        description="Replay entrypoint: build typed entry-event and entry-session artifacts."
+    ).parse_args()
     run_entry_session_pipeline(
         shop_id=args.shop_id,
         camera_id=args.camera_id,

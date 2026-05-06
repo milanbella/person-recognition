@@ -9,11 +9,44 @@ The old on-device `RVC2` experiment scripts were intentionally removed.
 
 ## Current Baseline
 
+- `pipeline/`
+  - shared runtime modules for the host-side pipeline
+  - phase scripts and the future final pipeline should import these modules instead of owning duplicate logic
+  - current extracted modules include:
+    - `pipeline.config`
+      - shared default paths and parameter values
+      - harness scripts should reference these defaults so tuning changes have one home
+    - `pipeline.detection`
+      - SCRFD detector wrapper, detection arg helpers, and drawing helpers
+    - `pipeline.tracking`
+      - track state, IoU tracking logic, tracking arg helpers, and drawing helpers
+    - `pipeline.entrance`
+      - entrance-line state, crossing logic, and debug drawing helpers
+    - `pipeline.evidence`
+      - evidence-crop buffering and event capture helpers
+    - `pipeline.embedding`
+      - offline face-embedding extraction from saved evidence event folders
+      - shared by replay entrypoints and the legacy Phase 5 harness
+    - `pipeline.review`
+      - embedding-similarity review math and HTML generation
+      - shared by replay entrypoints and the legacy Phase 6 harnesses
+    - `pipeline.identity`
+      - local identity grouping and HTML review logic
+      - shared by replay entrypoints and the legacy Phase 7 harnesses
+    - `pipeline.entry_session`
+      - typed entry-event/session building, offline correlation, and HTML review helpers
+      - shared by replay entrypoints and the legacy Phase 8 harnesses
+
 - `main.py`
   - host-side camera capture baseline
   - connects to the OAK camera with `depthai`
   - receives RGB frames on the PC
   - shows a live preview
+
+- `final_pipeline.py`
+  - first unified live pipeline entrypoint built on shared modules
+  - runs host-side detection, tracking, entrance logic, and optional evidence capture
+  - demonstrates how the eventual live pipeline should depend on shared modules instead of phase harness imports
 
 - `phase1_host_detection_scrfd.py`
   - host-side Step 2 detector harness
@@ -38,30 +71,40 @@ The old on-device `RVC2` experiment scripts were intentionally removed.
   - keeps recognition out of scope and focuses only on evidence capture quality
 
 - `phase5_host_embedding_arcface.py`
-  - host-side Step 8 embedding harness
+  - legacy Phase 5 harness around the shared `pipeline.embedding` module
   - scans saved evidence event folders offline
   - runs face detection plus ArcFace embeddings from the local InsightFace `buffalo_l` pack
   - writes per-event embedding outputs and summaries without doing identity matching yet
 
+- `01_replay_embeddings.py`
+  - replay-oriented offline entrypoint for embedding generation
+  - uses the same shared `pipeline.embedding` module without phase-specific framing
+
 - `phase6_embedding_similarity_review.py`
-  - offline embedding review helper
-  - reads per-event mean embeddings
-  - computes pairwise cosine similarities
-  - writes a matrix and neighbor report so embedding usefulness can be judged before identity logic
+  - legacy Phase 6 harness around the shared `pipeline.review` module
+  - computes pairwise cosine similarities and writes review artifacts
 
 - `phase6_embedding_similarity_html.py`
-  - offline visual reviewer
-  - turns the similarity review into a local HTML page with side-by-side evidence thumbnails
+  - legacy Phase 6 HTML harness around the shared `pipeline.review` module
 
 - `phase7_local_identity_matcher.py`
-  - offline local identity matcher
-  - processes event mean embeddings in time order
-  - applies cosine-threshold matching with `unknown`/new-identity behavior
-  - writes assignment and gallery summaries before any live integration
+  - legacy Phase 7 harness around the shared `pipeline.identity` module
+  - applies cosine-threshold local identity grouping and writes assignment outputs
 
 - `phase7_local_identity_html.py`
-  - offline visual reviewer for identity assignments
-  - renders each `person_###` gallery group with the member event crops side by side
+  - legacy Phase 7 HTML harness around the shared `pipeline.identity` module
+
+- `02_replay_similarity_review.py`
+  - replay-oriented offline entrypoint for embedding similarity analysis
+
+- `03_replay_similarity_html.py`
+  - replay-oriented offline entrypoint for rendering similarity review HTML
+
+- `04_replay_identity.py`
+  - replay-oriented offline entrypoint for local identity assignment
+
+- `05_replay_identity_html.py`
+  - replay-oriented offline entrypoint for rendering local identity review HTML
 
 - `contracts.py`
   - shared Python contract module for the next system layer
@@ -74,14 +117,17 @@ The old on-device `RVC2` experiment scripts were intentionally removed.
   - includes stable JSON-friendly `to_dict()` / `from_dict()` helpers
 
 - `phase8_entry_session_builder.py`
-  - first contract-driven builder for the next identity layer
-  - converts saved evidence/embedding artifacts into typed `EntryEvent` JSON files
-  - merges nearby events into `EntrySessionPacket` JSON files by time window
-  - gives the project a concrete offline artifact flow for entry-session assembly
+  - legacy Phase 8 harness around the shared `pipeline.entry_session` module
+  - builds typed `EntryEvent` / `EntrySessionPacket` artifacts through shared logic
 
 - `phase8_entry_session_html.py`
-  - visual reviewer for the entry-session layer
-  - shows merged sessions, member event crops, and non-merge / ambiguity decisions
+  - legacy Phase 8 HTML harness around the shared `pipeline.entry_session` module
+
+- `06_replay_entry_sessions.py`
+  - replay-oriented offline entrypoint for building typed entry-session artifacts
+
+- `07_replay_entry_sessions_html.py`
+  - replay-oriented offline entrypoint for rendering entry-session review HTML
 
 ## What Comes Next
 
@@ -91,3 +137,24 @@ After that, the next steps should add:
 - multi-camera entry-session assembly
 - backend `shopping_customer_id` association
 - observer-camera re-association inside the shop
+
+## Evaluation
+
+- a concrete 2-camera evaluation procedure is documented in [two-camera-evaluation-workflow.md](/abs/path/C:/wi/luxonis/llm/person-recognition/doc/two-camera-evaluation-workflow.md)
+- reusable label templates live in:
+  - [camera_map.example.json](/abs/path/C:/wi/luxonis/person-recognition/src/eval_templates/camera_map.example.json)
+  - [single_camera_event_review.example.csv](/abs/path/C:/wi/luxonis/person-recognition/src/eval_templates/single_camera_event_review.example.csv)
+  - [entry_ground_truth.example.csv](/abs/path/C:/wi/luxonis/person-recognition/src/eval_templates/entry_ground_truth.example.csv)
+
+## Design Rule
+
+- shared modules define the real pipeline behavior
+- shared config defines the default parameter values and canonical data paths
+- phase scripts are thin harnesses for:
+  - live testing
+  - replay
+  - artifact writing
+  - visual review
+- artifacts are debug/review outputs, not the architecture itself
+- the future final live pipeline should call the same shared modules and may choose whether to write artifacts
+- replay entrypoints should do the same for offline processing

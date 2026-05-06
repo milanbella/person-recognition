@@ -1,0 +1,3 @@
+real_entry_id,camera_a_event_name,camera_b_event_name,should_merge,expected_primary_camera,notes
+entry_001,track_005_event_001_20260501_174054,track_008_event_003_20260501_174236,yes,entrance_cam_a,same physical entry seen by both cameras
+entry_002,track_009_event_004_20260501_174415,,no,entrance_cam_a,only one camera produced a usable event

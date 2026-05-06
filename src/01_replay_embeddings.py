@@ -1,17 +1,10 @@
-import argparse
 from pipeline.embedding import build_embedding_argparser, run_embedding_pipeline
 
 
-def build_argparser() -> argparse.ArgumentParser:
-    return build_embedding_argparser(
-        description="Step 8: run ArcFace embeddings on saved entrance evidence crops."
-    )
-
-
 def main() -> None:
-    args = build_argparser().parse_args()
-
-    print("Step 8: host-side ArcFace embeddings on saved entrance evidence.")
+    args = build_embedding_argparser(
+        description="Replay entrypoint: generate face embeddings from saved evidence artifacts."
+    ).parse_args()
     run_embedding_pipeline(
         evidence_dir=args.evidence_dir,
         output_dir=args.output_dir,

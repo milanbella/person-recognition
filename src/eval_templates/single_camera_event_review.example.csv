@@ -1,0 +1,4 @@
+event_name,camera_id,real_entry_id,true_entry,duplicate_event,missed_timing,usable_face,notes
+track_005_event_001_20260501_174054,entrance_cam_a,entry_001,yes,no,no,yes,clean frontal view
+track_008_event_003_20260501_174236,entrance_cam_b,entry_001,yes,no,no,yes,slightly side angle
+track_009_event_004_20260501_174415,entrance_cam_a,entry_002,yes,no,yes,no,late trigger and blurred crop

@@ -1,12 +1,10 @@
-import argparse
 from pipeline.identity import build_identity_match_argparser, run_identity_pipeline
 
 
 def main() -> None:
     args = build_identity_match_argparser(
-        description="Step 9: assign local identities from event mean embeddings."
+        description="Replay entrypoint: assign local identities from saved event embeddings."
     ).parse_args()
-    print("Step 9: offline local identity matching from event mean embeddings.")
     run_identity_pipeline(
         embedding_runs_dir=args.embedding_runs_dir,
         output_dir=args.output_dir,

@@ -1,10 +1,9 @@
-import argparse
 from pipeline.entry_session import build_entry_session_html_argparser, write_entry_session_html
 
 
 def main() -> None:
     args = build_entry_session_html_argparser(
-        description="Generate an HTML reviewer for EntryEvent and EntrySessionPacket artifacts."
+        description="Replay entrypoint: render HTML for saved entry-session artifacts."
     ).parse_args()
     write_entry_session_html(args.output_root)
 

@@ -1,0 +1,181 @@
+from __future__ import annotations
+
+from collections import deque
+from dataclasses import dataclass, field
+from datetime import datetime
+from pathlib import Path
+from typing import Deque, Dict, List, Sequence
+
+import cv2
+import numpy as np
+
+from pipeline.tracking import Track
+
+
+@dataclass
+class CropSnapshot:
+    frame_index: int
+    crop: np.ndarray
+    score: float
+
+
+@dataclass
+class PendingEvidenceEvent:
+    event_id: int
+    output_dir: Path
+    remaining_post_frames: int
+    saved_post_frames: int = 0
+
+
+@dataclass
+class TrackEvidenceState:
+    recent_crops: Deque[CropSnapshot] = field(default_factory=lambda: deque(maxlen=8))
+    pending_events: List[PendingEvidenceEvent] = field(default_factory=list)
+
+
+def crop_track(frame: np.ndarray, track: Track, margin: float) -> np.ndarray | None:
+    height, width = frame.shape[:2]
+    box_w = track.x2 - track.x1
+    box_h = track.y2 - track.y1
+    margin_x = int(round(box_w * margin))
+    margin_y = int(round(box_h * margin))
+
+    x1 = max(0, track.x1 - margin_x)
+    y1 = max(0, track.y1 - margin_y)
+    x2 = min(width, track.x2 + margin_x)
+    y2 = min(height, track.y2 + margin_y)
+
+    if x2 <= x1 or y2 <= y1:
+        return None
+
+    crop = frame[y1:y2, x1:x2].copy()
+    if crop.size == 0:
+        return None
+    return crop
+
+
+class EvidenceCollector:
+    def __init__(self, evidence_dir: Path, pre_frames: int, post_frames: int) -> None:
+        self.evidence_dir = evidence_dir
+        self.pre_frames = pre_frames
+        self.post_frames = post_frames
+        self.states: Dict[int, TrackEvidenceState] = {}
+        self.next_event_id = 1
+        self.last_saved_messages: List[str] = []
+        evidence_dir.mkdir(parents=True, exist_ok=True)
+
+    def update_buffers(
+        self,
+        frame: np.ndarray,
+        tracks: Sequence[Track],
+        frame_index: int,
+        crop_margin: float,
+    ) -> None:
+        active_ids = {track.track_id for track in tracks if track.status != "REMOVED"}
+        for track_id in list(self.states.keys()):
+            if track_id not in active_ids:
+                self.states.pop(track_id, None)
+
+        for track in tracks:
+            if track.status not in {"NEW", "TRACKED", "LOST"}:
+                continue
+
+            crop = crop_track(frame, track, crop_margin)
+            if crop is None:
+                continue
+
+            state = self.states.setdefault(track.track_id, TrackEvidenceState())
+            state.recent_crops.append(
+                CropSnapshot(
+                    frame_index=frame_index,
+                    crop=crop,
+                    score=track.score,
+                )
+            )
+
+            self._save_pending_post_crops(track.track_id, state)
+
+    def record_entry_event(self, track_id: int) -> None:
+        state = self.states.get(track_id)
+        if state is None or not state.recent_crops:
+            print(f"EVIDENCE_WARNING track_id={track_id} no crops available at entry event")
+            return
+
+        event_id = self.next_event_id
+        self.next_event_id += 1
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_dir = self.evidence_dir / f"track_{track_id:03d}_event_{event_id:03d}_{timestamp}"
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        recent = list(state.recent_crops)[-self.pre_frames :]
+        for index, snapshot in enumerate(recent):
+            filename = output_dir / (
+                f"pre_{index:02d}_frame_{snapshot.frame_index:06d}_score_{snapshot.score:.2f}.jpg"
+            )
+            cv2.imwrite(str(filename), snapshot.crop)
+
+        current = recent[-1]
+        current_filename = output_dir / (
+            f"event_frame_{current.frame_index:06d}_score_{current.score:.2f}.jpg"
+        )
+        cv2.imwrite(str(current_filename), current.crop)
+
+        pending = PendingEvidenceEvent(
+            event_id=event_id,
+            output_dir=output_dir,
+            remaining_post_frames=self.post_frames,
+        )
+        state.pending_events.append(pending)
+
+        message = f"EVIDENCE_SAVED track_id={track_id} event_id={event_id} dir={output_dir}"
+        print(message)
+        self.last_saved_messages.append(message)
+        self.last_saved_messages = self.last_saved_messages[-5:]
+
+    def _save_pending_post_crops(self, track_id: int, state: TrackEvidenceState) -> None:
+        if not state.pending_events or not state.recent_crops:
+            return
+
+        current = state.recent_crops[-1]
+        remaining_events: List[PendingEvidenceEvent] = []
+        for pending in state.pending_events:
+            if pending.remaining_post_frames <= 0:
+                continue
+
+            filename = pending.output_dir / (
+                f"post_{pending.saved_post_frames:02d}_frame_{current.frame_index:06d}_score_{current.score:.2f}.jpg"
+            )
+            cv2.imwrite(str(filename), current.crop)
+            pending.saved_post_frames += 1
+            pending.remaining_post_frames -= 1
+
+            if pending.remaining_post_frames > 0:
+                remaining_events.append(pending)
+            else:
+                print(
+                    f"EVIDENCE_COMPLETE track_id={track_id} "
+                    f"event_id={pending.event_id} dir={pending.output_dir}"
+                )
+
+        state.pending_events = remaining_events
+
+
+def draw_evidence_status(frame: np.ndarray, collector: EvidenceCollector) -> None:
+    if not collector.last_saved_messages:
+        return
+
+    y = 70
+    for message in collector.last_saved_messages[-3:]:
+        short_text = message.split(" dir=")[0]
+        cv2.putText(
+            frame,
+            short_text,
+            (20, y),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.55,
+            (255, 255, 0),
+            2,
+            cv2.LINE_AA,
+        )
+        y += 24
