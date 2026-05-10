@@ -46,6 +46,21 @@ The old on-device `RVC2` experiment scripts were intentionally removed.
   - receives RGB frames on the PC
   - shows a live preview
 
+- `record_stream.py`
+  - host-side full-stream recorder for one OAK camera
+  - writes a full RGB video file for later replay and tuning
+  - writes a `.timestamps.jsonl` sidecar with per-frame timing metadata for later cross-camera alignment
+  - uses a stable default filename per camera id so repeated recordings reuse the same CLI command
+  - intended to run as one process per camera with explicit `--device-id`
+
+- `replay_synced_streams.py`
+  - replays two recorded OAK videos side-by-side using the recorded per-frame timestamp sidecars
+  - aligns cameras by recorded frame time instead of replay launch time
+
+- `replay_entrance_tuner.py`
+  - replays one recorded video through detection, tracking, and entrance-event logic
+  - draws the entrance line and writes replayed `ENTRY_EVENT` timing logs from recorded timestamps
+
 - `final_pipeline.py`
   - first unified live pipeline entrypoint built on shared modules
   - runs host-side detection, tracking, entrance logic, and optional evidence capture

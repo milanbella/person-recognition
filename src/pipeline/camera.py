@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import time
 from typing import List
 
 import depthai as dai
@@ -84,3 +85,29 @@ def print_connected_device(device: dai.Device) -> None:
     platform = device.getPlatform().name
     print(f"Device: {device.getDeviceId()} Platform: {platform}")
 
+
+def configure_live_device(device: dai.Device) -> None:
+    # A crashed device should fail fast instead of trapping the terminal in reconnect attempts.
+    device.setMaxReconnectionAttempts(0)
+
+
+def wait_for_next_frame(
+    queue: dai.MessageQueue,
+    device: dai.Device,
+    *,
+    poll_interval_seconds: float = 0.05,
+    frame_timeout_seconds: float = 3.0,
+) -> dai.ImgFrame | None:
+    started_at = time.monotonic()
+    while True:
+        if device.isClosed() or not device.isPipelineRunning():
+            return None
+
+        message = queue.tryGet()
+        if message is not None:
+            return message
+
+        if time.monotonic() - started_at >= frame_timeout_seconds:
+            raise TimeoutError("Timed out waiting for camera frame. Device may have crashed.")
+
+        time.sleep(poll_interval_seconds)

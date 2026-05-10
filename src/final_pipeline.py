@@ -5,7 +5,12 @@ from typing import Dict
 import cv2
 import depthai as dai
 
-from pipeline.camera import open_or_list_devices, print_connected_device
+from pipeline.camera import (
+    configure_live_device,
+    open_or_list_devices,
+    print_connected_device,
+    wait_for_next_frame,
+)
 from pipeline.config import (
     DEFAULT_EVIDENCE_CROP_MARGIN,
     DEFAULT_EVIDENCE_DIR,
@@ -73,6 +78,7 @@ def main() -> None:
     device = open_or_list_devices(args)
     if device is None:
         return
+    configure_live_device(device)
 
     detector = ScrfdInsightFaceDetector(
         model_path=args.model,
@@ -111,64 +117,73 @@ def main() -> None:
         print("Pipeline created. Starting...")
         pipeline.start()
 
-        while pipeline.isRunning():
-            frame_index += 1
-            msg = queue.get()
-            frame = msg.getCvFrame()
+        try:
+            while pipeline.isRunning() and not device.isClosed():
+                msg = wait_for_next_frame(queue, device)
+                if msg is None:
+                    print("Camera stopped delivering frames. Exiting...")
+                    break
 
-            detections = detector.detect(frame)
-            tracks = tracker.update(detections)
+                frame_index += 1
+                frame = msg.getCvFrame()
 
-            if collector is not None:
-                collector.update_buffers(
-                    frame=frame,
-                    tracks=tracks,
-                    frame_index=frame_index,
-                    crop_margin=args.crop_margin,
-                )
+                detections = detector.detect(frame)
+                tracks = tracker.update(detections)
 
-            entered_track_ids = process_entrance_logic(
-                tracks=tracks,
-                states=entrance_states,
-                axis=args.line_axis,
-                line_position=args.line_position,
-                frame_shape=frame.shape[:2],
-                outside_side=args.outside_side,
-                min_history=args.min_history,
-                debug_entrance=args.debug_entrance,
-            )
-
-            for track_id in entered_track_ids:
-                print(f"ENTRY_EVENT track_id={track_id}")
                 if collector is not None:
-                    collector.record_entry_event(track_id)
+                    collector.update_buffers(
+                        frame=frame,
+                        tracks=tracks,
+                        frame_index=frame_index,
+                        crop_margin=args.crop_margin,
+                    )
 
-            if args.show_preview:
-                draw_tracks(frame, tracks)
-                draw_entrance_line(
-                    frame,
+                entered_track_ids = process_entrance_logic(
+                    tracks=tracks,
+                    states=entrance_states,
                     axis=args.line_axis,
                     line_position=args.line_position,
+                    frame_shape=frame.shape[:2],
                     outside_side=args.outside_side,
+                    min_history=args.min_history,
+                    debug_entrance=args.debug_entrance,
                 )
-                draw_entry_events(frame, entered_track_ids)
-                if args.debug_entrance:
-                    draw_entrance_debug(
+
+                for track_id in entered_track_ids:
+                    print(f"ENTRY_EVENT track_id={track_id}")
+                    if collector is not None:
+                        collector.record_entry_event(track_id)
+
+                if args.show_preview:
+                    draw_tracks(frame, tracks)
+                    draw_entrance_line(
                         frame,
-                        tracks=tracks,
-                        states=entrance_states,
                         axis=args.line_axis,
                         line_position=args.line_position,
                         outside_side=args.outside_side,
                     )
-                if collector is not None:
-                    draw_evidence_status(frame, collector)
+                    draw_entry_events(frame, entered_track_ids)
+                    if args.debug_entrance:
+                        draw_entrance_debug(
+                            frame,
+                            tracks=tracks,
+                            states=entrance_states,
+                            axis=args.line_axis,
+                            line_position=args.line_position,
+                            outside_side=args.outside_side,
+                        )
+                    if collector is not None:
+                        draw_evidence_status(frame, collector)
 
-                cv2.imshow("Final Pipeline Preview", frame)
-                key = cv2.waitKey(1) & 0xFF
-                if key == ord("q"):
-                    print("Exiting...")
-                    break
+                    cv2.imshow("Final Pipeline Preview", frame)
+                    key = cv2.waitKey(1) & 0xFF
+                    if key == ord("q"):
+                        print("Exiting...")
+                        break
+        except KeyboardInterrupt:
+            print("Interrupted by user.")
+        except TimeoutError as exc:
+            print(f"Camera stream stopped: {exc}")
 
     cv2.destroyAllWindows()
 

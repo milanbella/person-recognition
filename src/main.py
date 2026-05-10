@@ -2,7 +2,13 @@ import argparse
 
 import cv2
 import depthai as dai
-from pipeline.camera import add_device_args, open_or_list_devices, print_connected_device
+from pipeline.camera import (
+    add_device_args,
+    configure_live_device,
+    open_or_list_devices,
+    print_connected_device,
+    wait_for_next_frame,
+)
 from pipeline.config import DEFAULT_CAMERA_FPS
 
 
@@ -29,6 +35,7 @@ def main() -> None:
     device = open_or_list_devices(args)
     if device is None:
         return
+    configure_live_device(device)
     print_connected_device(device)
 
     with dai.Pipeline(device) as pipeline:
@@ -48,15 +55,24 @@ def main() -> None:
         print("Pipeline created. Starting...")
         pipeline.start()
 
-        while pipeline.isRunning():
-            msg = queue.get()
-            frame = msg.getCvFrame()
+        try:
+            while pipeline.isRunning() and not device.isClosed():
+                msg = wait_for_next_frame(queue, device)
+                if msg is None:
+                    print("Camera stopped delivering frames. Exiting...")
+                    break
 
-            cv2.imshow("OAK RGB Preview", frame)
-            key = cv2.waitKey(1) & 0xFF
-            if key == ord("q"):
-                print("Exiting...")
-                break
+                frame = msg.getCvFrame()
+
+                cv2.imshow("OAK RGB Preview", frame)
+                key = cv2.waitKey(1) & 0xFF
+                if key == ord("q"):
+                    print("Exiting...")
+                    break
+        except KeyboardInterrupt:
+            print("Interrupted by user.")
+        except TimeoutError as exc:
+            print(f"Camera stream stopped: {exc}")
 
     cv2.destroyAllWindows()
 

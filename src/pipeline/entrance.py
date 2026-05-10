@@ -246,13 +246,33 @@ def draw_entrance_debug(
             continue
 
         cx, cy = state.centroids[-1]
+        center = (int(cx), int(cy))
         side = classify_side((cx, cy), axis, line_position, frame.shape[:2])
         color = (255, 0, 255) if side == outside_side else (0, 0, 255)
-        cv2.circle(frame, (int(cx), int(cy)), 5, color, -1, cv2.LINE_AA)
+
+        # Draw a high-contrast centroid marker that stays visible on bright clothes/backgrounds.
+        cv2.circle(frame, center, 10, (0, 0, 0), -1, cv2.LINE_AA)
+        cv2.circle(frame, center, 7, color, -1, cv2.LINE_AA)
+        cv2.circle(frame, center, 14, (255, 255, 255), 2, cv2.LINE_AA)
+        cv2.line(frame, (center[0] - 16, center[1]), (center[0] + 16, center[1]), (255, 255, 255), 2, cv2.LINE_AA)
+        cv2.line(frame, (center[0], center[1] - 16), (center[0], center[1] + 16), (255, 255, 255), 2, cv2.LINE_AA)
+        cv2.line(frame, (center[0] - 16, center[1]), (center[0] + 16, center[1]), color, 1, cv2.LINE_AA)
+        cv2.line(frame, (center[0], center[1] - 16), (center[0], center[1] + 16), color, 1, cv2.LINE_AA)
+
         cv2.putText(
             frame,
             f"S:{side} H:{len(state.centroids)} E:{int(state.entered)}",
-            (int(cx) + 8, int(cy) + 16),
+            (center[0] + 18, center[1] + 18),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.45,
+            (0, 0, 0),
+            3,
+            cv2.LINE_AA,
+        )
+        cv2.putText(
+            frame,
+            f"S:{side} H:{len(state.centroids)} E:{int(state.entered)}",
+            (center[0] + 18, center[1] + 18),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.45,
             color,

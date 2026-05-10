@@ -2,7 +2,12 @@ import argparse
 
 import cv2
 import depthai as dai
-from pipeline.camera import open_or_list_devices, print_connected_device
+from pipeline.camera import (
+    configure_live_device,
+    open_or_list_devices,
+    print_connected_device,
+    wait_for_next_frame,
+)
 from pipeline.config import PREVIEW_HEIGHT, PREVIEW_WIDTH
 from pipeline.detection import ScrfdInsightFaceDetector
 from pipeline.tracking import SimpleIoUTracker, build_tracking_argparser, draw_tracks
@@ -18,6 +23,7 @@ def main() -> None:
     device = open_or_list_devices(args)
     if device is None:
         return
+    configure_live_device(device)
 
     detector = ScrfdInsightFaceDetector(
         model_path=args.model,
@@ -46,19 +52,28 @@ def main() -> None:
         print("Pipeline created. Starting...")
         pipeline.start()
 
-        while pipeline.isRunning():
-            msg = queue.get()
-            frame = msg.getCvFrame()
+        try:
+            while pipeline.isRunning() and not device.isClosed():
+                msg = wait_for_next_frame(queue, device)
+                if msg is None:
+                    print("Camera stopped delivering frames. Exiting...")
+                    break
 
-            detections = detector.detect(frame)
-            tracks = tracker.update(detections)
-            draw_tracks(frame, tracks)
+                frame = msg.getCvFrame()
 
-            cv2.imshow("OAK Host SCRFD Tracking", frame)
-            key = cv2.waitKey(1) & 0xFF
-            if key == ord("q"):
-                print("Exiting...")
-                break
+                detections = detector.detect(frame)
+                tracks = tracker.update(detections)
+                draw_tracks(frame, tracks)
+
+                cv2.imshow("OAK Host SCRFD Tracking", frame)
+                key = cv2.waitKey(1) & 0xFF
+                if key == ord("q"):
+                    print("Exiting...")
+                    break
+        except KeyboardInterrupt:
+            print("Interrupted by user.")
+        except TimeoutError as exc:
+            print(f"Camera stream stopped: {exc}")
 
     cv2.destroyAllWindows()
 

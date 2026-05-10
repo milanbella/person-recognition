@@ -4,7 +4,12 @@ from typing import Dict
 
 import cv2
 import depthai as dai
-from pipeline.camera import open_or_list_devices, print_connected_device
+from pipeline.camera import (
+    configure_live_device,
+    open_or_list_devices,
+    print_connected_device,
+    wait_for_next_frame,
+)
 from pipeline.config import (
     DEFAULT_EVIDENCE_CROP_MARGIN,
     DEFAULT_EVIDENCE_DIR,
@@ -62,6 +67,7 @@ def main() -> None:
     device = open_or_list_devices(args)
     if device is None:
         return
+    configure_live_device(device)
 
     detector = ScrfdInsightFaceDetector(
         model_path=args.model,
@@ -98,49 +104,58 @@ def main() -> None:
         print("Pipeline created. Starting...")
         pipeline.start()
 
-        while pipeline.isRunning():
-            frame_index += 1
-            msg = queue.get()
-            frame = msg.getCvFrame()
+        try:
+            while pipeline.isRunning() and not device.isClosed():
+                msg = wait_for_next_frame(queue, device)
+                if msg is None:
+                    print("Camera stopped delivering frames. Exiting...")
+                    break
 
-            tracks = tracker.update(detector.detect(frame))
-            collector.update_buffers(
-                frame=frame,
-                tracks=tracks,
-                frame_index=frame_index,
-                crop_margin=args.crop_margin,
-            )
+                frame_index += 1
+                frame = msg.getCvFrame()
 
-            entered_track_ids = process_entrance_logic(
-                tracks=tracks,
-                states=entrance_states,
-                axis=args.line_axis,
-                line_position=args.line_position,
-                frame_shape=frame.shape[:2],
-                outside_side=args.outside_side,
-                min_history=args.min_history,
-                debug_entrance=args.debug_entrance,
-            )
+                tracks = tracker.update(detector.detect(frame))
+                collector.update_buffers(
+                    frame=frame,
+                    tracks=tracks,
+                    frame_index=frame_index,
+                    crop_margin=args.crop_margin,
+                )
 
-            for track_id in entered_track_ids:
-                print(f"ENTRY_EVENT track_id={track_id}")
-                collector.record_entry_event(track_id)
+                entered_track_ids = process_entrance_logic(
+                    tracks=tracks,
+                    states=entrance_states,
+                    axis=args.line_axis,
+                    line_position=args.line_position,
+                    frame_shape=frame.shape[:2],
+                    outside_side=args.outside_side,
+                    min_history=args.min_history,
+                    debug_entrance=args.debug_entrance,
+                )
 
-            draw_tracks(frame, tracks)
-            draw_entrance_line(
-                frame,
-                axis=args.line_axis,
-                line_position=args.line_position,
-                outside_side=args.outside_side,
-            )
-            draw_entry_events(frame, entered_track_ids)
-            draw_evidence_status(frame, collector)
+                for track_id in entered_track_ids:
+                    print(f"ENTRY_EVENT track_id={track_id}")
+                    collector.record_entry_event(track_id)
 
-            cv2.imshow("OAK Host SCRFD Recognition Evidence", frame)
-            key = cv2.waitKey(1) & 0xFF
-            if key == ord("q"):
-                print("Exiting...")
-                break
+                draw_tracks(frame, tracks)
+                draw_entrance_line(
+                    frame,
+                    axis=args.line_axis,
+                    line_position=args.line_position,
+                    outside_side=args.outside_side,
+                )
+                draw_entry_events(frame, entered_track_ids)
+                draw_evidence_status(frame, collector)
+
+                cv2.imshow("OAK Host SCRFD Recognition Evidence", frame)
+                key = cv2.waitKey(1) & 0xFF
+                if key == ord("q"):
+                    print("Exiting...")
+                    break
+        except KeyboardInterrupt:
+            print("Interrupted by user.")
+        except TimeoutError as exc:
+            print(f"Camera stream stopped: {exc}")
 
     cv2.destroyAllWindows()
 
