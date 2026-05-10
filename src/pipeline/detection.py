@@ -17,6 +17,7 @@ import numpy as np
 import onnxruntime as ort
 from insightface.model_zoo import get_model
 
+from pipeline.camera import add_device_args
 from pipeline.config import (
     DEFAULT_CAMERA_FPS,
     DEFAULT_DETECTION_INPUT_HEIGHT,
@@ -48,6 +49,7 @@ def build_detection_argparser(
 
 
 def add_detection_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
+    add_device_args(parser)
     parser.add_argument(
         "--model",
         type=Path,
@@ -169,4 +171,3 @@ def draw_detections(frame: np.ndarray, detections: Sequence[Detection]) -> None:
             2,
             cv2.LINE_AA,
         )
-

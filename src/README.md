@@ -16,6 +16,9 @@ The old on-device `RVC2` experiment scripts were intentionally removed.
     - `pipeline.config`
       - shared default paths and parameter values
       - harness scripts should reference these defaults so tuning changes have one home
+    - `pipeline.camera`
+      - shared OAK device discovery and explicit device selection helpers
+      - provides `--device-id` / `--list-devices` support for live scripts
     - `pipeline.detection`
       - SCRFD detector wrapper, detection arg helpers, and drawing helpers
     - `pipeline.tracking`
@@ -47,6 +50,7 @@ The old on-device `RVC2` experiment scripts were intentionally removed.
   - first unified live pipeline entrypoint built on shared modules
   - runs host-side detection, tracking, entrance logic, and optional evidence capture
   - demonstrates how the eventual live pipeline should depend on shared modules instead of phase harness imports
+  - supports explicit OAK selection with `--device-id`
 
 - `phase1_host_detection_scrfd.py`
   - host-side Step 2 detector harness
@@ -145,6 +149,14 @@ After that, the next steps should add:
   - [camera_map.example.json](/abs/path/C:/wi/luxonis/person-recognition/src/eval_templates/camera_map.example.json)
   - [single_camera_event_review.example.csv](/abs/path/C:/wi/luxonis/person-recognition/src/eval_templates/single_camera_event_review.example.csv)
   - [entry_ground_truth.example.csv](/abs/path/C:/wi/luxonis/person-recognition/src/eval_templates/entry_ground_truth.example.csv)
+
+## Two Cameras
+
+- live OAK scripts now support:
+  - `--list-devices`
+  - `--device-id <mxid>`
+- the intended two-entrance-camera operating model is one process per camera with explicit `--device-id`
+- use the offline replay workflow afterward to correlate and review the resulting artifacts
 
 ## Design Rule
 

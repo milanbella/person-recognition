@@ -8,7 +8,7 @@ SRC_ROOT = Path(__file__).resolve().parents[1]
 PREVIEW_WIDTH = 1280
 PREVIEW_HEIGHT = 720
 
-DEFAULT_SCRFD_MODEL = SRC_ROOT.parents[1] / "models" / "scrfd_person_2.5g.onnx"
+DEFAULT_SCRFD_MODEL = SRC_ROOT.parent / "models" / "scrfd_person_2.5g.onnx"
 DEFAULT_DETECTION_INPUT_WIDTH = 640
 DEFAULT_DETECTION_INPUT_HEIGHT = 640
 DEFAULT_DETECTION_SCORE_THRESHOLD = 0.5

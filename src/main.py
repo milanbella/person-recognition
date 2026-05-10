@@ -1,15 +1,35 @@
+import argparse
+
 import cv2
 import depthai as dai
+from pipeline.camera import add_device_args, open_or_list_devices, print_connected_device
+from pipeline.config import DEFAULT_CAMERA_FPS
 
 
 PREVIEW_WIDTH = 1280
 PREVIEW_HEIGHT = 720
 
 
+def build_argparser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Step 1: host-side RGB frame capture and preview."
+    )
+    add_device_args(parser)
+    parser.add_argument(
+        "--fps",
+        type=int,
+        default=DEFAULT_CAMERA_FPS,
+        help="Camera output FPS.",
+    )
+    return parser
+
+
 def main() -> None:
-    device = dai.Device()
-    platform = device.getPlatform().name
-    print(f"Device: {device.getDeviceId()} Platform: {platform}")
+    args = build_argparser().parse_args()
+    device = open_or_list_devices(args)
+    if device is None:
+        return
+    print_connected_device(device)
 
     with dai.Pipeline(device) as pipeline:
         print("Step 1: host-side RGB frame capture and preview.")
@@ -18,7 +38,7 @@ def main() -> None:
         camera_out = camera.requestOutput(
             size=(PREVIEW_WIDTH, PREVIEW_HEIGHT),
             type=dai.ImgFrame.Type.BGR888p,
-            fps=30,
+            fps=args.fps,
         )
         queue = camera_out.createOutputQueue(
             maxSize=4,

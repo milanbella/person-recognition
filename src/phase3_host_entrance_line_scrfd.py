@@ -4,6 +4,7 @@ from typing import Dict
 import cv2
 import depthai as dai
 
+from pipeline.camera import open_or_list_devices, print_connected_device
 from pipeline.config import PREVIEW_HEIGHT, PREVIEW_WIDTH
 from pipeline.detection import ScrfdInsightFaceDetector
 from pipeline.entrance import (
@@ -24,6 +25,9 @@ def build_argparser() -> argparse.ArgumentParser:
 
 def main() -> None:
     args = build_argparser().parse_args()
+    device = open_or_list_devices(args)
+    if device is None:
+        return
 
     detector = ScrfdInsightFaceDetector(
         model_path=args.model,
@@ -36,9 +40,7 @@ def main() -> None:
         max_missed=args.max_missed,
     )
 
-    device = dai.Device()
-    platform = device.getPlatform().name
-    print(f"Device: {device.getDeviceId()} Platform: {platform}")
+    print_connected_device(device)
 
     states: Dict[int, EntranceState] = {}
 

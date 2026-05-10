@@ -2,6 +2,7 @@ import argparse
 
 import cv2
 import depthai as dai
+from pipeline.camera import open_or_list_devices, print_connected_device
 from pipeline.config import PREVIEW_HEIGHT, PREVIEW_WIDTH
 from pipeline.detection import (
     ScrfdInsightFaceDetector,
@@ -18,6 +19,9 @@ def build_argparser() -> argparse.ArgumentParser:
 
 def main() -> None:
     args = build_argparser().parse_args()
+    device = open_or_list_devices(args)
+    if device is None:
+        return
 
     detector = ScrfdInsightFaceDetector(
         model_path=args.model,
@@ -26,9 +30,7 @@ def main() -> None:
         nms_threshold=args.nms_threshold,
     )
 
-    device = dai.Device()
-    platform = device.getPlatform().name
-    print(f"Device: {device.getDeviceId()} Platform: {platform}")
+    print_connected_device(device)
 
     with dai.Pipeline(device) as pipeline:
         print("Step 2: host-side SCRFD detection on OAK USB frames.")
