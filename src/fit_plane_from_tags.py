@@ -15,7 +15,14 @@ from pipeline.depth import (
     pixel_to_camera_point_mm,
     signed_distance_to_plane_mm,
 )
-from pipeline.rgbd_recording import load_depth_png, load_rgbd_recording
+from pipeline.rgbd_recording import (
+    DEFAULT_PLANE_CALIBRATIONS_DIR,
+    add_rgbd_recording_lookup_args,
+    build_plane_calibration_path,
+    load_depth_png,
+    load_rgbd_recording,
+    resolve_recording_dir,
+)
 
 
 @dataclass
@@ -30,12 +37,7 @@ def build_argparser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Fit a 3D door plane from 3 manually clicked points on a recorded RGBD frame."
     )
-    parser.add_argument(
-        "--recording-dir",
-        type=Path,
-        required=True,
-        help="Directory created by record_rgbd_stream.py.",
-    )
+    add_rgbd_recording_lookup_args(parser)
     parser.add_argument(
         "--frame-index",
         type=int,
@@ -63,10 +65,15 @@ def build_argparser() -> argparse.ArgumentParser:
     return parser
 
 
-def build_output_json_path(recording_dir: Path, explicit_path: Path | None) -> Path:
+def build_output_json_path(
+    *,
+    device_id: str,
+    explicit_path: Path | None,
+    calibrations_root: Path = DEFAULT_PLANE_CALIBRATIONS_DIR,
+) -> Path:
     if explicit_path is not None:
         return explicit_path
-    return recording_dir / "plane_fit.json"
+    return build_plane_calibration_path(calibrations_root, device_id)
 
 
 def load_rgb_frame(video_path: Path, frame_index: int) -> np.ndarray:
@@ -248,7 +255,12 @@ def render_depth_frame(
 
 def main() -> None:
     args = build_argparser().parse_args()
-    recording = load_rgbd_recording(args.recording_dir)
+    recording_dir = resolve_recording_dir(
+        recording_dir=args.recording_dir,
+        device_id=args.device_id,
+        recordings_root=args.recordings_root,
+    )
+    recording = load_rgbd_recording(recording_dir)
     if recording.rgb_intrinsics is None:
         raise RuntimeError(
             "This RGBD recording does not contain RGB intrinsics. Re-record with the current record_rgbd_stream.py."
@@ -263,7 +275,10 @@ def main() -> None:
     frame_index = max(0, min(args.frame_index, len(recording.frames) - 1))
     clicked_points: list[ClickedPoint] = []
     fitted_plane_text: list[str] = []
-    output_json_path = build_output_json_path(recording.recording_dir, args.output_json)
+    output_json_path = build_output_json_path(
+        device_id=recording.device_id,
+        explicit_path=args.output_json,
+    )
 
     current_rgb = load_rgb_frame(recording.rgb_video_path, frame_index)
     current_depth = load_depth_png(recording, recording.frames[frame_index])
@@ -366,6 +381,7 @@ def main() -> None:
                 ]
 
                 output_payload = {
+                    "schema_version": "2026-05-11",
                     "recording_dir": str(recording.recording_dir.resolve()),
                     "device_id": recording.device_id,
                     "frame_index": frame_index,
@@ -383,6 +399,11 @@ def main() -> None:
                     "plane_normal": list(plane.normal),
                     "rms_fit_error_mm": rms_error_mm,
                     "recommended_enter_direction_if_person_moves_toward_camera": "positive_to_negative",
+                    "recommended_replay_cli": (
+                        f"python .\\replay_depth_tuner.py "
+                        f"--device-id {recording.device_id} "
+                        f"--depth-trigger-mode plane"
+                    ),
                     "cli_args": (
                         f"--depth-trigger-mode plane "
                         f"--plane-point-x-mm {plane.point_mm[0]:.1f} "
@@ -404,6 +425,8 @@ def main() -> None:
                     f"  normal   = ({plane.normal[0]:.5f}, {plane.normal[1]:.5f}, {plane.normal[2]:.5f})"
                 )
                 print(f"  rms_fit_error_mm = {rms_error_mm:.2f}")
+                print("\nRecommended replay command:")
+                print(output_payload["recommended_replay_cli"])
                 print("\nRecommended CLI fragment:")
                 print(output_payload["cli_args"])
                 print(f"\nSaved plane fit to {output_json_path}\n")

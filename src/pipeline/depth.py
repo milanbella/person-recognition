@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import argparse
+import json
 import math
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Dict, Optional, Sequence
 
 import cv2
@@ -62,6 +64,15 @@ def build_depth_entrance_argparser(
 
 
 def add_depth_entrance_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
+    parser.add_argument(
+        "--plane-json",
+        type=Path,
+        default=None,
+        help=(
+            "Optional plane-fit JSON produced by fit_plane_from_tags.py. "
+            "When set, plane point/normal and enter direction are loaded from that file."
+        ),
+    )
     parser.add_argument(
         "--depth-trigger-mode",
         choices=["threshold", "plane"],
@@ -161,7 +172,53 @@ def normalize_vector(x: float, y: float, z: float) -> tuple[float, float, float]
     return (x / norm, y / norm, z / norm)
 
 
+def load_plane_json(path: Path) -> dict:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if "plane_point_mm" not in payload or "plane_normal" not in payload:
+        raise ValueError(
+            f"Plane JSON must contain 'plane_point_mm' and 'plane_normal': {path}"
+        )
+    return payload
+
+
+def resolve_plane_json_path(
+    *,
+    plane_json: Path | None,
+    device_id: str | None = None,
+    calibrations_root: Path | None = None,
+    recording_dir: Path | None = None,
+) -> Path | None:
+    if plane_json is not None:
+        return plane_json
+    if device_id is not None and calibrations_root is not None:
+        candidate = calibrations_root / f"plane_fit_{device_id}.json"
+        if candidate.exists():
+            return candidate
+    if recording_dir is None:
+        return None
+    candidate = recording_dir / "plane_fit.json"
+    return candidate if candidate.exists() else None
+
+
 def plane_from_args(args: argparse.Namespace) -> Plane3D:
+    plane_json = getattr(args, "plane_json", None)
+    if plane_json is not None:
+        payload = load_plane_json(plane_json)
+        point_mm = payload["plane_point_mm"]
+        normal = payload["plane_normal"]
+        return Plane3D(
+            point_mm=(
+                float(point_mm[0]),
+                float(point_mm[1]),
+                float(point_mm[2]),
+            ),
+            normal=normalize_vector(
+                float(normal[0]),
+                float(normal[1]),
+                float(normal[2]),
+            ),
+        )
+
     return Plane3D(
         point_mm=(
             float(args.plane_point_x_mm),
@@ -174,6 +231,18 @@ def plane_from_args(args: argparse.Namespace) -> Plane3D:
             float(args.plane_normal_z),
         ),
     )
+
+
+def plane_enter_direction_from_args(args: argparse.Namespace) -> str:
+    plane_json = getattr(args, "plane_json", None)
+    if plane_json is None:
+        return str(args.plane_enter_direction)
+
+    payload = load_plane_json(plane_json)
+    value = payload.get("recommended_enter_direction_if_person_moves_toward_camera")
+    if isinstance(value, str) and value in {"positive_to_negative", "negative_to_positive"}:
+        return value
+    return str(args.plane_enter_direction)
 
 
 def intrinsics_from_matrix(matrix: Sequence[Sequence[float]]) -> CameraIntrinsics:

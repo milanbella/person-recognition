@@ -65,6 +65,11 @@ The old on-device `RVC2` experiment scripts were intentionally removed.
   - replays two recorded OAK videos side-by-side using the recorded per-frame timestamp sidecars
   - aligns cameras by recorded frame time instead of replay launch time
 
+- `replay_synced_rgbd_streams.py`
+  - replays multiple recorded RGBD streams in sync using recorded RGB frame timestamps
+  - shows synchronized tiled RGB views and optional synchronized tiled depth views
+  - accepts one or more `--device-id` values and derives the matching RGBD recording folders
+
 - `replay_entrance_tuner.py`
   - replays one recorded video through detection, tracking, and entrance-event logic
   - draws the entrance line and writes replayed `ENTRY_EVENT` timing logs from recorded timestamps

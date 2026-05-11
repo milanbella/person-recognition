@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import json
 from dataclasses import dataclass
 from pathlib import Path
@@ -7,6 +8,9 @@ from typing import Any, Dict, List
 
 import cv2
 import numpy as np
+
+DEFAULT_RGBD_RECORDINGS_DIR = Path(__file__).resolve().parents[1] / "recordings"
+DEFAULT_PLANE_CALIBRATIONS_DIR = Path(__file__).resolve().parents[1] / "plane_calibrations"
 
 
 @dataclass
@@ -37,8 +41,99 @@ class RGBDRecordingInfo:
     frames: List[RGBDRecordedFrame]
 
 
+class RGBDReplayStream:
+    def __init__(self, info: RGBDRecordingInfo) -> None:
+        self.info = info
+        self.capture = cv2.VideoCapture(str(info.rgb_video_path))
+        if not self.capture.isOpened():
+            raise RuntimeError(f"Failed to open RGB video file: {info.rgb_video_path}")
+
+        self.current_index = -1
+        self.current_rgb_frame: np.ndarray | None = None
+        self.current_depth_frame: np.ndarray | None = None
+        self.current_frame_meta: RGBDRecordedFrame | None = None
+        self.next_index = 0
+        self.advance()
+
+    def advance(self) -> bool:
+        ok, frame = self.capture.read()
+        if not ok or self.next_index >= len(self.info.frames):
+            self.current_rgb_frame = None
+            self.current_depth_frame = None
+            self.current_frame_meta = None
+            return False
+
+        frame_meta = self.info.frames[self.next_index]
+        self.current_rgb_frame = frame
+        self.current_depth_frame = load_depth_png(self.info, frame_meta)
+        self.current_frame_meta = frame_meta
+        self.current_index = self.next_index
+        self.next_index += 1
+        return True
+
+    def advance_until(self, target_host_seconds: float) -> None:
+        while self.next_index < len(self.info.frames):
+            next_meta = self.info.frames[self.next_index]
+            if next_meta.rgb_host_synced_seconds > target_host_seconds:
+                break
+            if not self.advance():
+                break
+
+    def reset(self) -> None:
+        self.capture.set(cv2.CAP_PROP_POS_FRAMES, 0)
+        self.current_index = -1
+        self.current_rgb_frame = None
+        self.current_depth_frame = None
+        self.current_frame_meta = None
+        self.next_index = 0
+        self.advance()
+
+    def close(self) -> None:
+        self.capture.release()
+
+
 def build_recording_dir(output_root: Path, device_id: str) -> Path:
     return output_root / f"oak_{device_id}.rgbd"
+
+
+def build_plane_calibration_path(calibrations_root: Path, device_id: str) -> Path:
+    calibrations_root.mkdir(parents=True, exist_ok=True)
+    return calibrations_root / f"plane_fit_{device_id}.json"
+
+
+def add_rgbd_recording_lookup_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
+    parser.add_argument(
+        "--device-id",
+        type=str,
+        default=None,
+        help="OAK device id/MXID used to derive the default RGBD recording folder.",
+    )
+    parser.add_argument(
+        "--recording-dir",
+        type=Path,
+        default=None,
+        help="Optional explicit RGBD recording directory override.",
+    )
+    parser.add_argument(
+        "--recordings-root",
+        type=Path,
+        default=DEFAULT_RGBD_RECORDINGS_DIR,
+        help="Root directory containing RGBD recording folders named oak_<device-id>.rgbd.",
+    )
+    return parser
+
+
+def resolve_recording_dir(
+    *,
+    recording_dir: Path | None,
+    device_id: str | None,
+    recordings_root: Path,
+) -> Path:
+    if recording_dir is not None:
+        return recording_dir
+    if device_id is None:
+        raise ValueError("Either --device-id or --recording-dir is required.")
+    return build_recording_dir(recordings_root, device_id)
 
 
 def build_recording_paths(recording_dir: Path) -> Dict[str, Path]:

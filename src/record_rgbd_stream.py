@@ -19,7 +19,11 @@ from pipeline.camera import (
 )
 from pipeline.config import DEFAULT_CAMERA_FPS, PREVIEW_HEIGHT, PREVIEW_WIDTH
 from pipeline.depth import colorize_depth, intrinsics_from_matrix
-from pipeline.rgbd_recording import build_recording_dir, build_recording_paths
+from pipeline.rgbd_recording import (
+    DEFAULT_RGBD_RECORDINGS_DIR,
+    build_recording_dir,
+    build_recording_paths,
+)
 
 
 @dataclass
@@ -28,9 +32,6 @@ class DepthPacket:
     host_synced_seconds: float
     device_monotonic_seconds: float
     frame_mm: np.ndarray
-
-
-DEFAULT_RECORDINGS_DIR = Path(__file__).resolve().parent / "recordings"
 
 
 def build_argparser() -> argparse.ArgumentParser:
@@ -47,7 +48,7 @@ def build_argparser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=DEFAULT_RECORDINGS_DIR,
+        default=DEFAULT_RGBD_RECORDINGS_DIR,
         help="Directory where RGBD recording folders will be written.",
     )
     parser.add_argument(

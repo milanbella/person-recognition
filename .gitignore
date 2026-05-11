@@ -5,3 +5,4 @@ src/__pycache__/
 src/pipeline/__pycache__/
 src/recordings/
 *.swp
+src/plane_calibrations/

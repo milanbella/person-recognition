@@ -19,6 +19,7 @@ from pipeline.depth import (
     draw_depth_event_banner,
     draw_depth_samples,
     intrinsics_from_matrix,
+    plane_enter_direction_from_args,
     plane_from_args,
     process_depth_plane_logic,
     process_depth_entrance_logic,
@@ -61,10 +62,13 @@ def main() -> None:
         )
     )
     plane = plane_from_args(args)
+    plane_enter_direction = plane_enter_direction_from_args(args)
     print(
         f"RGB intrinsics fx={rgb_intrinsics.fx:.1f} fy={rgb_intrinsics.fy:.1f} "
         f"cx={rgb_intrinsics.cx:.1f} cy={rgb_intrinsics.cy:.1f}"
     )
+    if args.depth_trigger_mode == "plane" and args.plane_json is not None:
+        print(f"Loaded plane from {args.plane_json}")
 
     depth_states: Dict[int, DepthEntranceState] = {}
     event_flash_remaining = 0
@@ -139,7 +143,7 @@ def main() -> None:
                         intrinsics=rgb_intrinsics,
                         states=depth_states,
                         plane=plane,
-                        plane_enter_direction=args.plane_enter_direction,
+                        plane_enter_direction=plane_enter_direction,
                         plane_hysteresis_mm=float(args.plane_hysteresis_mm),
                         min_valid_pixels=args.depth_min_valid_pixels,
                         roi_width_fraction=args.depth_roi_width_fraction,

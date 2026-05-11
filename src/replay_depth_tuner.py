@@ -21,12 +21,20 @@ from pipeline.depth import (
     colorize_depth,
     draw_depth_event_banner,
     draw_depth_samples,
+    plane_enter_direction_from_args,
     plane_from_args,
     process_depth_plane_logic,
     process_depth_entrance_logic,
+    resolve_plane_json_path,
 )
 from pipeline.detection import ScrfdInsightFaceDetector
-from pipeline.rgbd_recording import load_depth_png, load_rgbd_recording
+from pipeline.rgbd_recording import (
+    DEFAULT_PLANE_CALIBRATIONS_DIR,
+    add_rgbd_recording_lookup_args,
+    load_depth_png,
+    load_rgbd_recording,
+    resolve_recording_dir,
+)
 from pipeline.tracking import SimpleIoUTracker, draw_tracks
 
 
@@ -34,12 +42,7 @@ def build_argparser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Replay one recorded RGBD stream through depth-based entrance logic."
     )
-    parser.add_argument(
-        "--recording-dir",
-        type=Path,
-        required=True,
-        help="Directory created by record_rgbd_stream.py.",
-    )
+    add_rgbd_recording_lookup_args(parser)
     parser.add_argument(
         "--event-log",
         type=Path,
@@ -106,7 +109,25 @@ def build_event_log_path(recording_dir: Path, explicit_path: Path | None) -> Pat
 
 def main() -> None:
     args = build_argparser().parse_args()
-    recording = load_rgbd_recording(args.recording_dir)
+    recording_dir = resolve_recording_dir(
+        recording_dir=args.recording_dir,
+        device_id=args.device_id,
+        recordings_root=args.recordings_root,
+    )
+    recording = load_rgbd_recording(recording_dir)
+    if args.depth_trigger_mode == "plane":
+        args.plane_json = resolve_plane_json_path(
+            plane_json=args.plane_json,
+            device_id=recording.device_id,
+            calibrations_root=DEFAULT_PLANE_CALIBRATIONS_DIR,
+            recording_dir=recording.recording_dir,
+        )
+        if args.plane_json is None:
+            raise FileNotFoundError(
+                "Plane mode requested, but no plane JSON was provided and "
+                f"neither {DEFAULT_PLANE_CALIBRATIONS_DIR / ('plane_fit_' + recording.device_id + '.json')} "
+                f"nor {recording.recording_dir / 'plane_fit.json'} was found."
+            )
     if recording.rgb_intrinsics is None:
         raise RuntimeError(
             "This RGBD recording does not contain RGB intrinsics. Re-record with the current record_rgbd_stream.py."
@@ -118,6 +139,7 @@ def main() -> None:
         cy=float(recording.rgb_intrinsics["cy"]),
     )
     plane = plane_from_args(args)
+    plane_enter_direction = plane_enter_direction_from_args(args)
 
     detector = ScrfdInsightFaceDetector(
         model_path=args.model,
@@ -153,6 +175,8 @@ def main() -> None:
                 "max_missed": args.max_missed,
                 "depth_trigger_mode": args.depth_trigger_mode,
                 "speed": args.speed,
+                "plane_json": None if args.plane_json is None else str(args.plane_json.resolve()),
+                "plane_enter_direction": plane_enter_direction,
             }
         )
         + "\n"
@@ -160,6 +184,8 @@ def main() -> None:
 
     print(f"Replaying depth recording from {recording.recording_dir}")
     print(f"Writing event log to {event_log_path}")
+    if args.depth_trigger_mode == "plane" and args.plane_json is not None:
+        print(f"Loaded plane from {args.plane_json}")
     print("Controls: q=quit, space=pause/resume, ]=faster, [=slower")
 
     paused = False
@@ -188,7 +214,7 @@ def main() -> None:
                     intrinsics=rgb_intrinsics,
                     states=depth_states,
                     plane=plane,
-                    plane_enter_direction=args.plane_enter_direction,
+                    plane_enter_direction=plane_enter_direction,
                     plane_hysteresis_mm=float(args.plane_hysteresis_mm),
                     min_valid_pixels=args.depth_min_valid_pixels,
                     roi_width_fraction=args.depth_roi_width_fraction,
