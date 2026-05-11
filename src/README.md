@@ -36,9 +36,12 @@ The old on-device `RVC2` experiment scripts were intentionally removed.
     - `pipeline.identity`
       - local identity grouping and HTML review logic
       - shared by replay entrypoints and the legacy Phase 7 harnesses
-    - `pipeline.entry_session`
-      - typed entry-event/session building, offline correlation, and HTML review helpers
-      - shared by replay entrypoints and the legacy Phase 8 harnesses
+- `pipeline.entry_session`
+  - typed entry-event/session building, offline correlation, and HTML review helpers
+  - shared by replay entrypoints and the legacy Phase 8 harnesses
+    - `pipeline.depth`
+      - shared helpers for sampling aligned stereo depth inside tracked person boxes
+      - includes a first depth-threshold entrance prototype
 
 - `main.py`
   - host-side camera capture baseline
@@ -53,6 +56,11 @@ The old on-device `RVC2` experiment scripts were intentionally removed.
   - uses a stable default filename per camera id so repeated recordings reuse the same CLI command
   - intended to run as one process per camera with explicit `--device-id`
 
+- `record_rgbd_stream.py`
+  - host-side RGB plus aligned depth recorder for one OAK camera
+  - writes an `oak_<device-id>.rgbd\` folder with `rgb.avi`, `frames.jsonl`, and 16-bit depth PNG frames
+  - intended for later depth-based replay and tuning
+
 - `replay_synced_streams.py`
   - replays two recorded OAK videos side-by-side using the recorded per-frame timestamp sidecars
   - aligns cameras by recorded frame time instead of replay launch time
@@ -61,11 +69,24 @@ The old on-device `RVC2` experiment scripts were intentionally removed.
   - replays one recorded video through detection, tracking, and entrance-event logic
   - draws the entrance line and writes replayed `ENTRY_EVENT` timing logs from recorded timestamps
 
+- `replay_depth_tuner.py`
+  - replays one recorded RGBD stream through detection, tracking, and depth-based entrance logic
+  - writes replayed depth entrance-event timing logs from recorded timestamps and aligned recorded depth
+
+- `fit_plane_from_tags.py`
+  - interactive plane-calibration utility for recorded RGBD streams
+  - lets you click 3 tagged door-corner points, fits a 3D plane from recorded depth, and prints the CLI args for plane-based entrance detection
+
 - `final_pipeline.py`
   - first unified live pipeline entrypoint built on shared modules
   - runs host-side detection, tracking, entrance logic, and optional evidence capture
   - demonstrates how the eventual live pipeline should depend on shared modules instead of phase harness imports
   - supports explicit OAK selection with `--device-id`
+
+- `depth_entrance_live.py`
+  - first live prototype for depth-based entrance triggering
+  - uses CAM_A RGB plus CAM_B/C stereo depth aligned to RGB
+  - samples depth near the lower body and emits `DEPTH_ENTRY_EVENT` when a tracked person crosses a depth threshold
 
 - `phase1_host_detection_scrfd.py`
   - host-side Step 2 detector harness
