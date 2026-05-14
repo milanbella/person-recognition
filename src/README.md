@@ -49,30 +49,15 @@ The old on-device `RVC2` experiment scripts were intentionally removed.
   - receives RGB frames on the PC
   - shows a live preview
 
-- `record_stream.py`
-  - host-side full-stream recorder for one OAK camera
-  - writes a full RGB video file for later replay and tuning
-  - writes a `.timestamps.jsonl` sidecar with per-frame timing metadata for later cross-camera alignment
-  - uses a stable default filename per camera id so repeated recordings reuse the same CLI command
-  - intended to run as one process per camera with explicit `--device-id`
-
 - `record_rgbd_stream.py`
   - host-side RGB plus aligned depth recorder for one OAK camera
   - writes an `oak_<device-id>.rgbd\` folder with `rgb.avi`, `frames.jsonl`, and 16-bit depth PNG frames
   - intended for later depth-based replay and tuning
 
-- `replay_synced_streams.py`
-  - replays two recorded OAK videos side-by-side using the recorded per-frame timestamp sidecars
-  - aligns cameras by recorded frame time instead of replay launch time
-
 - `replay_synced_rgbd_streams.py`
   - replays multiple recorded RGBD streams in sync using recorded RGB frame timestamps
   - shows synchronized tiled RGB views and optional synchronized tiled depth views
   - accepts one or more `--device-id` values and derives the matching RGBD recording folders
-
-- `replay_entrance_tuner.py`
-  - replays one recorded video through detection, tracking, and entrance-event logic
-  - draws the entrance line and writes replayed `ENTRY_EVENT` timing logs from recorded timestamps
 
 - `replay_depth_tuner.py`
   - replays one recorded RGBD stream through detection, tracking, and depth-based entrance logic
