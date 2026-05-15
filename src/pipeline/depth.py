@@ -10,7 +10,6 @@ from typing import Dict, Optional, Sequence
 import cv2
 import numpy as np
 
-from pipeline.config import PREVIEW_HEIGHT, PREVIEW_WIDTH
 from pipeline.detection import add_detection_args
 from pipeline.tracking import Track, add_tracking_args
 
@@ -546,22 +545,6 @@ def draw_depth_samples(
             1,
             cv2.LINE_AA,
         )
-
-    cv2.putText(
-        frame,
-        (
-            f"depth_threshold={depth_threshold_mm / 1000.0:.2f}m"
-            if not plane_mode
-            else "depth_trigger=plane"
-        ),
-        (20, PREVIEW_HEIGHT - 20),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.7,
-        (255, 255, 255),
-        2,
-        cv2.LINE_AA,
-    )
-
 
 def draw_depth_event_banner(frame: np.ndarray, text: str) -> None:
     if not text:

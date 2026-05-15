@@ -36,6 +36,13 @@ The old on-device `RVC2` experiment scripts were intentionally removed.
     - `pipeline.identity`
       - local identity grouping and HTML review logic
       - shared by replay entrypoints and the legacy Phase 7 harnesses
+    - `pipeline.face_identity`
+      - replay-local face detection/embedding identity assignment
+      - attaches observed `face_person_###` labels to tracked faces during RGBD replay
+    - `pipeline.visit_identity`
+      - within-visit physical-person identity layer above temporary `track_id`
+      - reattaches new track ids to existing `visit_id` values using clothing/body appearance, depth, and recent timing
+      - treats fragmented `face_person_###` labels as evidence attached to a visit, not as the only visit identity source
 - `pipeline.entry_session`
   - typed entry-event/session building, offline correlation, and HTML review helpers
   - shared by replay entrypoints and the legacy Phase 8 harnesses
@@ -59,11 +66,13 @@ The old on-device `RVC2` experiment scripts were intentionally removed.
   - shows synchronized tiled RGB views and optional synchronized tiled depth views
   - accepts one or more `--device-id` values and derives the matching RGBD recording folders
   - can optionally run replay-local face identity assignment with `--enable-face-recognition`
+  - assigns shared `visit_id` labels across the synchronized replay so same-visit face fragments can be reviewed together
 
 - `replay_depth_tuner.py`
   - replays one recorded RGBD stream through detection, tracking, and depth-based entrance logic
   - writes replayed depth entrance-event timing logs from recorded timestamps and aligned recorded depth
   - can optionally run replay-local face identity assignment with `--enable-face-recognition`
+  - writes `visit_id` and attached face identity ids into depth event logs
 
 - `fit_plane_from_tags.py`
   - interactive plane-calibration utility for recorded RGBD streams

@@ -40,6 +40,11 @@ from pipeline.rgbd_recording import (
     resolve_recording_dir,
 )
 from pipeline.tracking import SimpleIoUTracker, draw_tracks
+from pipeline.visit_identity import (
+    VisitIdentityManager,
+    add_visit_identity_args,
+    draw_visit_labels,
+)
 
 
 def build_argparser() -> argparse.ArgumentParser:
@@ -108,6 +113,7 @@ def build_argparser() -> argparse.ArgumentParser:
         help="Compatibility option. Depth window is hidden unless --show-depth-window is set.",
     )
     add_face_identity_args(parser)
+    add_visit_identity_args(parser)
     return parser
 
 
@@ -171,6 +177,11 @@ def main() -> None:
             match_threshold=args.face_match_threshold,
             min_det_score=args.face_min_det_score,
         )
+    visit_manager = VisitIdentityManager(
+        match_threshold=args.visit_match_threshold,
+        same_camera_max_age_seconds=args.visit_same_camera_max_age_seconds,
+        cross_camera_max_age_seconds=args.visit_cross_camera_max_age_seconds,
+    )
     depth_states: Dict[int, DepthEntranceState] = {}
 
     capture = cv2.VideoCapture(str(recording.rgb_video_path))
@@ -252,10 +263,23 @@ def main() -> None:
                 )
                 signed_distances_mm = {}
 
+            recognized_faces = []
+            if face_matcher is not None:
+                recognized_faces = face_matcher.recognize(rgb_frame, tracks=tracks)
+            visit_assignments = visit_manager.update(
+                device_id=recording.device_id,
+                host_seconds=frame_meta.rgb_host_synced_seconds,
+                frame=rgb_frame,
+                tracks=tracks,
+                depth_samples=depth_samples,
+                recognized_faces=recognized_faces,
+            )
+
             for track_id in entered_track_ids:
                 sample = depth_samples.get(track_id)
                 if sample is None:
                     continue
+                visit_assignment = visit_assignments.get(track_id)
                 event_count += 1
                 event_payload = {
                     "type": "depth_plane_entry_event"
@@ -270,6 +294,10 @@ def main() -> None:
                     "depth_host_synced_seconds": frame_meta.depth_host_synced_seconds,
                     "matched_depth_delta_ms": frame_meta.matched_depth_delta_ms,
                     "depth_mm": sample.depth_mm,
+                    "visit_id": None if visit_assignment is None else visit_assignment.visit_id,
+                    "face_identity_ids": []
+                    if visit_assignment is None
+                    else list(visit_assignment.face_identity_ids),
                 }
                 if args.depth_trigger_mode == "plane":
                     event_payload["plane_signed_distance_mm"] = signed_distances_mm.get(track_id)
@@ -278,6 +306,7 @@ def main() -> None:
                 if args.depth_trigger_mode == "plane":
                     print(
                         f"DEPTH_PLANE_ENTRY_EVENT track_id={track_id} "
+                        f"visit_id={None if visit_assignment is None else visit_assignment.visit_id} "
                         f"host_synced_seconds={frame_meta.rgb_host_synced_seconds:.3f} "
                         f"plane_mm={signed_distances_mm.get(track_id, float('nan')):.0f} "
                         f"depth_mm={sample.depth_mm:.0f}"
@@ -285,11 +314,13 @@ def main() -> None:
                 else:
                     print(
                         f"DEPTH_ENTRY_EVENT track_id={track_id} "
+                        f"visit_id={None if visit_assignment is None else visit_assignment.visit_id} "
                         f"host_synced_seconds={frame_meta.rgb_host_synced_seconds:.3f} "
                         f"depth_mm={sample.depth_mm:.0f}"
                     )
             overlay = rgb_frame.copy()
             draw_tracks(overlay, tracks)
+            draw_visit_labels(overlay, tracks, visit_assignments)
             draw_depth_samples(
                 overlay,
                 tracks=tracks,
@@ -299,7 +330,6 @@ def main() -> None:
                 plane_mode=args.depth_trigger_mode == "plane",
             )
             if face_matcher is not None:
-                recognized_faces = face_matcher.recognize(rgb_frame, tracks=tracks)
                 draw_recognized_faces(overlay, recognized_faces)
             cv2.imshow("Depth Replay Tuner", overlay)
             if args.show_depth_window and not args.hide_depth_window:

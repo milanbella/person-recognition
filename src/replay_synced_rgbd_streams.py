@@ -41,6 +41,11 @@ from pipeline.rgbd_recording import (
     resolve_recording_dir,
 )
 from pipeline.tracking import SimpleIoUTracker, draw_tracks
+from pipeline.visit_identity import (
+    VisitIdentityManager,
+    add_visit_identity_args,
+    draw_visit_labels,
+)
 
 
 @dataclass
@@ -243,6 +248,7 @@ def build_argparser() -> argparse.ArgumentParser:
         help="Maximum display height for replay windows after auto-scaling the tiled view.",
     )
     add_face_identity_args(parser)
+    add_visit_identity_args(parser)
     return parser
 
 
@@ -431,6 +437,11 @@ def main() -> None:
             match_threshold=args.face_match_threshold,
             min_det_score=args.face_min_det_score,
         )
+    visit_manager = VisitIdentityManager(
+        match_threshold=args.visit_match_threshold,
+        same_camera_max_age_seconds=args.visit_same_camera_max_age_seconds,
+        cross_camera_max_age_seconds=args.visit_cross_camera_max_age_seconds,
+    )
     stream_states = build_stream_states(streams=streams, args=args)
 
     try:
@@ -488,6 +499,7 @@ def main() -> None:
                         state=state,
                         detector=detector,
                         face_matcher=face_matcher,
+                        visit_manager=visit_manager,
                         args=args,
                     ),
                 )
@@ -543,6 +555,7 @@ def build_processed_rgb_frame(
     state: SyncedStreamState,
     detector: ScrfdInsightFaceDetector,
     face_matcher: LocalFaceIdentityMatcher | None,
+    visit_manager: VisitIdentityManager,
     args: argparse.Namespace,
 ) -> np.ndarray:
     rgb_frame = state.stream.current_rgb_frame
@@ -600,14 +613,34 @@ def build_processed_rgb_frame(
         )
         signed_distances_mm = {}
 
+    recognized_faces = []
+    if face_matcher is not None:
+        recognized_faces = face_matcher.recognize(rgb_frame, tracks=tracks)
+    host_seconds = (
+        0.0
+        if state.stream.current_frame_meta is None
+        else state.stream.current_frame_meta.rgb_host_synced_seconds
+    )
+    visit_assignments = visit_manager.update(
+        device_id=state.stream.info.device_id,
+        host_seconds=host_seconds,
+        frame=rgb_frame,
+        tracks=tracks,
+        depth_samples=depth_samples,
+        recognized_faces=recognized_faces,
+    )
+
     for track_id in entered_track_ids:
         sample = depth_samples.get(track_id)
         if sample is None:
             continue
+        visit_assignment = visit_assignments.get(track_id)
         if args.depth_trigger_mode == "plane":
             print(
                 f"SYNC_DEPTH_PLANE_ENTRY_EVENT device_id={state.stream.info.device_id} "
-                f"track_id={track_id} host_synced_seconds="
+                f"track_id={track_id} "
+                f"visit_id={None if visit_assignment is None else visit_assignment.visit_id} "
+                f"host_synced_seconds="
                 f"{state.stream.current_frame_meta.rgb_host_synced_seconds:.3f} "
                 f"plane_mm={signed_distances_mm.get(track_id, float('nan')):.0f} "
                 f"depth_mm={sample.depth_mm:.0f}"
@@ -615,12 +648,15 @@ def build_processed_rgb_frame(
         else:
             print(
                 f"SYNC_DEPTH_ENTRY_EVENT device_id={state.stream.info.device_id} "
-                f"track_id={track_id} host_synced_seconds="
+                f"track_id={track_id} "
+                f"visit_id={None if visit_assignment is None else visit_assignment.visit_id} "
+                f"host_synced_seconds="
                 f"{state.stream.current_frame_meta.rgb_host_synced_seconds:.3f} "
                 f"depth_mm={sample.depth_mm:.0f}"
             )
 
     draw_tracks(overlay, tracks)
+    draw_visit_labels(overlay, tracks, visit_assignments)
     draw_depth_samples(
         overlay,
         tracks=tracks,
@@ -630,7 +666,6 @@ def build_processed_rgb_frame(
         plane_mode=args.depth_trigger_mode == "plane",
     )
     if face_matcher is not None:
-        recognized_faces = face_matcher.recognize(rgb_frame, tracks=tracks)
         draw_recognized_faces(overlay, recognized_faces)
     state.last_processed_frame_index = (
         None if state.stream.current_frame_meta is None else state.stream.current_frame_meta.frame_index
