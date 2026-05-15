@@ -19,7 +19,6 @@ from pipeline.depth import (
     DepthEntranceState,
     add_depth_entrance_args,
     colorize_depth,
-    draw_depth_event_banner,
     draw_depth_samples,
     plane_enter_direction_from_args,
     plane_from_args,
@@ -28,6 +27,11 @@ from pipeline.depth import (
     resolve_plane_json_path,
 )
 from pipeline.detection import ScrfdInsightFaceDetector
+from pipeline.face_identity import (
+    LocalFaceIdentityMatcher,
+    add_face_identity_args,
+    draw_recognized_faces,
+)
 from pipeline.rgbd_recording import (
     DEFAULT_PLANE_CALIBRATIONS_DIR,
     add_rgbd_recording_lookup_args,
@@ -98,6 +102,12 @@ def build_argparser() -> argparse.ArgumentParser:
         help="How many consecutive frames a track may be unmatched before removal.",
     )
     add_depth_entrance_args(parser)
+    parser.add_argument(
+        "--hide-depth-window",
+        action="store_true",
+        help="Compatibility option. Depth window is hidden unless --show-depth-window is set.",
+    )
+    add_face_identity_args(parser)
     return parser
 
 
@@ -151,6 +161,16 @@ def main() -> None:
         iou_threshold=args.iou_threshold,
         max_missed=args.max_missed,
     )
+    face_matcher = None
+    if args.enable_face_recognition:
+        face_matcher = LocalFaceIdentityMatcher(
+            cache_root=args.face_cache_root,
+            model_pack=args.face_model_pack,
+            det_size=(args.face_det_width, args.face_det_height),
+            det_thresh=args.face_det_thresh,
+            match_threshold=args.face_match_threshold,
+            min_det_score=args.face_min_det_score,
+        )
     depth_states: Dict[int, DepthEntranceState] = {}
 
     capture = cv2.VideoCapture(str(recording.rgb_video_path))
@@ -192,8 +212,6 @@ def main() -> None:
     speed = args.speed
     event_count = 0
     frame_idx = 0
-    event_flash_remaining = 0
-    event_flash_text = ""
 
     try:
         while frame_idx < len(recording.frames):
@@ -270,13 +288,6 @@ def main() -> None:
                         f"host_synced_seconds={frame_meta.rgb_host_synced_seconds:.3f} "
                         f"depth_mm={sample.depth_mm:.0f}"
                     )
-            if entered_track_ids:
-                prefix = "PLANE ENTRY" if args.depth_trigger_mode == "plane" else "DEPTH ENTRY"
-                event_flash_text = f"{prefix}: " + ", ".join(
-                    str(track_id) for track_id in entered_track_ids
-                )
-                event_flash_remaining = 12
-
             overlay = rgb_frame.copy()
             draw_tracks(overlay, tracks)
             draw_depth_samples(
@@ -287,24 +298,11 @@ def main() -> None:
                 signed_distances_mm=signed_distances_mm,
                 plane_mode=args.depth_trigger_mode == "plane",
             )
-            if event_flash_remaining > 0:
-                draw_depth_event_banner(overlay, event_flash_text)
-                event_flash_remaining -= 1
-            cv2.putText(
-                overlay,
-                (
-                    f"frame={frame_meta.frame_index} host_synced="
-                    f"{frame_meta.rgb_host_synced_seconds:.3f}s speed={speed:.2f}x"
-                ),
-                (20, overlay.shape[0] - 20),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.7,
-                (255, 255, 255),
-                2,
-                cv2.LINE_AA,
-            )
+            if face_matcher is not None:
+                recognized_faces = face_matcher.recognize(rgb_frame, tracks=tracks)
+                draw_recognized_faces(overlay, recognized_faces)
             cv2.imshow("Depth Replay Tuner", overlay)
-            if args.show_depth_window:
+            if args.show_depth_window and not args.hide_depth_window:
                 cv2.imshow("Depth Replay Aligned Depth", colorize_depth(depth_frame_mm))
 
             if frame_idx + 1 < len(recording.frames):

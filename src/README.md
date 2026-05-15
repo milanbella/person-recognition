@@ -58,10 +58,12 @@ The old on-device `RVC2` experiment scripts were intentionally removed.
   - replays multiple recorded RGBD streams in sync using recorded RGB frame timestamps
   - shows synchronized tiled RGB views and optional synchronized tiled depth views
   - accepts one or more `--device-id` values and derives the matching RGBD recording folders
+  - can optionally run replay-local face identity assignment with `--enable-face-recognition`
 
 - `replay_depth_tuner.py`
   - replays one recorded RGBD stream through detection, tracking, and depth-based entrance logic
   - writes replayed depth entrance-event timing logs from recorded timestamps and aligned recorded depth
+  - can optionally run replay-local face identity assignment with `--enable-face-recognition`
 
 - `fit_plane_from_tags.py`
   - interactive plane-calibration utility for recorded RGBD streams

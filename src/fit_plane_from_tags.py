@@ -144,7 +144,6 @@ def render_rgb_frame(
     frame_index: int,
     device_id: str,
     clicked_points: list[ClickedPoint],
-    fitted_plane_text: list[str],
 ) -> np.ndarray:
     overlay = frame.copy()
     for idx, point in enumerate(clicked_points, start=1):
@@ -203,30 +202,6 @@ def render_rgb_frame(
         )
         y += 28
 
-    y = overlay.shape[0] - (24 * max(1, len(fitted_plane_text)))
-    for line in fitted_plane_text:
-        cv2.putText(
-            overlay,
-            line,
-            (20, y),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.6,
-            (0, 0, 0),
-            3,
-            cv2.LINE_AA,
-        )
-        cv2.putText(
-            overlay,
-            line,
-            (20, y),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.6,
-            (0, 255, 0),
-            1,
-            cv2.LINE_AA,
-        )
-        y += 24
-
     return overlay
 
 
@@ -274,7 +249,6 @@ def main() -> None:
 
     frame_index = max(0, min(args.frame_index, len(recording.frames) - 1))
     clicked_points: list[ClickedPoint] = []
-    fitted_plane_text: list[str] = []
     output_json_path = build_output_json_path(
         device_id=recording.device_id,
         explicit_path=args.output_json,
@@ -284,12 +258,11 @@ def main() -> None:
     current_depth = load_depth_png(recording, recording.frames[frame_index])
 
     def reload_frame(new_index: int) -> None:
-        nonlocal frame_index, current_rgb, current_depth, clicked_points, fitted_plane_text
+        nonlocal frame_index, current_rgb, current_depth, clicked_points
         frame_index = max(0, min(new_index, len(recording.frames) - 1))
         current_rgb = load_rgb_frame(recording.rgb_video_path, frame_index)
         current_depth = load_depth_png(recording, recording.frames[frame_index])
         clicked_points = []
-        fitted_plane_text = []
 
     def on_mouse(event: int, x: int, y: int, _flags: int, _userdata: object) -> None:
         nonlocal clicked_points
@@ -330,7 +303,6 @@ def main() -> None:
                 frame_index=frame_index,
                 device_id=recording.device_id,
                 clicked_points=clicked_points,
-                fitted_plane_text=fitted_plane_text,
             )
             depth_view = render_depth_frame(current_depth, clicked_points)
 
@@ -342,7 +314,6 @@ def main() -> None:
                 break
             if key == ord("c"):
                 clicked_points = []
-                fitted_plane_text = []
                 continue
             if key == ord("a"):
                 reload_frame(frame_index - 1)
@@ -368,17 +339,6 @@ def main() -> None:
                     for point in clicked_points
                 ]
                 rms_error_mm = math.sqrt(sum(value * value for value in distances) / len(distances))
-
-                fitted_plane_text = [
-                    (
-                        f"plane point=({plane.point_mm[0]:.1f}, {plane.point_mm[1]:.1f}, "
-                        f"{plane.point_mm[2]:.1f}) mm"
-                    ),
-                    (
-                        f"plane normal=({plane.normal[0]:.5f}, {plane.normal[1]:.5f}, "
-                        f"{plane.normal[2]:.5f}) rms={rms_error_mm:.2f} mm"
-                    ),
-                ]
 
                 output_payload = {
                     "schema_version": "2026-05-11",

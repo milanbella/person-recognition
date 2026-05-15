@@ -279,21 +279,3 @@ def draw_entrance_debug(
             1,
             cv2.LINE_AA,
         )
-
-    frame_height, frame_width = frame.shape[:2]
-    threshold = line_position * (frame_height if axis == "x" else frame_width)
-    info = (
-        f"axis={axis} line={line_position:.2f} "
-        f"threshold_px={threshold:.1f} "
-        f"outside={outside_side}"
-    )
-    cv2.putText(
-        frame,
-        info,
-        (20, frame.shape[0] - 20),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.6,
-        (255, 0, 255),
-        2,
-        cv2.LINE_AA,
-    )

@@ -20,7 +20,6 @@ from pipeline.depth import (
     CameraIntrinsics,
     DepthEntranceState,
     colorize_depth,
-    draw_depth_event_banner,
     draw_depth_samples,
     plane_enter_direction_from_args,
     plane_from_args,
@@ -29,6 +28,11 @@ from pipeline.depth import (
     resolve_plane_json_path,
 )
 from pipeline.detection import ScrfdInsightFaceDetector
+from pipeline.face_identity import (
+    LocalFaceIdentityMatcher,
+    add_face_identity_args,
+    draw_recognized_faces,
+)
 from pipeline.rgbd_recording import (
     DEFAULT_PLANE_CALIBRATIONS_DIR,
     DEFAULT_RGBD_RECORDINGS_DIR,
@@ -47,8 +51,6 @@ class SyncedStreamState:
     depth_states: dict[int, DepthEntranceState] = field(default_factory=dict)
     plane: object | None = None
     plane_enter_direction: str | None = None
-    event_flash_remaining: int = 0
-    event_flash_text: str = ""
     last_processed_frame_index: int | None = None
     cached_rgb_overlay: np.ndarray | None = None
 
@@ -240,6 +242,7 @@ def build_argparser() -> argparse.ArgumentParser:
         default=900,
         help="Maximum display height for replay windows after auto-scaling the tiled view.",
     )
+    add_face_identity_args(parser)
     return parser
 
 
@@ -277,34 +280,7 @@ def render_stream_frame(
         )
         return frame
 
-    frame = source.copy()
-    stamp = stream.current_frame_meta
-    delta_ms = (stamp.rgb_host_synced_seconds - target_host_seconds) * 1000.0
-    lines = [
-        f"{label} device={info.device_id}",
-        f"frame_index={stamp.frame_index} rgb_seq={stamp.rgb_sequence_num}",
-        f"rgb_host_synced={stamp.rgb_host_synced_seconds:.3f}s",
-        f"delta_to_target={delta_ms:+.1f} ms",
-    ]
-    if mode == "depth":
-        lines.append(
-            f"depth_seq={stamp.depth_sequence_num} match_delta={stamp.matched_depth_delta_ms:+.1f} ms"
-        )
-
-    y = 32
-    for line in lines:
-        cv2.putText(
-            frame,
-            line,
-            (20, y),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.7,
-            (0, 255, 255),
-            2,
-            cv2.LINE_AA,
-        )
-        y += 30
-    return frame
+    return source.copy()
 
 
 def fit_row_height(frames: list[np.ndarray]) -> list[np.ndarray]:
@@ -445,6 +421,16 @@ def main() -> None:
         score_threshold=args.score_threshold,
         nms_threshold=args.nms_threshold,
     )
+    face_matcher = None
+    if args.enable_face_recognition:
+        face_matcher = LocalFaceIdentityMatcher(
+            cache_root=args.face_cache_root,
+            model_pack=args.face_model_pack,
+            det_size=(args.face_det_width, args.face_det_height),
+            det_thresh=args.face_det_thresh,
+            match_threshold=args.face_match_threshold,
+            min_det_score=args.face_min_det_score,
+        )
     stream_states = build_stream_states(streams=streams, args=args)
 
     try:
@@ -501,22 +487,13 @@ def main() -> None:
                     source_frame=build_processed_rgb_frame(
                         state=state,
                         detector=detector,
+                        face_matcher=face_matcher,
                         args=args,
                     ),
                 )
                 for index, state in enumerate(stream_states)
             ]
             rgb_grid = tile_frames(rgb_frames, args.columns)
-            cv2.putText(
-                rgb_grid,
-                f"target_rgb_host_synced={target_time:.3f}s speed={speed:.2f}x",
-                (20, rgb_grid.shape[0] - 20),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.8,
-                (255, 255, 255),
-                2,
-                cv2.LINE_AA,
-            )
             rgb_display = fit_to_window(
                 rgb_grid,
                 max_width=args.max_window_width,
@@ -535,16 +512,6 @@ def main() -> None:
                     for index, state in enumerate(stream_states)
                 ]
                 depth_grid = tile_frames(depth_frames, args.columns)
-                cv2.putText(
-                    depth_grid,
-                    f"target_rgb_host_synced={target_time:.3f}s speed={speed:.2f}x",
-                    (20, depth_grid.shape[0] - 20),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.8,
-                    (255, 255, 255),
-                    2,
-                    cv2.LINE_AA,
-                )
                 depth_display = fit_to_window(
                     depth_grid,
                     max_width=args.max_window_width,
@@ -575,6 +542,7 @@ def build_processed_rgb_frame(
     *,
     state: SyncedStreamState,
     detector: ScrfdInsightFaceDetector,
+    face_matcher: LocalFaceIdentityMatcher | None,
     args: argparse.Namespace,
 ) -> np.ndarray:
     rgb_frame = state.stream.current_rgb_frame
@@ -586,11 +554,7 @@ def build_processed_rgb_frame(
         and state.last_processed_frame_index == state.stream.current_frame_meta.frame_index
         and state.cached_rgb_overlay is not None
     ):
-        overlay = state.cached_rgb_overlay.copy()
-        if state.event_flash_remaining > 0:
-            draw_depth_event_banner(overlay, state.event_flash_text)
-            state.event_flash_remaining -= 1
-        return overlay
+        return state.cached_rgb_overlay.copy()
 
     overlay = rgb_frame.copy()
     if depth_frame_mm is None:
@@ -656,13 +620,6 @@ def build_processed_rgb_frame(
                 f"depth_mm={sample.depth_mm:.0f}"
             )
 
-    if entered_track_ids:
-        prefix = "PLANE ENTRY" if args.depth_trigger_mode == "plane" else "DEPTH ENTRY"
-        state.event_flash_text = (
-            f"{prefix}: " + ", ".join(str(track_id) for track_id in entered_track_ids)
-        )
-        state.event_flash_remaining = 12
-
     draw_tracks(overlay, tracks)
     draw_depth_samples(
         overlay,
@@ -672,13 +629,13 @@ def build_processed_rgb_frame(
         signed_distances_mm=signed_distances_mm,
         plane_mode=args.depth_trigger_mode == "plane",
     )
+    if face_matcher is not None:
+        recognized_faces = face_matcher.recognize(rgb_frame, tracks=tracks)
+        draw_recognized_faces(overlay, recognized_faces)
     state.last_processed_frame_index = (
         None if state.stream.current_frame_meta is None else state.stream.current_frame_meta.frame_index
     )
     state.cached_rgb_overlay = overlay.copy()
-    if state.event_flash_remaining > 0:
-        draw_depth_event_banner(overlay, state.event_flash_text)
-        state.event_flash_remaining -= 1
     return overlay
 
 
