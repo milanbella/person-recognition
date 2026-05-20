@@ -10,8 +10,8 @@ from pipeline.camera import (
 )
 from pipeline.config import PREVIEW_HEIGHT, PREVIEW_WIDTH
 from pipeline.detection import (
-    ScrfdInsightFaceDetector,
     build_detection_argparser,
+    build_person_detector,
     draw_detections,
 )
 
@@ -29,12 +29,7 @@ def main() -> None:
         return
     configure_live_device(device)
 
-    detector = ScrfdInsightFaceDetector(
-        model_path=args.model,
-        input_size=(args.input_width, args.input_height),
-        score_threshold=args.score_threshold,
-        nms_threshold=args.nms_threshold,
-    )
+    detector = build_person_detector(args)
 
     print_connected_device(device)
 

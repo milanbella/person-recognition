@@ -4,7 +4,7 @@ import argparse
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Sequence, Tuple
+from typing import List, Protocol, Sequence, Tuple
 
 os.environ.setdefault(
     "MPLCONFIGDIR",
@@ -24,7 +24,8 @@ from pipeline.config import (
     DEFAULT_DETECTION_INPUT_WIDTH,
     DEFAULT_DETECTION_NMS_THRESHOLD,
     DEFAULT_DETECTION_SCORE_THRESHOLD,
-    DEFAULT_SCRFD_MODEL,
+    DEFAULT_PERSON_DETECTOR_BACKEND,
+    DEFAULT_PERSON_DETECTOR_MODEL,
     PREVIEW_HEIGHT,
     PREVIEW_WIDTH,
 )
@@ -40,6 +41,11 @@ class Detection:
     label: str = "person"
 
 
+class PersonDetector(Protocol):
+    def detect(self, frame: np.ndarray) -> List[Detection]:
+        ...
+
+
 def build_detection_argparser(
     description: str = "Step 2: host-side SCRFD detection on OAK USB frames.",
 ) -> argparse.ArgumentParser:
@@ -51,10 +57,16 @@ def build_detection_argparser(
 def add_detection_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
     add_device_args(parser)
     parser.add_argument(
+        "--detector-backend",
+        choices=["scrfd"],
+        default=DEFAULT_PERSON_DETECTOR_BACKEND,
+        help="Person detector backend. Current default is SCRFD via InsightFace model zoo.",
+    )
+    parser.add_argument(
         "--model",
         type=Path,
-        default=DEFAULT_SCRFD_MODEL,
-        help="Path to the host-side SCRFD ONNX model.",
+        default=DEFAULT_PERSON_DETECTOR_MODEL,
+        help="Path to the host-side person detector ONNX model.",
     )
     parser.add_argument(
         "--input-width",
@@ -89,7 +101,19 @@ def add_detection_args(parser: argparse.ArgumentParser) -> argparse.ArgumentPars
     return parser
 
 
-class ScrfdInsightFaceDetector:
+def build_person_detector(args: argparse.Namespace) -> PersonDetector:
+    backend = getattr(args, "detector_backend", DEFAULT_PERSON_DETECTOR_BACKEND)
+    if backend != "scrfd":
+        raise ValueError(f"Unsupported detector backend: {backend}")
+    return ScrfdPersonDetector(
+        model_path=args.model,
+        input_size=(args.input_width, args.input_height),
+        score_threshold=args.score_threshold,
+        nms_threshold=args.nms_threshold,
+    )
+
+
+class ScrfdPersonDetector:
     def __init__(
         self,
         model_path: Path,
@@ -150,6 +174,9 @@ class ScrfdInsightFaceDetector:
                 )
             )
         return result
+
+
+ScrfdInsightFaceDetector = ScrfdPersonDetector
 
 
 def draw_detections(frame: np.ndarray, detections: Sequence[Detection]) -> None:

@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, Protocol, Sequence
 
 import cv2
 import numpy as np
@@ -13,6 +13,7 @@ from pipeline.config import (
     DEFAULT_EMBEDDING_DET_THRESH,
     DEFAULT_EMBEDDING_DET_WIDTH,
     DEFAULT_EMBEDDING_MODEL_PACK,
+    DEFAULT_FACE_RECOGNIZER_BACKEND,
     DEFAULT_INSIGHTFACE_CACHE_ROOT,
 )
 from pipeline.embedding import build_face_analyzer, l2_normalize
@@ -39,11 +40,27 @@ class RecognizedFace:
     track_id: int | None
 
 
+class FaceRecognizer(Protocol):
+    def recognize(
+        self,
+        frame: np.ndarray,
+        *,
+        tracks: Sequence[Track],
+    ) -> list[RecognizedFace]:
+        ...
+
+
 def add_face_identity_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
     parser.add_argument(
         "--enable-face-recognition",
         action="store_true",
         help="Run InsightFace/ArcFace on replay frames and assign local face identities.",
+    )
+    parser.add_argument(
+        "--face-backend",
+        choices=["insightface"],
+        default=DEFAULT_FACE_RECOGNIZER_BACKEND,
+        help="Face recognizer backend. Current default is InsightFace/ArcFace.",
     )
     parser.add_argument(
         "--face-match-threshold",
@@ -115,7 +132,23 @@ def associate_face_to_track(
     return min(candidates, key=area).track_id
 
 
-class LocalFaceIdentityMatcher:
+def build_face_recognizer(args: argparse.Namespace) -> FaceRecognizer | None:
+    if not args.enable_face_recognition:
+        return None
+    backend = getattr(args, "face_backend", DEFAULT_FACE_RECOGNIZER_BACKEND)
+    if backend != "insightface":
+        raise ValueError(f"Unsupported face recognizer backend: {backend}")
+    return InsightFaceFaceRecognizer(
+        cache_root=args.face_cache_root,
+        model_pack=args.face_model_pack,
+        det_size=(args.face_det_width, args.face_det_height),
+        det_thresh=args.face_det_thresh,
+        match_threshold=args.face_match_threshold,
+        min_det_score=args.face_min_det_score,
+    )
+
+
+class InsightFaceFaceRecognizer:
     def __init__(
         self,
         *,
@@ -200,6 +233,9 @@ class LocalFaceIdentityMatcher:
             max(0, min(width - 1, x2)),
             max(0, min(height - 1, y2)),
         )
+
+
+LocalFaceIdentityMatcher = InsightFaceFaceRecognizer
 
 
 def draw_recognized_faces(

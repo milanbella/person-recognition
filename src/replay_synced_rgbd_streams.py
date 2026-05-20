@@ -12,10 +12,12 @@ from pipeline.config import (
     DEFAULT_DETECTION_INPUT_WIDTH,
     DEFAULT_DETECTION_NMS_THRESHOLD,
     DEFAULT_DETECTION_SCORE_THRESHOLD,
-    DEFAULT_SCRFD_MODEL,
+    DEFAULT_PERSON_DETECTOR_BACKEND,
+    DEFAULT_PERSON_DETECTOR_MODEL,
     DEFAULT_TRACKING_IOU_THRESHOLD,
     DEFAULT_TRACKING_MAX_MISSED,
 )
+from pipeline.body_evidence import BodyEvidenceExtractor, add_body_evidence_args, build_body_evidence_extractor
 from pipeline.depth import (
     CameraIntrinsics,
     DepthEntranceState,
@@ -27,10 +29,11 @@ from pipeline.depth import (
     process_depth_plane_logic,
     resolve_plane_json_path,
 )
-from pipeline.detection import ScrfdInsightFaceDetector
+from pipeline.detection import PersonDetector, build_person_detector
 from pipeline.face_identity import (
-    LocalFaceIdentityMatcher,
+    FaceRecognizer,
     add_face_identity_args,
+    build_face_recognizer,
     draw_recognized_faces,
 )
 from pipeline.rgbd_recording import (
@@ -106,10 +109,16 @@ def build_argparser() -> argparse.ArgumentParser:
         help="Show only the synchronized RGB window.",
     )
     parser.add_argument(
+        "--detector-backend",
+        choices=["scrfd"],
+        default=DEFAULT_PERSON_DETECTOR_BACKEND,
+        help="Person detector backend. Current default is SCRFD via InsightFace model zoo.",
+    )
+    parser.add_argument(
         "--model",
         type=Path,
-        default=DEFAULT_SCRFD_MODEL,
-        help="Optional override for the host-side SCRFD ONNX model.",
+        default=DEFAULT_PERSON_DETECTOR_MODEL,
+        help="Optional override for the host-side person detector ONNX model.",
     )
     parser.add_argument(
         "--input-width",
@@ -253,6 +262,7 @@ def build_argparser() -> argparse.ArgumentParser:
         help="Maximum display height for replay windows after auto-scaling the tiled view.",
     )
     add_face_identity_args(parser)
+    add_body_evidence_args(parser)
     add_visit_identity_args(parser)
     add_visit_registry_args(parser)
     return parser
@@ -440,22 +450,9 @@ def main() -> None:
         for device_id in args.device_id
     ]
     streams = [RGBDReplayStream(info) for info in recordings]
-    detector = ScrfdInsightFaceDetector(
-        model_path=args.model,
-        input_size=(args.input_width, args.input_height),
-        score_threshold=args.score_threshold,
-        nms_threshold=args.nms_threshold,
-    )
-    face_matcher = None
-    if args.enable_face_recognition:
-        face_matcher = LocalFaceIdentityMatcher(
-            cache_root=args.face_cache_root,
-            model_pack=args.face_model_pack,
-            det_size=(args.face_det_width, args.face_det_height),
-            det_thresh=args.face_det_thresh,
-            match_threshold=args.face_match_threshold,
-            min_det_score=args.face_min_det_score,
-        )
+    detector = build_person_detector(args)
+    face_matcher = build_face_recognizer(args)
+    body_evidence_extractor = build_body_evidence_extractor(args)
     visit_registry = VisitRegistry(
         entrance_merge_window_seconds=args.entrance_merge_window_seconds,
         observer_match_threshold=(
@@ -529,6 +526,7 @@ def main() -> None:
                         state=state,
                         detector=detector,
                         face_matcher=face_matcher,
+                        body_evidence_extractor=body_evidence_extractor,
                         visit_registry=visit_registry,
                         args=args,
                     ),
@@ -583,8 +581,9 @@ def main() -> None:
 def build_processed_rgb_frame(
     *,
     state: SyncedStreamState,
-    detector: ScrfdInsightFaceDetector,
-    face_matcher: LocalFaceIdentityMatcher | None,
+    detector: PersonDetector,
+    face_matcher: FaceRecognizer | None,
+    body_evidence_extractor: BodyEvidenceExtractor,
     visit_registry: VisitRegistry,
     args: argparse.Namespace,
 ) -> np.ndarray:
@@ -646,6 +645,7 @@ def build_processed_rgb_frame(
     recognized_faces = []
     if face_matcher is not None:
         recognized_faces = face_matcher.recognize(rgb_frame, tracks=tracks)
+    body_evidence_by_track = body_evidence_extractor.extract(rgb_frame, tracks=tracks)
     host_seconds = (
         0.0
         if state.stream.current_frame_meta is None
@@ -659,6 +659,7 @@ def build_processed_rgb_frame(
         depth_samples=depth_samples,
         recognized_faces=recognized_faces,
         observation_type=state.camera_role,
+        body_evidence_by_track=body_evidence_by_track,
     )
     visit_assignments = {}
     if state.camera_role == "observer":

@@ -24,7 +24,7 @@ from pipeline.depth import (
     process_depth_plane_logic,
     process_depth_entrance_logic,
 )
-from pipeline.detection import ScrfdInsightFaceDetector
+from pipeline.detection import build_person_detector
 from pipeline.tracking import SimpleIoUTracker, draw_tracks
 
 
@@ -41,12 +41,7 @@ def main() -> None:
         return
     configure_live_device(device)
 
-    detector = ScrfdInsightFaceDetector(
-        model_path=args.model,
-        input_size=(args.input_width, args.input_height),
-        score_threshold=args.score_threshold,
-        nms_threshold=args.nms_threshold,
-    )
+    detector = build_person_detector(args)
     tracker = SimpleIoUTracker(
         iou_threshold=args.iou_threshold,
         max_missed=args.max_missed,

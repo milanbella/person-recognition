@@ -1,14 +1,27 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 
 SRC_ROOT = Path(__file__).resolve().parents[1]
 
+os.environ.setdefault(
+    "MPLCONFIGDIR",
+    str(SRC_ROOT / ".cache" / "matplotlib"),
+)
+os.environ.setdefault("ALBUMENTATIONS_DISABLE_VERSION_CHECK", "1")
+os.environ.setdefault("NO_ALBUMENTATIONS_UPDATE", "1")
+
 PREVIEW_WIDTH = 1280
 PREVIEW_HEIGHT = 720
 
-DEFAULT_SCRFD_MODEL = SRC_ROOT.parent / "models" / "scrfd_person_2.5g.onnx"
+DEFAULT_PERSON_DETECTOR_BACKEND = "scrfd"
+DEFAULT_FACE_RECOGNIZER_BACKEND = "insightface"
+DEFAULT_BODY_EVIDENCE_BACKEND = "hsv"
+
+DEFAULT_PERSON_DETECTOR_MODEL = SRC_ROOT.parent / "models" / "scrfd_person_2.5g.onnx"
+DEFAULT_SCRFD_MODEL = DEFAULT_PERSON_DETECTOR_MODEL
 DEFAULT_DETECTION_INPUT_WIDTH = 640
 DEFAULT_DETECTION_INPUT_HEIGHT = 640
 DEFAULT_DETECTION_SCORE_THRESHOLD = 0.5

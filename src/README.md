@@ -20,7 +20,10 @@ The old on-device `RVC2` experiment scripts were intentionally removed.
       - shared OAK device discovery and explicit device selection helpers
       - provides `--device-id` / `--list-devices` support for live scripts
     - `pipeline.detection`
-      - SCRFD detector wrapper, detection arg helpers, and drawing helpers
+      - generic person detector protocol/factory, current SCRFD detector wrapper, detection arg helpers, and drawing helpers
+      - current detector backend is `scrfd`; use `--detector-backend scrfd` and `--model <onnx-path>`
+    - `pipeline.detectors`
+      - detector adapter API re-exports for future detector backends
     - `pipeline.tracking`
       - track state, IoU tracking logic, tracking arg helpers, and drawing helpers
     - `pipeline.entrance`
@@ -37,8 +40,13 @@ The old on-device `RVC2` experiment scripts were intentionally removed.
       - local identity grouping and HTML review logic
       - shared by replay entrypoints and the legacy Phase 7 harnesses
     - `pipeline.face_identity`
-      - replay-local face detection/embedding identity assignment
+      - generic face recognizer protocol/factory and current InsightFace/ArcFace replay-local identity assignment
+      - current face backend is `insightface`; use `--face-backend insightface`
       - attaches observed `face_person_###` labels to tracked faces during RGBD replay
+    - `pipeline.body_evidence`
+      - generic per-track body evidence extractor protocol/factory
+      - current body backend is `hsv`; use `--body-backend hsv`
+      - wraps the existing upper/lower clothing HSV histogram evidence used by visit matching
     - `pipeline.visit_identity`
       - within-visit physical-person identity layer above temporary `track_id`
       - reattaches new track ids to existing `visit_id` values using clothing/body appearance, depth, and recent timing
@@ -116,6 +124,18 @@ The old on-device `RVC2` experiment scripts were intentionally removed.
   - `opset=11`
 - production caveat:
   - InsightFace model downloads are documented as non-commercial research assets; verify licensing before production deployment or replace this detector with a production-safe model.
+
+## Model Adapter Boundary
+
+- person detection, face recognition, and body evidence are now selected through small backend factories
+- current defaults preserve existing behavior:
+  - `--detector-backend scrfd`
+  - `--face-backend insightface`
+  - `--body-backend hsv`
+- future detector replacement should add a new adapter and factory case, then keep downstream `Detection` output unchanged
+- future face replacement should keep returning `RecognizedFace`
+- future body ReID replacement should keep returning per-track `BodyEvidence`
+- tracking, depth plane logic, visit identity, visit registry, and event logging should not import model-specific classes directly
 
 - `phase2_host_tracking_scrfd.py`
   - host-side tracking baseline on top of SCRFD detections

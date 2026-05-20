@@ -10,10 +10,12 @@ from pipeline.config import (
     DEFAULT_DETECTION_INPUT_WIDTH,
     DEFAULT_DETECTION_NMS_THRESHOLD,
     DEFAULT_DETECTION_SCORE_THRESHOLD,
-    DEFAULT_SCRFD_MODEL,
+    DEFAULT_PERSON_DETECTOR_BACKEND,
+    DEFAULT_PERSON_DETECTOR_MODEL,
     DEFAULT_TRACKING_IOU_THRESHOLD,
     DEFAULT_TRACKING_MAX_MISSED,
 )
+from pipeline.body_evidence import add_body_evidence_args, build_body_evidence_extractor
 from pipeline.depth import (
     CameraIntrinsics,
     DepthEntranceState,
@@ -26,10 +28,10 @@ from pipeline.depth import (
     process_depth_entrance_logic,
     resolve_plane_json_path,
 )
-from pipeline.detection import ScrfdInsightFaceDetector
+from pipeline.detection import build_person_detector
 from pipeline.face_identity import (
-    LocalFaceIdentityMatcher,
     add_face_identity_args,
+    build_face_recognizer,
     draw_recognized_faces,
 )
 from pipeline.rgbd_recording import (
@@ -65,10 +67,16 @@ def build_argparser() -> argparse.ArgumentParser:
         help="Replay speed multiplier. 1.0 uses recorded frame timing.",
     )
     parser.add_argument(
+        "--detector-backend",
+        choices=["scrfd"],
+        default=DEFAULT_PERSON_DETECTOR_BACKEND,
+        help="Person detector backend. Current default is SCRFD via InsightFace model zoo.",
+    )
+    parser.add_argument(
         "--model",
         type=Path,
-        default=DEFAULT_SCRFD_MODEL,
-        help="Optional override for the host-side SCRFD ONNX model.",
+        default=DEFAULT_PERSON_DETECTOR_MODEL,
+        help="Optional override for the host-side person detector ONNX model.",
     )
     parser.add_argument(
         "--input-width",
@@ -113,6 +121,7 @@ def build_argparser() -> argparse.ArgumentParser:
         help="Compatibility option. Depth window is hidden unless --show-depth-window is set.",
     )
     add_face_identity_args(parser)
+    add_body_evidence_args(parser)
     add_visit_identity_args(parser)
     return parser
 
@@ -157,26 +166,13 @@ def main() -> None:
     plane = plane_from_args(args)
     plane_enter_direction = plane_enter_direction_from_args(args)
 
-    detector = ScrfdInsightFaceDetector(
-        model_path=args.model,
-        input_size=(args.input_width, args.input_height),
-        score_threshold=args.score_threshold,
-        nms_threshold=args.nms_threshold,
-    )
+    detector = build_person_detector(args)
     tracker = SimpleIoUTracker(
         iou_threshold=args.iou_threshold,
         max_missed=args.max_missed,
     )
-    face_matcher = None
-    if args.enable_face_recognition:
-        face_matcher = LocalFaceIdentityMatcher(
-            cache_root=args.face_cache_root,
-            model_pack=args.face_model_pack,
-            det_size=(args.face_det_width, args.face_det_height),
-            det_thresh=args.face_det_thresh,
-            match_threshold=args.face_match_threshold,
-            min_det_score=args.face_min_det_score,
-        )
+    face_matcher = build_face_recognizer(args)
+    body_evidence_extractor = build_body_evidence_extractor(args)
     visit_manager = VisitIdentityManager(
         match_threshold=args.visit_match_threshold,
         same_camera_max_age_seconds=args.visit_same_camera_max_age_seconds,
@@ -266,6 +262,12 @@ def main() -> None:
             recognized_faces = []
             if face_matcher is not None:
                 recognized_faces = face_matcher.recognize(rgb_frame, tracks=tracks)
+            body_evidence_by_track = body_evidence_extractor.extract(rgb_frame, tracks=tracks)
+            body_appearances = {
+                track_id: evidence.appearance
+                for track_id, evidence in body_evidence_by_track.items()
+                if evidence.appearance is not None
+            }
             visit_assignments = visit_manager.update(
                 device_id=recording.device_id,
                 host_seconds=frame_meta.rgb_host_synced_seconds,
@@ -273,6 +275,7 @@ def main() -> None:
                 tracks=tracks,
                 depth_samples=depth_samples,
                 recognized_faces=recognized_faces,
+                body_appearances=body_appearances,
             )
 
             for track_id in entered_track_ids:

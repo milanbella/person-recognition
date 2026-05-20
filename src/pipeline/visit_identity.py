@@ -166,6 +166,7 @@ class VisitIdentityManager:
         tracks: Sequence[Track],
         depth_samples: Mapping[int, DepthSample],
         recognized_faces: Sequence[RecognizedFace],
+        body_appearances: Mapping[int, BodyAppearance] | None = None,
     ) -> dict[int, VisitAssignment]:
         faces_by_track: dict[int, set[str]] = {}
         for face in recognized_faces:
@@ -179,7 +180,11 @@ class VisitIdentityManager:
                 continue
 
             track_key = (device_id, track.track_id)
-            appearance = extract_body_appearance(frame, track)
+            appearance = (
+                body_appearances.get(track.track_id)
+                if body_appearances is not None
+                else extract_body_appearance(frame, track)
+            )
             depth_sample = depth_samples.get(track.track_id)
             depth_mm = None if depth_sample is None else depth_sample.depth_mm
             bbox = (track.x1, track.y1, track.x2, track.y2)

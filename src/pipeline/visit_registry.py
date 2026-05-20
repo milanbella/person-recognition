@@ -9,6 +9,7 @@ import numpy as np
 from pipeline.depth import DepthSample
 from pipeline.face_identity import RecognizedFace
 from pipeline.tracking import Track
+from pipeline.body_evidence import BodyEvidence
 from pipeline.visit_identity import BodyAppearance, VisitAssignment, extract_body_appearance
 
 
@@ -104,6 +105,7 @@ def build_track_observations(
     depth_samples: Mapping[int, DepthSample],
     recognized_faces: Sequence[RecognizedFace],
     observation_type: str,
+    body_evidence_by_track: Mapping[int, BodyEvidence] | None = None,
 ) -> dict[int, VisitObservation]:
     faces_by_track: dict[int, set[str]] = {}
     for face in recognized_faces:
@@ -116,6 +118,11 @@ def build_track_observations(
         if track.status == "REMOVED":
             continue
         depth_sample = depth_samples.get(track.track_id)
+        body_evidence = (
+            None
+            if body_evidence_by_track is None
+            else body_evidence_by_track.get(track.track_id)
+        )
         observations[track.track_id] = VisitObservation(
             observation_type=observation_type,
             device_id=device_id,
@@ -123,7 +130,11 @@ def build_track_observations(
             host_seconds=host_seconds,
             bbox=(track.x1, track.y1, track.x2, track.y2),
             face_identity_ids=tuple(sorted(faces_by_track.get(track.track_id, set()))),
-            appearance=extract_body_appearance(frame, track),
+            appearance=(
+                body_evidence.appearance
+                if body_evidence is not None
+                else extract_body_appearance(frame, track)
+            ),
             depth_mm=None if depth_sample is None else depth_sample.depth_mm,
         )
     return observations
