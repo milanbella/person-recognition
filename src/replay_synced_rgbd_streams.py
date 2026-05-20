@@ -42,9 +42,13 @@ from pipeline.rgbd_recording import (
 )
 from pipeline.tracking import SimpleIoUTracker, draw_tracks
 from pipeline.visit_identity import (
-    VisitIdentityManager,
     add_visit_identity_args,
     draw_visit_labels,
+)
+from pipeline.visit_registry import (
+    VisitRegistry,
+    add_visit_registry_args,
+    build_track_observations,
 )
 
 
@@ -58,6 +62,7 @@ class SyncedStreamState:
     plane_enter_direction: str | None = None
     last_processed_frame_index: int | None = None
     cached_rgb_overlay: np.ndarray | None = None
+    camera_role: str = "entrance"
 
 
 def build_argparser() -> argparse.ArgumentParser:
@@ -249,6 +254,7 @@ def build_argparser() -> argparse.ArgumentParser:
     )
     add_face_identity_args(parser)
     add_visit_identity_args(parser)
+    add_visit_registry_args(parser)
     return parser
 
 
@@ -361,9 +367,10 @@ def build_stream_states(
     *,
     streams: list[RGBDReplayStream],
     args: argparse.Namespace,
+    camera_roles: list[str],
 ) -> list[SyncedStreamState]:
     result: list[SyncedStreamState] = []
-    for stream in streams:
+    for stream, camera_role in zip(streams, camera_roles):
         info = stream.info
         if info.rgb_intrinsics is None:
             raise RuntimeError(
@@ -385,6 +392,7 @@ def build_stream_states(
             stream=stream,
             intrinsics=intrinsics,
             tracker=tracker,
+            camera_role=camera_role,
         )
 
         if args.depth_trigger_mode == "plane":
@@ -408,8 +416,19 @@ def build_stream_states(
     return result
 
 
+def resolve_camera_roles(args: argparse.Namespace) -> list[str]:
+    if args.camera_role is None or len(args.camera_role) == 0:
+        return ["entrance" for _device_id in args.device_id]
+    if len(args.camera_role) != len(args.device_id):
+        raise ValueError(
+            "--camera-role must be omitted or provide exactly one role per --device-id."
+        )
+    return list(args.camera_role)
+
+
 def main() -> None:
     args = build_argparser().parse_args()
+    camera_roles = resolve_camera_roles(args)
     recordings = [
         load_rgbd_recording(
             resolve_recording_dir(
@@ -437,12 +456,17 @@ def main() -> None:
             match_threshold=args.face_match_threshold,
             min_det_score=args.face_min_det_score,
         )
-    visit_manager = VisitIdentityManager(
-        match_threshold=args.visit_match_threshold,
-        same_camera_max_age_seconds=args.visit_same_camera_max_age_seconds,
-        cross_camera_max_age_seconds=args.visit_cross_camera_max_age_seconds,
+    visit_registry = VisitRegistry(
+        entrance_merge_window_seconds=args.entrance_merge_window_seconds,
+        observer_match_threshold=(
+            args.visit_match_threshold
+            if args.observer_match_threshold is None
+            else args.observer_match_threshold
+        ),
+        observer_visit_max_age_seconds=args.observer_visit_max_age_seconds,
+        log_decisions=args.log_visit_decisions,
     )
-    stream_states = build_stream_states(streams=streams, args=args)
+    stream_states = build_stream_states(streams=streams, args=args, camera_roles=camera_roles)
 
     try:
         starts = [info.frames[0].rgb_host_synced_seconds for info in recordings]
@@ -463,6 +487,12 @@ def main() -> None:
 
         print(f"Replay start rgb_host_synced_seconds={replay_start:.3f}")
         print(f"Replay end rgb_host_synced_seconds={replay_end:.3f}")
+        print(
+            "Camera roles: "
+            + ", ".join(
+                f"{recording.device_id}={role}" for recording, role in zip(recordings, camera_roles)
+            )
+        )
         print("Controls: q=quit, space=pause/resume, ]=faster, [=slower")
 
         cv2.namedWindow("Synchronized RGBD Replay - RGB", cv2.WINDOW_NORMAL)
@@ -499,7 +529,7 @@ def main() -> None:
                         state=state,
                         detector=detector,
                         face_matcher=face_matcher,
-                        visit_manager=visit_manager,
+                        visit_registry=visit_registry,
                         args=args,
                     ),
                 )
@@ -555,7 +585,7 @@ def build_processed_rgb_frame(
     state: SyncedStreamState,
     detector: ScrfdInsightFaceDetector,
     face_matcher: LocalFaceIdentityMatcher | None,
-    visit_manager: VisitIdentityManager,
+    visit_registry: VisitRegistry,
     args: argparse.Namespace,
 ) -> np.ndarray:
     rgb_frame = state.stream.current_rgb_frame
@@ -621,19 +651,34 @@ def build_processed_rgb_frame(
         if state.stream.current_frame_meta is None
         else state.stream.current_frame_meta.rgb_host_synced_seconds
     )
-    visit_assignments = visit_manager.update(
+    observations = build_track_observations(
         device_id=state.stream.info.device_id,
         host_seconds=host_seconds,
         frame=rgb_frame,
         tracks=tracks,
         depth_samples=depth_samples,
         recognized_faces=recognized_faces,
+        observation_type=state.camera_role,
     )
+    visit_assignments = {}
+    if state.camera_role == "observer":
+        for track_id, observation in observations.items():
+            decision = visit_registry.assign_observer_observation(observation)
+            visit_assignments[track_id] = decision.assignment
+    else:
+        for track_id, observation in observations.items():
+            decision = visit_registry.assign_existing_track(observation)
+            if decision is not None:
+                visit_assignments[track_id] = decision.assignment
 
     for track_id in entered_track_ids:
         sample = depth_samples.get(track_id)
         if sample is None:
             continue
+        observation = observations.get(track_id)
+        if state.camera_role == "entrance" and observation is not None:
+            decision = visit_registry.assign_entrance_observation(observation)
+            visit_assignments[track_id] = decision.assignment
         visit_assignment = visit_assignments.get(track_id)
         if args.depth_trigger_mode == "plane":
             print(

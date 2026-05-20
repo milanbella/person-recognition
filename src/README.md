@@ -43,6 +43,10 @@ The old on-device `RVC2` experiment scripts were intentionally removed.
       - within-visit physical-person identity layer above temporary `track_id`
       - reattaches new track ids to existing `visit_id` values using clothing/body appearance, depth, and recent timing
       - treats fragmented `face_person_###` labels as evidence attached to a visit, not as the only visit identity source
+    - `pipeline.visit_registry`
+      - shop-wide active visit registry for synchronized multi-camera replay
+      - merges entrance-camera plane events into one `entrance_confirmed` visit by timestamp window
+      - lets observer cameras attach to entrance-confirmed visits or create `observer_only` visits when no match is found
 - `pipeline.entry_session`
   - typed entry-event/session building, offline correlation, and HTML review helpers
   - shared by replay entrypoints and the legacy Phase 8 harnesses
@@ -66,7 +70,8 @@ The old on-device `RVC2` experiment scripts were intentionally removed.
   - shows synchronized tiled RGB views and optional synchronized tiled depth views
   - accepts one or more `--device-id` values and derives the matching RGBD recording folders
   - can optionally run replay-local face identity assignment with `--enable-face-recognition`
-  - assigns shared `visit_id` labels across the synchronized replay so same-visit face fragments can be reviewed together
+  - assigns shared registry-owned `visit_id` labels across the synchronized replay
+  - defaults every stream to `--camera-role entrance`, and supports `--camera-role observer` for in-shop observer streams
 
 - `replay_depth_tuner.py`
   - replays one recorded RGBD stream through detection, tracking, and depth-based entrance logic
@@ -94,6 +99,23 @@ The old on-device `RVC2` experiment scripts were intentionally removed.
   - host-side SCRFD detection using the InsightFace ONNX wrapper
   - reads OAK USB frames and draws person detections on the host
   - prefers CUDA when available and falls back to CPU when the local GPU runtime is incomplete
+
+## Model Provenance
+
+- default detector model:
+  - `C:\wi\luxonis\person-recognition\models\scrfd_person_2.5g.onnx`
+- source:
+  - InsightFace v0.7 release asset: `https://github.com/deepinsight/insightface/releases/download/v0.7/scrfd_person_2.5g.onnx`
+  - SourceForge InsightFace mirror listing: `https://sourceforge.net/projects/insightface.mirror/files/v0.7/`
+- local SHA256:
+  - `76522ba15eecb0712780509e912884aba066e9834be0c85761918cdcf76de5b5`
+- ONNX metadata:
+  - `producer_name=pytorch`
+  - `producer_version=1.7`
+  - `graph_name=torch-jit-export`
+  - `opset=11`
+- production caveat:
+  - InsightFace model downloads are documented as non-commercial research assets; verify licensing before production deployment or replace this detector with a production-safe model.
 
 - `phase2_host_tracking_scrfd.py`
   - host-side tracking baseline on top of SCRFD detections

@@ -44,6 +44,7 @@ class VisitAssignment:
     device_id: str
     face_identity_ids: tuple[str, ...]
     matched_score: float | None
+    origin: str = "local"
 
 
 def add_visit_identity_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
@@ -111,7 +112,12 @@ def draw_visit_labels(
         if assignment.face_identity_ids:
             compact_faces = ",".join(face_id.replace("face_person_", "F") for face_id in assignment.face_identity_ids)
             face_suffix = f" {compact_faces}"
-        label = f"V{assignment.visit_id}{face_suffix}"
+        origin_suffix = ""
+        if assignment.origin == "entrance_confirmed":
+            origin_suffix = "E"
+        elif assignment.origin == "observer_only":
+            origin_suffix = "O"
+        label = f"V{assignment.visit_id}{origin_suffix}{face_suffix}"
         y = min(frame.shape[0] - 10, max(40, track.y1 + 22))
         cv2.putText(
             frame,
