@@ -25,7 +25,8 @@ The old on-device `RVC2` experiment scripts were intentionally removed.
     - `pipeline.detectors`
       - detector adapter API re-exports for future detector backends
     - `pipeline.tracking`
-      - track state, IoU tracking logic, tracking arg helpers, and drawing helpers
+      - generic person tracker protocol/factory, current IoU tracking logic, tracking arg helpers, and drawing helpers
+      - current tracker backend is `iou`; use `--tracker-backend iou`
     - `pipeline.entrance`
       - entrance-line state, crossing logic, and debug drawing helpers
     - `pipeline.evidence`
@@ -55,12 +56,15 @@ The old on-device `RVC2` experiment scripts were intentionally removed.
       - shop-wide active visit registry for synchronized multi-camera replay
       - merges entrance-camera plane events into one `entrance_confirmed` visit by timestamp window
       - lets observer cameras attach to entrance-confirmed visits or create `observer_only` visits when no match is found
+      - builds visit observations from normalized evidence, not raw RGB frames
+      - uses `FrameEvidence` for one camera frame and `TrackVisitEvidence` for one track's visit-matching evidence
 - `pipeline.entry_session`
   - typed entry-event/session building, offline correlation, and HTML review helpers
   - shared by replay entrypoints and the legacy Phase 8 harnesses
     - `pipeline.depth`
       - shared helpers for sampling aligned stereo depth inside tracked person boxes
       - includes a first depth-threshold entrance prototype
+      - depth trigger functions return `DepthEntranceResult` with `entered_track_ids`, `depth_samples`, and `signed_distances_mm`
 
 - `main.py`
   - host-side camera capture baseline
@@ -130,9 +134,11 @@ The old on-device `RVC2` experiment scripts were intentionally removed.
 - person detection, face recognition, and body evidence are now selected through small backend factories
 - current defaults preserve existing behavior:
   - `--detector-backend scrfd`
+  - `--tracker-backend iou`
   - `--face-backend insightface`
   - `--body-backend hsv`
 - future detector replacement should add a new adapter and factory case, then keep downstream `Detection` output unchanged
+- future tracker replacement should add a new adapter and factory case, then keep downstream `Track` output unchanged
 - future face replacement should keep returning `RecognizedFace`
 - future body ReID replacement should keep returning per-track `BodyEvidence`
 - tracking, depth plane logic, visit identity, visit registry, and event logging should not import model-specific classes directly

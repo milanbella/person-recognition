@@ -27,7 +27,7 @@ from pipeline.entrance import (
     process_entrance_logic,
 )
 from pipeline.evidence import EvidenceCollector, draw_evidence_status
-from pipeline.tracking import SimpleIoUTracker, draw_tracks
+from pipeline.tracking import build_person_tracker, draw_tracks
 
 
 def build_argparser() -> argparse.ArgumentParser:
@@ -70,10 +70,7 @@ def main() -> None:
     configure_live_device(device)
 
     detector = build_person_detector(args)
-    tracker = SimpleIoUTracker(
-        iou_threshold=args.iou_threshold,
-        max_missed=args.max_missed,
-    )
+    tracker = build_person_tracker(args)
     collector = EvidenceCollector(
         evidence_dir=args.evidence_dir,
         pre_frames=args.pre_frames,

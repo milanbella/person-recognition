@@ -52,6 +52,13 @@ class DepthEntranceState:
     recent_depths_mm: list[float] = field(default_factory=list)
 
 
+@dataclass
+class DepthEntranceResult:
+    entered_track_ids: list[int]
+    depth_samples: Dict[int, DepthSample]
+    signed_distances_mm: Dict[int, float] = field(default_factory=dict)
+
+
 def build_depth_entrance_argparser(
     description: str = "Depth-based entrance prototype using stereo depth aligned to RGB.",
 ) -> argparse.ArgumentParser:
@@ -328,7 +335,7 @@ def process_depth_entrance_logic(
     min_valid_pixels: int,
     roi_width_fraction: float,
     roi_height_fraction: float,
-) -> tuple[list[int], Dict[int, DepthSample]]:
+) -> DepthEntranceResult:
     entered_track_ids: list[int] = []
     depth_samples: Dict[int, DepthSample] = {}
 
@@ -372,7 +379,10 @@ def process_depth_entrance_logic(
 
         state.last_depth_mm = sample.depth_mm
 
-    return entered_track_ids, depth_samples
+    return DepthEntranceResult(
+        entered_track_ids=entered_track_ids,
+        depth_samples=depth_samples,
+    )
 
 
 def signed_distance_to_plane_mm(point_mm: tuple[float, float, float], plane: Plane3D) -> float:
@@ -427,7 +437,7 @@ def process_depth_plane_logic(
     min_valid_pixels: int,
     roi_width_fraction: float,
     roi_height_fraction: float,
-) -> tuple[list[int], Dict[int, DepthSample], Dict[int, float]]:
+) -> DepthEntranceResult:
     entered_track_ids: list[int] = []
     depth_samples: Dict[int, DepthSample] = {}
     signed_distances_mm: Dict[int, float] = {}
@@ -482,7 +492,11 @@ def process_depth_plane_logic(
 
         state.last_depth_mm = signed_distance_mm
 
-    return entered_track_ids, depth_samples, signed_distances_mm
+    return DepthEntranceResult(
+        entered_track_ids=entered_track_ids,
+        depth_samples=depth_samples,
+        signed_distances_mm=signed_distances_mm,
+    )
 
 
 def colorize_depth(depth_frame_mm: np.ndarray) -> np.ndarray:

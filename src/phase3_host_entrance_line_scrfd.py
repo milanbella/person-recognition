@@ -20,7 +20,7 @@ from pipeline.entrance import (
     draw_entrance_line,
     process_entrance_logic,
 )
-from pipeline.tracking import SimpleIoUTracker, draw_tracks
+from pipeline.tracking import build_person_tracker, draw_tracks
 
 
 def build_argparser() -> argparse.ArgumentParser:
@@ -36,10 +36,7 @@ def main() -> None:
     configure_live_device(device)
 
     detector = build_person_detector(args)
-    tracker = SimpleIoUTracker(
-        iou_threshold=args.iou_threshold,
-        max_missed=args.max_missed,
-    )
+    tracker = build_person_tracker(args)
 
     print_connected_device(device)
 

@@ -25,7 +25,7 @@ from pipeline.depth import (
     process_depth_entrance_logic,
 )
 from pipeline.detection import build_person_detector
-from pipeline.tracking import SimpleIoUTracker, draw_tracks
+from pipeline.tracking import build_person_tracker, draw_tracks
 
 
 def build_argparser() -> argparse.ArgumentParser:
@@ -42,10 +42,7 @@ def main() -> None:
     configure_live_device(device)
 
     detector = build_person_detector(args)
-    tracker = SimpleIoUTracker(
-        iou_threshold=args.iou_threshold,
-        max_missed=args.max_missed,
-    )
+    tracker = build_person_tracker(args)
 
     print_connected_device(device)
     print("Depth prototype uses CAM_A RGB plus CAM_B/C stereo depth aligned to RGB.")
@@ -132,7 +129,7 @@ def main() -> None:
                 tracks = tracker.update(detections)
 
                 if args.depth_trigger_mode == "plane":
-                    entered_track_ids, depth_samples, signed_distances_mm = process_depth_plane_logic(
+                    depth_result = process_depth_plane_logic(
                         tracks=tracks,
                         depth_frame_mm=latest_depth_frame,
                         intrinsics=rgb_intrinsics,
@@ -145,7 +142,7 @@ def main() -> None:
                         roi_height_fraction=args.depth_roi_height_fraction,
                     )
                 else:
-                    entered_track_ids, depth_samples = process_depth_entrance_logic(
+                    depth_result = process_depth_entrance_logic(
                         tracks=tracks,
                         depth_frame_mm=latest_depth_frame,
                         intrinsics=rgb_intrinsics,
@@ -156,7 +153,9 @@ def main() -> None:
                         roi_width_fraction=args.depth_roi_width_fraction,
                         roi_height_fraction=args.depth_roi_height_fraction,
                     )
-                    signed_distances_mm = {}
+                entered_track_ids = depth_result.entered_track_ids
+                depth_samples = depth_result.depth_samples
+                signed_distances_mm = depth_result.signed_distances_mm
 
                 for track_id in entered_track_ids:
                     sample = depth_samples.get(track_id)

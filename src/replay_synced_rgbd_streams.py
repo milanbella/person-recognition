@@ -14,6 +14,7 @@ from pipeline.config import (
     DEFAULT_DETECTION_SCORE_THRESHOLD,
     DEFAULT_PERSON_DETECTOR_BACKEND,
     DEFAULT_PERSON_DETECTOR_MODEL,
+    DEFAULT_PERSON_TRACKER_BACKEND,
     DEFAULT_TRACKING_IOU_THRESHOLD,
     DEFAULT_TRACKING_MAX_MISSED,
 )
@@ -43,15 +44,16 @@ from pipeline.rgbd_recording import (
     load_rgbd_recording,
     resolve_recording_dir,
 )
-from pipeline.tracking import SimpleIoUTracker, draw_tracks
+from pipeline.tracking import PersonTracker, build_person_tracker, draw_tracks
 from pipeline.visit_identity import (
     add_visit_identity_args,
     draw_visit_labels,
 )
 from pipeline.visit_registry import (
+    FrameEvidence,
     VisitRegistry,
     add_visit_registry_args,
-    build_track_observations,
+    build_track_visit_evidence,
 )
 
 
@@ -59,7 +61,7 @@ from pipeline.visit_registry import (
 class SyncedStreamState:
     stream: RGBDReplayStream
     intrinsics: CameraIntrinsics
-    tracker: SimpleIoUTracker
+    tracker: PersonTracker
     depth_states: dict[int, DepthEntranceState] = field(default_factory=dict)
     plane: object | None = None
     plane_enter_direction: str | None = None
@@ -143,6 +145,12 @@ def build_argparser() -> argparse.ArgumentParser:
         type=float,
         default=DEFAULT_DETECTION_NMS_THRESHOLD,
         help="NMS IoU threshold.",
+    )
+    parser.add_argument(
+        "--tracker-backend",
+        choices=["iou"],
+        default=DEFAULT_PERSON_TRACKER_BACKEND,
+        help="Person tracker backend. Current default is simple IoU tracking.",
     )
     parser.add_argument(
         "--iou-threshold",
@@ -394,10 +402,7 @@ def build_stream_states(
             cy=float(info.rgb_intrinsics["cy"]),
         )
 
-        tracker = SimpleIoUTracker(
-            iou_threshold=args.iou_threshold,
-            max_missed=args.max_missed,
-        )
+        tracker = build_person_tracker(args)
         state = SyncedStreamState(
             stream=stream,
             intrinsics=intrinsics,
@@ -616,7 +621,7 @@ def build_processed_rgb_frame(
     tracks = state.tracker.update(detections)
 
     if args.depth_trigger_mode == "plane":
-        entered_track_ids, depth_samples, signed_distances_mm = process_depth_plane_logic(
+        depth_result = process_depth_plane_logic(
             tracks=tracks,
             depth_frame_mm=depth_frame_mm,
             intrinsics=state.intrinsics,
@@ -629,7 +634,7 @@ def build_processed_rgb_frame(
             roi_height_fraction=args.depth_roi_height_fraction,
         )
     else:
-        entered_track_ids, depth_samples = process_depth_entrance_logic(
+        depth_result = process_depth_entrance_logic(
             tracks=tracks,
             depth_frame_mm=depth_frame_mm,
             intrinsics=state.intrinsics,
@@ -640,7 +645,9 @@ def build_processed_rgb_frame(
             roi_width_fraction=args.depth_roi_width_fraction,
             roi_height_fraction=args.depth_roi_height_fraction,
         )
-        signed_distances_mm = {}
+    entered_track_ids = depth_result.entered_track_ids
+    depth_samples = depth_result.depth_samples
+    signed_distances_mm = depth_result.signed_distances_mm
 
     recognized_faces = []
     if face_matcher is not None:
@@ -651,24 +658,24 @@ def build_processed_rgb_frame(
         if state.stream.current_frame_meta is None
         else state.stream.current_frame_meta.rgb_host_synced_seconds
     )
-    observations = build_track_observations(
+    frame_evidence = FrameEvidence(
         device_id=state.stream.info.device_id,
         host_seconds=host_seconds,
-        frame=rgb_frame,
+        camera_role=state.camera_role,
         tracks=tracks,
-        depth_samples=depth_samples,
+        depth_samples_by_track=depth_samples,
         recognized_faces=recognized_faces,
-        observation_type=state.camera_role,
         body_evidence_by_track=body_evidence_by_track,
     )
+    track_visit_evidence_by_id = build_track_visit_evidence(frame_evidence)
     visit_assignments = {}
     if state.camera_role == "observer":
-        for track_id, observation in observations.items():
-            decision = visit_registry.assign_observer_observation(observation)
+        for track_id, track_evidence in track_visit_evidence_by_id.items():
+            decision = visit_registry.assign_observer_observation(track_evidence)
             visit_assignments[track_id] = decision.assignment
     else:
-        for track_id, observation in observations.items():
-            decision = visit_registry.assign_existing_track(observation)
+        for track_id, track_evidence in track_visit_evidence_by_id.items():
+            decision = visit_registry.assign_existing_track(track_evidence)
             if decision is not None:
                 visit_assignments[track_id] = decision.assignment
 
@@ -676,9 +683,9 @@ def build_processed_rgb_frame(
         sample = depth_samples.get(track_id)
         if sample is None:
             continue
-        observation = observations.get(track_id)
-        if state.camera_role == "entrance" and observation is not None:
-            decision = visit_registry.assign_entrance_observation(observation)
+        track_evidence = track_visit_evidence_by_id.get(track_id)
+        if state.camera_role == "entrance" and track_evidence is not None:
+            decision = visit_registry.assign_entrance_observation(track_evidence)
             visit_assignments[track_id] = decision.assignment
         visit_assignment = visit_assignments.get(track_id)
         if args.depth_trigger_mode == "plane":

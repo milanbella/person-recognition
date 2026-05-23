@@ -12,6 +12,7 @@ from pipeline.config import (
     DEFAULT_DETECTION_SCORE_THRESHOLD,
     DEFAULT_PERSON_DETECTOR_BACKEND,
     DEFAULT_PERSON_DETECTOR_MODEL,
+    DEFAULT_PERSON_TRACKER_BACKEND,
     DEFAULT_TRACKING_IOU_THRESHOLD,
     DEFAULT_TRACKING_MAX_MISSED,
 )
@@ -41,7 +42,7 @@ from pipeline.rgbd_recording import (
     load_rgbd_recording,
     resolve_recording_dir,
 )
-from pipeline.tracking import SimpleIoUTracker, draw_tracks
+from pipeline.tracking import build_person_tracker, draw_tracks
 from pipeline.visit_identity import (
     VisitIdentityManager,
     add_visit_identity_args,
@@ -101,6 +102,12 @@ def build_argparser() -> argparse.ArgumentParser:
         type=float,
         default=DEFAULT_DETECTION_NMS_THRESHOLD,
         help="NMS IoU threshold.",
+    )
+    parser.add_argument(
+        "--tracker-backend",
+        choices=["iou"],
+        default=DEFAULT_PERSON_TRACKER_BACKEND,
+        help="Person tracker backend. Current default is simple IoU tracking.",
     )
     parser.add_argument(
         "--iou-threshold",
@@ -167,10 +174,7 @@ def main() -> None:
     plane_enter_direction = plane_enter_direction_from_args(args)
 
     detector = build_person_detector(args)
-    tracker = SimpleIoUTracker(
-        iou_threshold=args.iou_threshold,
-        max_missed=args.max_missed,
-    )
+    tracker = build_person_tracker(args)
     face_matcher = build_face_recognizer(args)
     body_evidence_extractor = build_body_evidence_extractor(args)
     visit_manager = VisitIdentityManager(
@@ -233,7 +237,7 @@ def main() -> None:
             tracks = tracker.update(detections)
 
             if args.depth_trigger_mode == "plane":
-                entered_track_ids, depth_samples, signed_distances_mm = process_depth_plane_logic(
+                depth_result = process_depth_plane_logic(
                     tracks=tracks,
                     depth_frame_mm=depth_frame_mm,
                     intrinsics=rgb_intrinsics,
@@ -246,7 +250,7 @@ def main() -> None:
                     roi_height_fraction=args.depth_roi_height_fraction,
                 )
             else:
-                entered_track_ids, depth_samples = process_depth_entrance_logic(
+                depth_result = process_depth_entrance_logic(
                     tracks=tracks,
                     depth_frame_mm=depth_frame_mm,
                     intrinsics=rgb_intrinsics,
@@ -257,7 +261,9 @@ def main() -> None:
                     roi_width_fraction=args.depth_roi_width_fraction,
                     roi_height_fraction=args.depth_roi_height_fraction,
                 )
-                signed_distances_mm = {}
+            entered_track_ids = depth_result.entered_track_ids
+            depth_samples = depth_result.depth_samples
+            signed_distances_mm = depth_result.signed_distances_mm
 
             recognized_faces = []
             if face_matcher is not None:

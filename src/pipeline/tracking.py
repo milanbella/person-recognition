@@ -2,12 +2,16 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import dataclass, field
-from typing import Dict, List, Sequence, Tuple
+from typing import Dict, List, Protocol, Sequence, Tuple
 
 import cv2
 import numpy as np
 
-from pipeline.config import DEFAULT_TRACKING_IOU_THRESHOLD, DEFAULT_TRACKING_MAX_MISSED
+from pipeline.config import (
+    DEFAULT_PERSON_TRACKER_BACKEND,
+    DEFAULT_TRACKING_IOU_THRESHOLD,
+    DEFAULT_TRACKING_MAX_MISSED,
+)
 from pipeline.detection import Detection, add_detection_args
 
 
@@ -40,6 +44,11 @@ class Track:
         self.history = self.history[-20:]
 
 
+class PersonTracker(Protocol):
+    def update(self, detections: Sequence[Detection]) -> List[Track]:
+        ...
+
+
 def build_tracking_argparser(
     description: str = "Step 3/4: host-side tracking on top of host-side SCRFD detections.",
 ) -> argparse.ArgumentParser:
@@ -50,6 +59,12 @@ def build_tracking_argparser(
 
 
 def add_tracking_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
+    parser.add_argument(
+        "--tracker-backend",
+        choices=["iou"],
+        default=DEFAULT_PERSON_TRACKER_BACKEND,
+        help="Person tracker backend. Current default is simple IoU tracking.",
+    )
     parser.add_argument(
         "--iou-threshold",
         type=float,
@@ -63,6 +78,16 @@ def add_tracking_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParse
         help="How many consecutive frames a track may be unmatched before removal.",
     )
     return parser
+
+
+def build_person_tracker(args: argparse.Namespace) -> PersonTracker:
+    backend = getattr(args, "tracker_backend", DEFAULT_PERSON_TRACKER_BACKEND)
+    if backend != "iou":
+        raise ValueError(f"Unsupported tracker backend: {backend}")
+    return SimpleIoUTracker(
+        iou_threshold=args.iou_threshold,
+        max_missed=args.max_missed,
+    )
 
 
 def compute_iou(a: Sequence[int], b: Sequence[int]) -> float:
@@ -168,6 +193,9 @@ class SimpleIoUTracker:
 
         for track_id in removed_track_ids:
             print(f"Track id={track_id} status=REMOVED")
+
+
+IouPersonTracker = SimpleIoUTracker
 
 
 def draw_tracks(frame: np.ndarray, tracks: Sequence[Track]) -> None:

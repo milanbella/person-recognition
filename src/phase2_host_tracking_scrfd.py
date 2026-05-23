@@ -10,7 +10,7 @@ from pipeline.camera import (
 )
 from pipeline.config import PREVIEW_HEIGHT, PREVIEW_WIDTH
 from pipeline.detection import build_person_detector
-from pipeline.tracking import SimpleIoUTracker, build_tracking_argparser, draw_tracks
+from pipeline.tracking import build_person_tracker, build_tracking_argparser, draw_tracks
 
 
 def build_argparser() -> argparse.ArgumentParser:
@@ -26,10 +26,7 @@ def main() -> None:
     configure_live_device(device)
 
     detector = build_person_detector(args)
-    tracker = SimpleIoUTracker(
-        iou_threshold=args.iou_threshold,
-        max_missed=args.max_missed,
-    )
+    tracker = build_person_tracker(args)
 
     print_connected_device(device)
 

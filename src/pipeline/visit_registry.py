@@ -10,7 +10,7 @@ from pipeline.depth import DepthSample
 from pipeline.face_identity import RecognizedFace
 from pipeline.tracking import Track
 from pipeline.body_evidence import BodyEvidence
-from pipeline.visit_identity import BodyAppearance, VisitAssignment, extract_body_appearance
+from pipeline.visit_identity import BodyAppearance, VisitAssignment
 
 
 DEFAULT_ENTRANCE_MERGE_WINDOW_SECONDS = 2.0
@@ -22,14 +22,25 @@ VISIT_ORIGIN_OBSERVER = "observer_only"
 
 
 @dataclass
-class VisitObservation:
-    observation_type: str
+class FrameEvidence:
+    device_id: str
+    host_seconds: float
+    camera_role: str
+    tracks: Sequence[Track]
+    depth_samples_by_track: Mapping[int, DepthSample]
+    recognized_faces: Sequence[RecognizedFace]
+    body_evidence_by_track: Mapping[int, BodyEvidence]
+
+
+@dataclass
+class TrackVisitEvidence:
+    camera_role: str
     device_id: str
     track_id: int
     host_seconds: float
-    bbox: tuple[int, int, int, int]
+    track_bbox: tuple[int, int, int, int]
     face_identity_ids: tuple[str, ...] = ()
-    appearance: BodyAppearance | None = None
+    body_appearance: BodyAppearance | None = None
     depth_mm: float | None = None
 
 
@@ -96,48 +107,30 @@ def add_visit_registry_args(parser: argparse.ArgumentParser) -> argparse.Argumen
     return parser
 
 
-def build_track_observations(
-    *,
-    device_id: str,
-    host_seconds: float,
-    frame: np.ndarray,
-    tracks: Sequence[Track],
-    depth_samples: Mapping[int, DepthSample],
-    recognized_faces: Sequence[RecognizedFace],
-    observation_type: str,
-    body_evidence_by_track: Mapping[int, BodyEvidence] | None = None,
-) -> dict[int, VisitObservation]:
+def build_track_visit_evidence(frame_evidence: FrameEvidence) -> dict[int, TrackVisitEvidence]:
     faces_by_track: dict[int, set[str]] = {}
-    for face in recognized_faces:
+    for face in frame_evidence.recognized_faces:
         if face.track_id is None:
             continue
         faces_by_track.setdefault(face.track_id, set()).add(face.identity_id)
 
-    observations: dict[int, VisitObservation] = {}
-    for track in tracks:
+    track_evidence_by_id: dict[int, TrackVisitEvidence] = {}
+    for track in frame_evidence.tracks:
         if track.status == "REMOVED":
             continue
-        depth_sample = depth_samples.get(track.track_id)
-        body_evidence = (
-            None
-            if body_evidence_by_track is None
-            else body_evidence_by_track.get(track.track_id)
-        )
-        observations[track.track_id] = VisitObservation(
-            observation_type=observation_type,
-            device_id=device_id,
+        depth_sample = frame_evidence.depth_samples_by_track.get(track.track_id)
+        body_evidence = frame_evidence.body_evidence_by_track.get(track.track_id)
+        track_evidence_by_id[track.track_id] = TrackVisitEvidence(
+            camera_role=frame_evidence.camera_role,
+            device_id=frame_evidence.device_id,
             track_id=track.track_id,
-            host_seconds=host_seconds,
-            bbox=(track.x1, track.y1, track.x2, track.y2),
+            host_seconds=frame_evidence.host_seconds,
+            track_bbox=(track.x1, track.y1, track.x2, track.y2),
             face_identity_ids=tuple(sorted(faces_by_track.get(track.track_id, set()))),
-            appearance=(
-                body_evidence.appearance
-                if body_evidence is not None
-                else extract_body_appearance(frame, track)
-            ),
+            body_appearance=None if body_evidence is None else body_evidence.appearance,
             depth_mm=None if depth_sample is None else depth_sample.depth_mm,
         )
-    return observations
+    return track_evidence_by_id
 
 
 class VisitRegistry:
@@ -158,7 +151,7 @@ class VisitRegistry:
         self.track_to_visit: dict[tuple[str, int], int] = {}
         self.face_to_visit: dict[str, int] = {}
 
-    def assign_existing_track(self, observation: VisitObservation) -> VisitRegistryDecision | None:
+    def assign_existing_track(self, observation: TrackVisitEvidence) -> VisitRegistryDecision | None:
         visit_id = self.track_to_visit.get((observation.device_id, observation.track_id))
         if visit_id is None:
             return None
@@ -175,7 +168,7 @@ class VisitRegistry:
             matched_visit_id=visit.visit_id,
         )
 
-    def assign_entrance_observation(self, observation: VisitObservation) -> VisitRegistryDecision:
+    def assign_entrance_observation(self, observation: TrackVisitEvidence) -> VisitRegistryDecision:
         existing = self.assign_existing_track(observation)
         if existing is not None:
             visit = self.visits[existing.assignment.visit_id]
@@ -226,7 +219,7 @@ class VisitRegistry:
             matched_visit_id=None,
         )
 
-    def assign_observer_observation(self, observation: VisitObservation) -> VisitRegistryDecision:
+    def assign_observer_observation(self, observation: TrackVisitEvidence) -> VisitRegistryDecision:
         existing = self.assign_existing_track(observation)
         if existing is not None:
             visit = self.visits[existing.assignment.visit_id]
@@ -275,7 +268,7 @@ class VisitRegistry:
             matched_visit_id=None,
         )
 
-    def _find_entrance_time_match(self, observation: VisitObservation) -> ShopVisit | None:
+    def _find_entrance_time_match(self, observation: TrackVisitEvidence) -> ShopVisit | None:
         best_visit: ShopVisit | None = None
         best_gap = float("inf")
         for visit in self.visits.values():
@@ -288,7 +281,7 @@ class VisitRegistry:
                     best_visit = visit
         return best_visit
 
-    def _find_exact_face_match(self, observation: VisitObservation) -> ShopVisit | None:
+    def _find_exact_face_match(self, observation: TrackVisitEvidence) -> ShopVisit | None:
         for face_id in observation.face_identity_ids:
             visit_id = self.face_to_visit.get(face_id)
             if visit_id is not None and visit_id in self.visits:
@@ -297,7 +290,7 @@ class VisitRegistry:
 
     def _find_best_observer_match(
         self,
-        observation: VisitObservation,
+        observation: TrackVisitEvidence,
         *,
         preferred_origin: str,
     ) -> tuple[ShopVisit | None, float | None]:
@@ -317,11 +310,11 @@ class VisitRegistry:
 
     def _score_observer_candidate(
         self,
-        observation: VisitObservation,
+        observation: TrackVisitEvidence,
         visit: ShopVisit,
         age_seconds: float,
     ) -> float:
-        appearance_score = _appearance_similarity(observation.appearance, visit.appearance)
+        appearance_score = _appearance_similarity(observation.body_appearance, visit.appearance)
         depth_score = _depth_similarity(observation.depth_mm, visit.depth_mm)
         time_score = max(0.0, 1.0 - (age_seconds / max(self.observer_visit_max_age_seconds, 1e-6)))
         face_score = 1.0 if set(observation.face_identity_ids) & visit.face_identity_ids else 0.0
@@ -335,7 +328,7 @@ class VisitRegistry:
             score += 0.05
         return max(0.0, min(1.0, score))
 
-    def _create_visit(self, observation: VisitObservation, *, origin: str) -> ShopVisit:
+    def _create_visit(self, observation: TrackVisitEvidence, *, origin: str) -> ShopVisit:
         visit = ShopVisit(
             visit_id=self.next_visit_id,
             origin=origin,
@@ -350,27 +343,27 @@ class VisitRegistry:
         self._update_visit(visit, observation)
         return visit
 
-    def _bind_track(self, observation: VisitObservation, visit: ShopVisit) -> None:
+    def _bind_track(self, observation: TrackVisitEvidence, visit: ShopVisit) -> None:
         self.track_to_visit[(observation.device_id, observation.track_id)] = visit.visit_id
 
-    def _update_visit(self, visit: ShopVisit, observation: VisitObservation) -> None:
+    def _update_visit(self, visit: ShopVisit, observation: TrackVisitEvidence) -> None:
         count = visit.observation_count
-        if observation.appearance is not None:
+        if observation.body_appearance is not None:
             if visit.appearance is None:
-                visit.appearance = observation.appearance
+                visit.appearance = observation.body_appearance
             else:
-                merged_hist = ((visit.appearance.histogram * count) + observation.appearance.histogram) / (count + 1)
+                merged_hist = ((visit.appearance.histogram * count) + observation.body_appearance.histogram) / (count + 1)
                 norm = float(np.linalg.norm(merged_hist))
                 if norm > 1e-8:
                     merged_hist = merged_hist / norm
                 visit.appearance = BodyAppearance(
                     histogram=merged_hist.astype(np.float32),
                     aspect_ratio=(
-                        (visit.appearance.aspect_ratio * count) + observation.appearance.aspect_ratio
+                        (visit.appearance.aspect_ratio * count) + observation.body_appearance.aspect_ratio
                     )
                     / (count + 1),
                     height_px=int(
-                        round(((visit.appearance.height_px * count) + observation.appearance.height_px) / (count + 1))
+                        round(((visit.appearance.height_px * count) + observation.body_appearance.height_px) / (count + 1))
                     ),
                 )
         if observation.depth_mm is not None:
@@ -390,7 +383,7 @@ class VisitRegistry:
     def _decision(
         self,
         *,
-        observation: VisitObservation,
+        observation: TrackVisitEvidence,
         visit: ShopVisit,
         decision: str,
         reason: str,
