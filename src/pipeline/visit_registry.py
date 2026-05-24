@@ -151,7 +151,8 @@ class VisitRegistry:
         self.track_to_visit: dict[tuple[str, int], int] = {}
         self.face_to_visit: dict[str, int] = {}
 
-    def assign_existing_track(self, observation: TrackVisitEvidence) -> VisitRegistryDecision | None:
+    def resolve_existing_track(self, track_evidence: TrackVisitEvidence) -> VisitRegistryDecision | None:
+        observation = track_evidence
         visit_id = self.track_to_visit.get((observation.device_id, observation.track_id))
         if visit_id is None:
             return None
@@ -168,8 +169,9 @@ class VisitRegistry:
             matched_visit_id=visit.visit_id,
         )
 
-    def assign_entrance_observation(self, observation: TrackVisitEvidence) -> VisitRegistryDecision:
-        existing = self.assign_existing_track(observation)
+    def resolve_entrance_track(self, track_evidence: TrackVisitEvidence) -> VisitRegistryDecision:
+        observation = track_evidence
+        existing = self.resolve_existing_track(observation)
         if existing is not None:
             visit = self.visits[existing.assignment.visit_id]
             if visit.origin != VISIT_ORIGIN_ENTRANCE:
@@ -219,8 +221,9 @@ class VisitRegistry:
             matched_visit_id=None,
         )
 
-    def assign_observer_observation(self, observation: TrackVisitEvidence) -> VisitRegistryDecision:
-        existing = self.assign_existing_track(observation)
+    def resolve_observer_track(self, track_evidence: TrackVisitEvidence) -> VisitRegistryDecision:
+        observation = track_evidence
+        existing = self.resolve_existing_track(observation)
         if existing is not None:
             visit = self.visits[existing.assignment.visit_id]
             visit.observer_observation_count += 1

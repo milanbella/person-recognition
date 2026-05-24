@@ -671,11 +671,11 @@ def build_processed_rgb_frame(
     visit_assignments = {}
     if state.camera_role == "observer":
         for track_id, track_evidence in track_visit_evidence_by_id.items():
-            decision = visit_registry.assign_observer_observation(track_evidence)
+            decision = visit_registry.resolve_observer_track(track_evidence)
             visit_assignments[track_id] = decision.assignment
     else:
         for track_id, track_evidence in track_visit_evidence_by_id.items():
-            decision = visit_registry.assign_existing_track(track_evidence)
+            decision = visit_registry.resolve_existing_track(track_evidence)
             if decision is not None:
                 visit_assignments[track_id] = decision.assignment
 
@@ -685,7 +685,7 @@ def build_processed_rgb_frame(
             continue
         track_evidence = track_visit_evidence_by_id.get(track_id)
         if state.camera_role == "entrance" and track_evidence is not None:
-            decision = visit_registry.assign_entrance_observation(track_evidence)
+            decision = visit_registry.resolve_entrance_track(track_evidence)
             visit_assignments[track_id] = decision.assignment
         visit_assignment = visit_assignments.get(track_id)
         if args.depth_trigger_mode == "plane":
