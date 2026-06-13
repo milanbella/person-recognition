@@ -1,8 +1,11 @@
 import argparse
+import csv
+import json
 import math
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 import cv2
 import numpy as np
@@ -50,10 +53,16 @@ from pipeline.visit_identity import (
     draw_visit_labels,
 )
 from pipeline.visit_registry import (
+    CAMERA_ROLE_ENTRANCE,
     FrameEvidence,
+    ShopVisit,
+    TrackVisitEvidence,
     VisitRegistry,
+    VisitRegistryDecision,
     add_visit_registry_args,
     build_track_visit_evidence,
+    is_entrance_enabled,
+    is_observer_enabled,
 )
 
 
@@ -68,6 +77,190 @@ class SyncedStreamState:
     last_processed_frame_index: int | None = None
     cached_rgb_overlay: np.ndarray | None = None
     camera_role: str = "entrance"
+
+
+class ReplayArtifactWriter:
+    def __init__(self, output_dir: Path | None) -> None:
+        self.output_dir = output_dir
+        self.track_evidence_file = None
+        self.visit_decisions_file = None
+        self.entrance_events_file = None
+        if output_dir is None:
+            return
+        output_dir.mkdir(parents=True, exist_ok=True)
+        self.track_evidence_file = (output_dir / "track_visit_evidence.jsonl").open("w", encoding="utf-8")
+        self.visit_decisions_file = (output_dir / "visit_decisions.jsonl").open("w", encoding="utf-8")
+        self.entrance_events_file = (output_dir / "entrance_events.jsonl").open("w", encoding="utf-8")
+
+    @property
+    def enabled(self) -> bool:
+        return self.output_dir is not None
+
+    def write_replay_config(
+        self,
+        *,
+        args: argparse.Namespace,
+        recordings: list[Any],
+        camera_roles: list[str],
+    ) -> None:
+        if self.output_dir is None:
+            return
+        payload = {
+            "device_ids": list(args.device_id),
+            "camera_roles": camera_roles,
+            "recordings": [
+                {
+                    "device_id": recording.device_id,
+                    "recording_dir": str(recording.recording_dir),
+                    "frame_count": len(recording.frames),
+                    "start_rgb_host_synced_seconds": recording.frames[0].rgb_host_synced_seconds,
+                    "end_rgb_host_synced_seconds": recording.frames[-1].rgb_host_synced_seconds,
+                }
+                for recording in recordings
+            ],
+            "args": _json_safe_namespace(args),
+        }
+        (self.output_dir / "replay_config.json").write_text(
+            json.dumps(payload, indent=2, sort_keys=True),
+            encoding="utf-8",
+        )
+
+    def write_track_evidence(self, track_evidence: TrackVisitEvidence) -> None:
+        if self.track_evidence_file is None:
+            return
+        self.track_evidence_file.write(json.dumps(_track_evidence_to_dict(track_evidence)) + "\n")
+
+    def write_visit_decision(
+        self,
+        *,
+        resolution: str,
+        track_evidence: TrackVisitEvidence,
+        decision: VisitRegistryDecision,
+    ) -> None:
+        if self.visit_decisions_file is None:
+            return
+        payload = {
+            "resolution": resolution,
+            "track_evidence": _track_evidence_to_dict(track_evidence),
+            "decision": _decision_to_dict(decision),
+        }
+        self.visit_decisions_file.write(json.dumps(payload) + "\n")
+
+    def write_entrance_event(self, payload: dict[str, Any]) -> None:
+        if self.entrance_events_file is None:
+            return
+        self.entrance_events_file.write(json.dumps(payload) + "\n")
+
+    def write_final_visits(self, visit_registry: VisitRegistry) -> None:
+        if self.output_dir is None:
+            return
+        visits = [_shop_visit_to_dict(visit) for visit in sorted(visit_registry.visits.values(), key=lambda item: item.visit_id)]
+        (self.output_dir / "final_visits.json").write_text(
+            json.dumps({"visits": visits}, indent=2, sort_keys=True),
+            encoding="utf-8",
+        )
+        with (self.output_dir / "final_visits.csv").open("w", encoding="utf-8", newline="") as csv_file:
+            fieldnames = [
+                "visit_id",
+                "origin",
+                "created_host_seconds",
+                "last_seen_host_seconds",
+                "last_device_id",
+                "last_track_id",
+                "observation_count",
+                "observer_observation_count",
+                "depth_mm",
+                "face_identity_ids",
+                "entrance_observation_times",
+                "merged_visit_ids",
+                "has_body_appearance",
+                "body_aspect_ratio",
+                "body_height_px",
+            ]
+            writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+            writer.writeheader()
+            for visit in visits:
+                writer.writerow(_shop_visit_csv_row(visit))
+
+    def close(self) -> None:
+        for handle in [self.track_evidence_file, self.visit_decisions_file, self.entrance_events_file]:
+            if handle is not None:
+                handle.close()
+
+
+def _json_safe_namespace(args: argparse.Namespace) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in vars(args).items():
+        if isinstance(value, Path):
+            result[key] = str(value)
+        elif isinstance(value, list):
+            result[key] = [str(item) if isinstance(item, Path) else item for item in value]
+        else:
+            result[key] = value
+    return result
+
+
+def _track_evidence_to_dict(track_evidence: TrackVisitEvidence) -> dict[str, Any]:
+    body_appearance = track_evidence.body_appearance
+    return {
+        "camera_role": track_evidence.camera_role,
+        "device_id": track_evidence.device_id,
+        "track_id": track_evidence.track_id,
+        "host_seconds": track_evidence.host_seconds,
+        "track_bbox": list(track_evidence.track_bbox),
+        "face_identity_ids": list(track_evidence.face_identity_ids),
+        "depth_mm": track_evidence.depth_mm,
+        "has_body_appearance": body_appearance is not None,
+        "body_aspect_ratio": None if body_appearance is None else body_appearance.aspect_ratio,
+        "body_height_px": None if body_appearance is None else body_appearance.height_px,
+    }
+
+
+def _decision_to_dict(decision: VisitRegistryDecision) -> dict[str, Any]:
+    assignment = decision.assignment
+    return {
+        "visit_id": assignment.visit_id,
+        "track_id": assignment.track_id,
+        "device_id": assignment.device_id,
+        "face_identity_ids": list(assignment.face_identity_ids),
+        "matched_score": assignment.matched_score,
+        "origin": assignment.origin,
+        "decision": decision.decision,
+        "reason": decision.reason,
+        "score": decision.score,
+        "matched_visit_id": decision.matched_visit_id,
+        "score_breakdown": decision.score_breakdown,
+    }
+
+
+def _shop_visit_to_dict(visit: ShopVisit) -> dict[str, Any]:
+    return {
+        "visit_id": visit.visit_id,
+        "origin": visit.origin,
+        "created_host_seconds": visit.created_host_seconds,
+        "last_seen_host_seconds": visit.last_seen_host_seconds,
+        "last_device_id": visit.last_device_id,
+        "last_track_id": visit.last_track_id,
+        "observation_count": visit.observation_count,
+        "observer_observation_count": visit.observer_observation_count,
+        "depth_mm": visit.depth_mm,
+        "face_identity_ids": sorted(visit.face_identity_ids),
+        "entrance_observation_times": list(visit.entrance_observation_times),
+        "merged_visit_ids": sorted(visit.merged_visit_ids),
+        "has_body_appearance": visit.appearance is not None,
+        "body_aspect_ratio": None if visit.appearance is None else visit.appearance.aspect_ratio,
+        "body_height_px": None if visit.appearance is None else visit.appearance.height_px,
+    }
+
+
+def _shop_visit_csv_row(visit: dict[str, Any]) -> dict[str, Any]:
+    row = dict(visit)
+    row["face_identity_ids"] = ",".join(str(value) for value in visit.get("face_identity_ids", []))
+    row["entrance_observation_times"] = ",".join(
+        f"{float(value):.3f}" for value in visit.get("entrance_observation_times", [])
+    )
+    row["merged_visit_ids"] = ",".join(str(value) for value in visit.get("merged_visit_ids", []))
+    return row
 
 
 def build_argparser() -> argparse.ArgumentParser:
@@ -269,6 +462,12 @@ def build_argparser() -> argparse.ArgumentParser:
         default=900,
         help="Maximum display height for replay windows after auto-scaling the tiled view.",
     )
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=None,
+        help="Optional directory for synced replay artifacts: decisions, evidence, entrance events, and final visits.",
+    )
     add_face_identity_args(parser)
     add_body_evidence_args(parser)
     add_visit_identity_args(parser)
@@ -433,7 +632,7 @@ def build_stream_states(
 
 def resolve_camera_roles(args: argparse.Namespace) -> list[str]:
     if args.camera_role is None or len(args.camera_role) == 0:
-        return ["entrance" for _device_id in args.device_id]
+        return [CAMERA_ROLE_ENTRANCE for _device_id in args.device_id]
     if len(args.camera_role) != len(args.device_id):
         raise ValueError(
             "--camera-role must be omitted or provide exactly one role per --device-id."
@@ -469,6 +668,10 @@ def main() -> None:
         log_decisions=args.log_visit_decisions,
     )
     stream_states = build_stream_states(streams=streams, args=args, camera_roles=camera_roles)
+    artifact_writer = ReplayArtifactWriter(args.output_dir)
+    artifact_writer.write_replay_config(args=args, recordings=recordings, camera_roles=camera_roles)
+    if artifact_writer.enabled:
+        print(f"Writing synced replay artifacts to {artifact_writer.output_dir}")
 
     try:
         starts = [info.frames[0].rgb_host_synced_seconds for info in recordings]
@@ -533,6 +736,7 @@ def main() -> None:
                         face_matcher=face_matcher,
                         body_evidence_extractor=body_evidence_extractor,
                         visit_registry=visit_registry,
+                        artifact_writer=artifact_writer,
                         args=args,
                     ),
                 )
@@ -578,6 +782,8 @@ def main() -> None:
                 speed = max(speed / 1.25, 0.1)
                 started_monotonic = time.monotonic() - paused_elapsed
     finally:
+        artifact_writer.write_final_visits(visit_registry)
+        artifact_writer.close()
         for stream in streams:
             stream.close()
         cv2.destroyAllWindows()
@@ -590,6 +796,7 @@ def build_processed_rgb_frame(
     face_matcher: FaceRecognizer | None,
     body_evidence_extractor: BodyEvidenceExtractor,
     visit_registry: VisitRegistry,
+    artifact_writer: ReplayArtifactWriter,
     args: argparse.Namespace,
 ) -> np.ndarray:
     rgb_frame = state.stream.current_rgb_frame
@@ -668,26 +875,56 @@ def build_processed_rgb_frame(
         body_evidence_by_track=body_evidence_by_track,
     )
     track_visit_evidence_by_id = build_track_visit_evidence(frame_evidence)
+    for track_evidence in track_visit_evidence_by_id.values():
+        artifact_writer.write_track_evidence(track_evidence)
     visit_assignments = {}
-    if state.camera_role == "observer":
-        for track_id, track_evidence in track_visit_evidence_by_id.items():
+    observer_enabled = is_observer_enabled(state.camera_role)
+    entrance_enabled = is_entrance_enabled(state.camera_role)
+    for track_id, track_evidence in track_visit_evidence_by_id.items():
+        decision = visit_registry.resolve_existing_track(track_evidence)
+        resolution = "existing_track"
+        if decision is None and observer_enabled:
             decision = visit_registry.resolve_observer_track(track_evidence)
+            resolution = "observer_track"
+        if decision is not None:
             visit_assignments[track_id] = decision.assignment
-    else:
-        for track_id, track_evidence in track_visit_evidence_by_id.items():
-            decision = visit_registry.resolve_existing_track(track_evidence)
-            if decision is not None:
-                visit_assignments[track_id] = decision.assignment
+            artifact_writer.write_visit_decision(
+                resolution=resolution,
+                track_evidence=track_evidence,
+                decision=decision,
+            )
 
     for track_id in entered_track_ids:
         sample = depth_samples.get(track_id)
         if sample is None:
             continue
         track_evidence = track_visit_evidence_by_id.get(track_id)
-        if state.camera_role == "entrance" and track_evidence is not None:
+        if entrance_enabled and track_evidence is not None:
             decision = visit_registry.resolve_entrance_track(track_evidence)
             visit_assignments[track_id] = decision.assignment
+            artifact_writer.write_visit_decision(
+                resolution="entrance_track",
+                track_evidence=track_evidence,
+                decision=decision,
+            )
         visit_assignment = visit_assignments.get(track_id)
+        event_payload = {
+            "type": "sync_depth_plane_entry_event"
+            if args.depth_trigger_mode == "plane"
+            else "sync_depth_entry_event",
+            "device_id": state.stream.info.device_id,
+            "camera_role": state.camera_role,
+            "track_id": track_id,
+            "visit_id": None if visit_assignment is None else visit_assignment.visit_id,
+            "host_synced_seconds": None
+            if state.stream.current_frame_meta is None
+            else state.stream.current_frame_meta.rgb_host_synced_seconds,
+            "depth_mm": sample.depth_mm,
+            "plane_signed_distance_mm": signed_distances_mm.get(track_id)
+            if args.depth_trigger_mode == "plane"
+            else None,
+        }
+        artifact_writer.write_entrance_event(event_payload)
         if args.depth_trigger_mode == "plane":
             print(
                 f"SYNC_DEPTH_PLANE_ENTRY_EVENT device_id={state.stream.info.device_id} "

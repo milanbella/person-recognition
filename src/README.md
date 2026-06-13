@@ -83,7 +83,10 @@ The old on-device `RVC2` experiment scripts were intentionally removed.
   - accepts one or more `--device-id` values and derives the matching RGBD recording folders
   - can optionally run replay-local face identity assignment with `--enable-face-recognition`
   - assigns shared registry-owned `visit_id` labels across the synchronized replay
-  - defaults every stream to `--camera-role entrance`, and supports `--camera-role observer` for in-shop observer streams
+  - defaults every stream to `--camera-role entrance`
+  - supports `--camera-role entrance_observer` for entrance cameras that should also contribute observer evidence
+  - supports `--camera-role observer` for in-shop observer streams
+  - supports `--output-dir` for replay artifacts: visit decisions, track visit evidence, entrance events, and final visit summaries
 
 - `replay_depth_tuner.py`
   - replays one recorded RGBD stream through detection, tracking, and depth-based entrance logic
@@ -230,10 +233,13 @@ After that, the next steps should add:
 ## Evaluation
 
 - a concrete 2-camera evaluation procedure is documented in [two-camera-evaluation-workflow.md](/abs/path/C:/wi/luxonis/llm/person-recognition/doc/two-camera-evaluation-workflow.md)
+- a 3-entrance plus observer-camera replay workflow is documented in [shop-rgbd-replay-testing-workflow.md](/abs/path/C:/wi/luxonis/llm/person-recognition/doc/shop-rgbd-replay-testing-workflow.md)
 - reusable label templates live in:
   - [camera_map.example.json](/abs/path/C:/wi/luxonis/person-recognition/src/eval_templates/camera_map.example.json)
   - [single_camera_event_review.example.csv](/abs/path/C:/wi/luxonis/person-recognition/src/eval_templates/single_camera_event_review.example.csv)
   - [entry_ground_truth.example.csv](/abs/path/C:/wi/luxonis/person-recognition/src/eval_templates/entry_ground_truth.example.csv)
+  - [shop_visit_ground_truth.example.csv](/abs/path/C:/wi/luxonis/person-recognition/src/eval_templates/shop_visit_ground_truth.example.csv)
+  - [shop_visit_review.example.csv](/abs/path/C:/wi/luxonis/person-recognition/src/eval_templates/shop_visit_review.example.csv)
 
 ## Two Cameras
 

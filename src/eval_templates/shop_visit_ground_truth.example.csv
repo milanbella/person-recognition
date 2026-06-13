@@ -1,0 +1,4 @@
+scenario_id,physical_person_id,expected_visit_id_label,expected_origin,entered,notes
+shop_test_001,person_a,V1,entrance_confirmed,true,Entered through door and should stay one visit across all cameras
+shop_test_001,person_b,V2,entrance_confirmed,true,Entered close behind person_a
+shop_test_001,staff_or_bystander,V3,observer_only,false,Seen by observer camera without confirmed entrance event

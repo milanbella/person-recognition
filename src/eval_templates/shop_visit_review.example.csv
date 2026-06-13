@@ -1,0 +1,4 @@
+scenario_id,physical_person_id,observed_visit_ids,correct_single_visit,expected_origin,observed_origins,fragmentation_count,wrong_merge,notes
+shop_test_001,person_a,V1,true,entrance_confirmed,entrance_confirmed,0,false,No fragmentation
+shop_test_001,person_b,"V2,V2b",false,entrance_confirmed,entrance_confirmed,1,false,Example: same person fragmented into two visits
+shop_test_001,person_c,V3,true,observer_only,observer_only,0,false,Observer-only person

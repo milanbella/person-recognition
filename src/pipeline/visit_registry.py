@@ -20,6 +20,23 @@ DEFAULT_OBSERVER_VISIT_MAX_AGE_SECONDS = 1800.0
 VISIT_ORIGIN_ENTRANCE = "entrance_confirmed"
 VISIT_ORIGIN_OBSERVER = "observer_only"
 
+CAMERA_ROLE_ENTRANCE = "entrance"
+CAMERA_ROLE_OBSERVER = "observer"
+CAMERA_ROLE_ENTRANCE_OBSERVER = "entrance_observer"
+CAMERA_ROLE_CHOICES = [
+    CAMERA_ROLE_ENTRANCE,
+    CAMERA_ROLE_OBSERVER,
+    CAMERA_ROLE_ENTRANCE_OBSERVER,
+]
+
+
+def is_entrance_enabled(camera_role: str) -> bool:
+    return camera_role in {CAMERA_ROLE_ENTRANCE, CAMERA_ROLE_ENTRANCE_OBSERVER}
+
+
+def is_observer_enabled(camera_role: str) -> bool:
+    return camera_role in {CAMERA_ROLE_OBSERVER, CAMERA_ROLE_ENTRANCE_OBSERVER}
+
 
 @dataclass
 class FrameEvidence:
@@ -68,16 +85,18 @@ class VisitRegistryDecision:
     reason: str
     score: float | None = None
     matched_visit_id: int | None = None
+    score_breakdown: dict[str, float | int | str | None] | None = None
 
 
 def add_visit_registry_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
     parser.add_argument(
         "--camera-role",
         nargs="*",
-        choices=["entrance", "observer"],
+        choices=CAMERA_ROLE_CHOICES,
         default=None,
         help=(
             "Role for each --device-id in synced replay. Defaults to entrance for every device. "
+            "Use entrance_observer for entrance cameras that should also contribute observer evidence. "
             "Use observer for in-shop cameras that should match existing visits or create observer-only visits."
         ),
     )
@@ -91,7 +110,7 @@ def add_visit_registry_args(parser: argparse.ArgumentParser) -> argparse.Argumen
         "--observer-match-threshold",
         type=float,
         default=None,
-        help="Minimum body/depth/face score for an observer observation to attach to an active visit.",
+        help="Minimum body/depth/face score for observer track evidence to attach to an active visit.",
     )
     parser.add_argument(
         "--observer-visit-max-age-seconds",
@@ -243,9 +262,15 @@ class VisitRegistry:
                 matched_visit_id=visit.visit_id,
             )
 
-        visit, score = self._find_best_observer_match(observation, preferred_origin=VISIT_ORIGIN_ENTRANCE)
+        visit, score, score_breakdown = self._find_best_observer_match(
+            observation,
+            preferred_origin=VISIT_ORIGIN_ENTRANCE,
+        )
         if visit is None:
-            visit, score = self._find_best_observer_match(observation, preferred_origin=VISIT_ORIGIN_OBSERVER)
+            visit, score, score_breakdown = self._find_best_observer_match(
+                observation,
+                preferred_origin=VISIT_ORIGIN_OBSERVER,
+            )
 
         if visit is not None and score >= self.observer_match_threshold:
             self._bind_track(observation, visit)
@@ -258,6 +283,7 @@ class VisitRegistry:
                 reason="body_depth_time_score_above_threshold",
                 score=score,
                 matched_visit_id=visit.visit_id,
+                score_breakdown=score_breakdown,
             )
 
         visit = self._create_visit(observation, origin=VISIT_ORIGIN_OBSERVER)
@@ -269,6 +295,7 @@ class VisitRegistry:
             reason="no_active_visit_match" if score is None else "best_score_below_threshold",
             score=score,
             matched_visit_id=None,
+            score_breakdown=score_breakdown,
         )
 
     def _find_entrance_time_match(self, observation: TrackVisitEvidence) -> ShopVisit | None:
@@ -296,40 +323,53 @@ class VisitRegistry:
         observation: TrackVisitEvidence,
         *,
         preferred_origin: str,
-    ) -> tuple[ShopVisit | None, float | None]:
+    ) -> tuple[ShopVisit | None, float | None, dict[str, float | int | str | None] | None]:
         best_visit: ShopVisit | None = None
         best_score: float | None = None
+        best_breakdown: dict[str, float | int | str | None] | None = None
         for visit in self.visits.values():
             if visit.origin != preferred_origin:
                 continue
             age_seconds = observation.host_seconds - visit.last_seen_host_seconds
             if age_seconds < 0.0 or age_seconds > self.observer_visit_max_age_seconds:
                 continue
-            score = self._score_observer_candidate(observation, visit, age_seconds)
+            score, breakdown = self._score_observer_candidate(observation, visit, age_seconds)
             if best_score is None or score > best_score:
                 best_score = score
                 best_visit = visit
-        return best_visit, best_score
+                best_breakdown = breakdown
+        return best_visit, best_score, best_breakdown
 
     def _score_observer_candidate(
         self,
         observation: TrackVisitEvidence,
         visit: ShopVisit,
         age_seconds: float,
-    ) -> float:
+    ) -> tuple[float, dict[str, float | int | str | None]]:
         appearance_score = _appearance_similarity(observation.body_appearance, visit.appearance)
         depth_score = _depth_similarity(observation.depth_mm, visit.depth_mm)
         time_score = max(0.0, 1.0 - (age_seconds / max(self.observer_visit_max_age_seconds, 1e-6)))
         face_score = 1.0 if set(observation.face_identity_ids) & visit.face_identity_ids else 0.0
+        entrance_bonus = 0.05 if visit.origin == VISIT_ORIGIN_ENTRANCE else 0.0
         score = (
             (0.55 * appearance_score)
             + (0.15 * depth_score)
             + (0.15 * time_score)
             + (0.15 * face_score)
+            + entrance_bonus
         )
-        if visit.origin == VISIT_ORIGIN_ENTRANCE:
-            score += 0.05
-        return max(0.0, min(1.0, score))
+        clamped_score = max(0.0, min(1.0, score))
+        return clamped_score, {
+            "candidate_visit_id": visit.visit_id,
+            "candidate_origin": visit.origin,
+            "age_seconds": age_seconds,
+            "appearance_score": appearance_score,
+            "depth_score": depth_score,
+            "time_score": time_score,
+            "face_score": face_score,
+            "entrance_bonus": entrance_bonus,
+            "weighted_score": clamped_score,
+        }
 
     def _create_visit(self, observation: TrackVisitEvidence, *, origin: str) -> ShopVisit:
         visit = ShopVisit(
@@ -392,6 +432,7 @@ class VisitRegistry:
         reason: str,
         score: float | None,
         matched_visit_id: int | None,
+        score_breakdown: dict[str, float | int | str | None] | None = None,
     ) -> VisitRegistryDecision:
         result = VisitRegistryDecision(
             assignment=VisitAssignment(
@@ -406,13 +447,26 @@ class VisitRegistry:
             reason=reason,
             score=score,
             matched_visit_id=matched_visit_id,
+            score_breakdown=score_breakdown,
         )
         if self.log_decisions:
             score_text = "none" if score is None else f"{score:.3f}"
+            breakdown_text = ""
+            if score_breakdown is not None:
+                breakdown_text = (
+                    " "
+                    f"candidate_visit_id={score_breakdown.get('candidate_visit_id')} "
+                    f"appearance={float(score_breakdown.get('appearance_score', 0.0)):.3f} "
+                    f"depth={float(score_breakdown.get('depth_score', 0.0)):.3f} "
+                    f"time={float(score_breakdown.get('time_score', 0.0)):.3f} "
+                    f"face={float(score_breakdown.get('face_score', 0.0)):.3f} "
+                    f"bonus={float(score_breakdown.get('entrance_bonus', 0.0)):.3f}"
+                )
             print(
                 f"VISIT_REGISTRY device_id={observation.device_id} track_id={observation.track_id} "
                 f"visit_id={visit.visit_id} origin={visit.origin} decision={decision} "
                 f"reason={reason} score={score_text} time={observation.host_seconds:.3f}"
+                f"{breakdown_text}"
             )
         return result
 
