@@ -11,6 +11,12 @@ rsync -avz --delete \
     --exclude='src/.venv' \
     --exclude='src/.cache' \
     --exclude='src/.depthai_cached_models/' \
+    --exclude='src/recordings/' \
+    --exclude='src/plane_calibrations/' \
+    --exclude='src/evidence/' \
+    --exclude='src/embedding_runs/' \
+    --exclude='src/identity_runs/' \
+    --exclude='src/entry_session_runs/' \
     "$LOCAL_DIR" \
     "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_DIR}"
 

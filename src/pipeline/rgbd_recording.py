@@ -152,7 +152,16 @@ def load_rgbd_recording(recording_dir: Path) -> RGBDRecordingInfo:
     depth_frames_dir = paths["depth_frames_dir"]
 
     if not recording_dir.exists():
-        raise FileNotFoundError(f"Recording directory not found: {recording_dir}")
+        parent = recording_dir.parent
+        available = []
+        if parent.exists():
+            available = sorted(path.name for path in parent.glob("oak_*.rgbd"))
+        hint = (
+            f" Available RGBD recordings in {parent}: {', '.join(available)}"
+            if available
+            else f" No RGBD recordings found in {parent}."
+        )
+        raise FileNotFoundError(f"Recording directory not found: {recording_dir}.{hint}")
     if not rgb_video_path.exists():
         raise FileNotFoundError(f"RGB video not found: {rgb_video_path}")
     if not frames_path.exists():

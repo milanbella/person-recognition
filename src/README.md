@@ -107,6 +107,12 @@ The old on-device `RVC2` experiment scripts were intentionally removed.
   - interactive plane-calibration utility for recorded RGBD streams
   - lets you click 3 tagged door-corner points, fits a 3D plane from recorded depth, and prints the CLI args for plane-based entrance detection
 
+- `fit_plane_from_aruco.py`
+  - automatic recorded-RGBD plane-calibration utility for entrance door ArUco markers
+  - defaults to `DICT_4X4_50` marker IDs `0`, `1`, `2`, `3`
+  - samples aligned depth at detected marker centers, fits a plane from at least 3 valid marker points, and saves `plane_fit_<device-id>.json`
+  - keeps `fit_plane_from_tags.py` available as the manual fallback
+
 - `final_pipeline.py`
   - first unified live pipeline entrypoint built on shared modules
   - runs host-side detection, tracking, entrance logic, and optional evidence capture

@@ -1,0 +1,34 @@
+(.venv) ovie1@ovie-MS-7D91:~/person-recognition/src$ ./c
+++ python ./record_rgbd_stream.py --device-id 194430107110B32F00 --duration-seconds 10
+Device: 194430107110B32F00 Platform: RVC2
+/home/ovie1/person-recognition/src/./record_rgbd_stream.py:69: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  return datetime.utcnow().isoformat(timespec="milliseconds") + "Z"
+Recording RGBD stream to /home/ovie1/person-recognition/src/recordings/oak_194430107110B32F00.rgbd
+Pipeline created. Starting...
+RGB frame received before any aligned depth frame. Skipping frame.
+RGB frame received before any aligned depth frame. Skipping frame.
+RGB frame received before any aligned depth frame. Skipping frame.
+RGB frame received before any aligned depth frame. Skipping frame.
+RGB frame received before any aligned depth frame. Skipping frame.
+RGB frame received before any aligned depth frame. Skipping frame.
+RGB frame received before any aligned depth frame. Skipping frame.
+RGB frame received before any aligned depth frame. Skipping frame.
+Stopping after 10.0s.
+Saved RGBD recording with 272 frames to /home/ovie1/person-recognition/src/recordings/oak_194430107110B32F00.rgbd
+(.venv) ovie1@ovie-MS-7D91:~/person-recognition/src$ chmod u+x c && ./c
+++ python ./fit_plane_from_aruco.py --device-id 194430107110B32F00
+Traceback (most recent call last):
+  File "/home/ovie1/person-recognition/src/./fit_plane_from_aruco.py", line 517, in <module>
+    main()
+  File "/home/ovie1/person-recognition/src/./fit_plane_from_aruco.py", line 397, in main
+    recording = load_rgbd_recording(recording_dir)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ovie1/person-recognition/src/pipeline/rgbd_recording.py", line 155, in load_rgbd_recording
+    raise FileNotFoundError(f"Recording directory not found: {recording_dir}")
+FileNotFoundError: Recording directory not found: /home/ovie1/person-recognition/src/recordings/oak_194430107110B32F00.rgbd
+(.venv) ovie1@ovie-MS-7D91:~/person-recognition/src$ pwd
+/home/ovie1/person-recognition/src
+(.venv) ovie1@ovie-MS-7D91:~/person-recognition/src$ ls /home/ovie1/person-recognition/src/recordings/oak_194430107110B32F00.rgbd
+ls: cannot access '/home/ovie1/person-recognition/src/recordings/oak_194430107110B32F00.rgbd': No such file or directory
+(.venv) ovie1@ovie-MS-7D91:~/person-recognition/src$ 
+
