@@ -1,0 +1,7 @@
+set -xe
+#python ./main.py --device-id 194430107110B32F00
+python ./main.py --device-id 19443010C10A3A2E00
+#python ./detect_door_aruco.py --device-id 194430107110B32F00 --show-rejected
+#python ./detect_door_aruco.py --device-id 194430107110B32F00 --dictionary DICT_4X4_50 --show-rejected
+#python ./detect_door_aruco.py --device-id 194430107110B32F00
+#python ./detect_door_aruco.py --device-id 19443010C10A3A2E00

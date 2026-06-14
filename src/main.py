@@ -12,8 +12,8 @@ from pipeline.camera import (
 from pipeline.config import DEFAULT_CAMERA_FPS
 
 
-PREVIEW_WIDTH = 1280
-PREVIEW_HEIGHT = 720
+PREVIEW_WIDTH = 3840
+PREVIEW_HEIGHT = 2160
 
 
 def build_argparser() -> argparse.ArgumentParser:

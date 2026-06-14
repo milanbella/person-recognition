@@ -48,6 +48,9 @@ The old on-device `RVC2` experiment scripts were intentionally removed.
       - generic per-track body evidence extractor protocol/factory
       - current body backend is `hsv`; use `--body-backend hsv`
       - wraps the existing upper/lower clothing HSV histogram evidence used by visit matching
+    - `pipeline.aruco_markers`
+      - OpenCV ArUco marker detection and drawing helpers
+      - current door-marker prototype defaults to `DICT_4X4_50` and door marker IDs `0`, `1`, `2`, `3`
     - `pipeline.visit_identity`
       - within-visit physical-person identity layer above temporary `track_id`
       - reattaches new track ids to existing `visit_id` values using clothing/body appearance, depth, and recent timing
@@ -71,6 +74,12 @@ The old on-device `RVC2` experiment scripts were intentionally removed.
   - connects to the OAK camera with `depthai`
   - receives RGB frames on the PC
   - shows a live preview
+
+- `detect_door_aruco.py`
+  - live 4K RGB prototype for detecting OpenCV ArUco markers around the entrance door
+  - defaults to `DICT_4X4_50` and highlights door marker IDs `0`, `1`, `2`, `3`
+  - supports explicit OAK selection with `--device-id`
+  - intended for marker visibility/prototyping only; it does not fit or save entrance planes yet
 
 - `record_rgbd_stream.py`
   - host-side RGB plus aligned depth recorder for one OAK camera
