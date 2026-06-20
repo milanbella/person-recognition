@@ -148,10 +148,12 @@ class VisitIdentityManager:
         match_threshold: float = DEFAULT_VISIT_APPEARANCE_THRESHOLD,
         same_camera_max_age_seconds: float = DEFAULT_VISIT_SAME_CAMERA_MAX_AGE_SECONDS,
         cross_camera_max_age_seconds: float = DEFAULT_VISIT_CROSS_CAMERA_MAX_AGE_SECONDS,
+        log_decisions: bool = False,
     ) -> None:
         self.match_threshold = match_threshold
         self.same_camera_max_age_seconds = same_camera_max_age_seconds
         self.cross_camera_max_age_seconds = cross_camera_max_age_seconds
+        self.log_decisions = log_decisions
         self.next_visit_id = 1
         self.visits: dict[int, VisitIdentity] = {}
         self.track_to_visit: dict[tuple[str, int], int] = {}
@@ -195,7 +197,7 @@ class VisitIdentityManager:
             if visit_id is None:
                 visit_id = self._visit_from_known_face(face_ids)
                 if visit_id is None:
-                    visit_id, matched_score = self._match_or_create_visit(
+                    visit_id, matched_score, decision, matched_visit_id = self._match_or_create_visit(
                         device_id=device_id,
                         track_id=track.track_id,
                         host_seconds=host_seconds,
@@ -203,7 +205,20 @@ class VisitIdentityManager:
                         appearance=appearance,
                         depth_mm=depth_mm,
                     )
+                else:
+                    decision = "known_face_match"
+                    matched_visit_id = visit_id
                 self.track_to_visit[track_key] = visit_id
+                if self.log_decisions:
+                    self._log_decision(
+                        device_id=device_id,
+                        track_id=track.track_id,
+                        host_seconds=host_seconds,
+                        visit_id=visit_id,
+                        decision=decision,
+                        matched_visit_id=matched_visit_id,
+                        matched_score=matched_score,
+                    )
 
             visit = self.visits[visit_id]
             visit.face_identity_ids.update(face_ids)
@@ -244,7 +259,7 @@ class VisitIdentityManager:
         bbox: tuple[int, int, int, int],
         appearance: BodyAppearance | None,
         depth_mm: float | None,
-    ) -> tuple[int, float | None]:
+    ) -> tuple[int, float | None, str, int | None]:
         best_visit_id: int | None = None
         best_score = -1.0
         for visit in self.visits.values():
@@ -270,7 +285,7 @@ class VisitIdentityManager:
                 best_visit_id = visit.visit_id
 
         if best_visit_id is not None and best_score >= self.match_threshold:
-            return best_visit_id, best_score
+            return best_visit_id, best_score, "matched_existing_visit", best_visit_id
 
         visit_id = self.next_visit_id
         self.next_visit_id += 1
@@ -283,7 +298,32 @@ class VisitIdentityManager:
             appearance=None,
             depth_mm=None,
         )
-        return visit_id, None if best_visit_id is None else best_score
+        return (
+            visit_id,
+            None if best_visit_id is None else best_score,
+            "new_visit",
+            best_visit_id,
+        )
+
+    def _log_decision(
+        self,
+        *,
+        device_id: str,
+        track_id: int,
+        host_seconds: float,
+        visit_id: int,
+        decision: str,
+        matched_visit_id: int | None,
+        matched_score: float | None,
+    ) -> None:
+        score_text = "none" if matched_score is None else f"{matched_score:.3f}"
+        matched_text = "none" if matched_visit_id is None else str(matched_visit_id)
+        print(
+            f"VISIT_IDENTITY device_id={device_id} track_id={track_id} "
+            f"visit_id={visit_id} decision={decision} "
+            f"matched_visit_id={matched_text} matched_score={score_text} "
+            f"threshold={self.match_threshold:.3f} time={host_seconds:.3f}"
+        )
 
     def _score_candidate(
         self,

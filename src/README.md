@@ -66,7 +66,8 @@ The old on-device `RVC2` experiment scripts were intentionally removed.
   - shared by replay entrypoints and the legacy Phase 8 harnesses
     - `pipeline.depth`
       - shared helpers for sampling aligned stereo depth inside tracked person boxes
-      - includes a first depth-threshold entrance prototype
+      - includes depth-threshold and calibrated-plane entrance trigger modes
+      - calibrated plane mode is the default; threshold mode remains available for fallback/debug
       - depth trigger functions return `DepthEntranceResult` with `entered_track_ids`, `depth_samples`, and `signed_distances_mm`
 
 - `main.py`
@@ -100,6 +101,9 @@ The old on-device `RVC2` experiment scripts were intentionally removed.
 - `replay_depth_tuner.py`
   - replays one recorded RGBD stream through detection, tracking, and depth-based entrance logic
   - writes replayed depth entrance-event timing logs from recorded timestamps and aligned recorded depth
+  - defaults to calibrated plane-trigger mode; `--depth-trigger-mode threshold` remains available for fallback/debug
+  - accepts `--camera-role` as a single-stream debug label; full entrance/observer role resolution lives in `replay_synced_rgbd_streams.py`
+  - supports `--log-visit-decisions` for single-stream `visit_id` creation/matching debug output
   - can optionally run replay-local face identity assignment with `--enable-face-recognition`
   - writes `visit_id` and attached face identity ids into depth event logs
 

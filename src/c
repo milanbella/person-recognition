@@ -10,8 +10,8 @@ set -xe
 #python ./fit_plane_from_aruco.py --device-id 194430107110B32F00
 #python ./replay_depth_tuner.py --device-id 194430107110B32F00 --depth-trigger-mode plane --show-depth-window
 
-#python ./record_rgbd_stream.py --device-id 194430107110B32F00 --duration-seconds 30 --show-preview
-python ./replay_depth_tuner.py --device-id 194430107110B32F00 --depth-trigger-mode plane --show-depth-window --score-threshold 0.7
+#python ./record_rgbd_stream.py --device-id 194430107110B32F00 --duration-seconds 120 --show-preview
+python ./replay_depth_tuner.py --device-id 194430107110B32F00 --camera-role entrance_observer --log-visit-decisions  --enable-face-recognition
 
 
 

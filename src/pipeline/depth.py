@@ -82,8 +82,8 @@ def add_depth_entrance_args(parser: argparse.ArgumentParser) -> argparse.Argumen
     parser.add_argument(
         "--depth-trigger-mode",
         choices=["threshold", "plane"],
-        default="threshold",
-        help="Use simple depth thresholding or 3D plane crossing for entry detection.",
+        default="plane",
+        help="Use simple depth thresholding or 3D plane crossing for entry detection. Default: plane.",
     )
     parser.add_argument(
         "--depth-threshold-mm",

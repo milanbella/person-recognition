@@ -48,6 +48,7 @@ from pipeline.visit_identity import (
     add_visit_identity_args,
     draw_visit_labels,
 )
+from pipeline.visit_registry import CAMERA_ROLE_CHOICES, CAMERA_ROLE_ENTRANCE
 
 
 def build_argparser() -> argparse.ArgumentParser:
@@ -66,6 +67,20 @@ def build_argparser() -> argparse.ArgumentParser:
         type=float,
         default=1.0,
         help="Replay speed multiplier. 1.0 uses recorded frame timing.",
+    )
+    parser.add_argument(
+        "--camera-role",
+        choices=CAMERA_ROLE_CHOICES,
+        default=CAMERA_ROLE_ENTRANCE,
+        help=(
+            "Single-stream replay camera role label. Defaults to entrance. "
+            "Full entrance/observer role resolution is implemented in replay_synced_rgbd_streams.py."
+        ),
+    )
+    parser.add_argument(
+        "--log-visit-decisions",
+        action="store_true",
+        help="Print single-stream visit_id creation and matching decisions for each new track.",
     )
     parser.add_argument(
         "--detector-backend",
@@ -181,6 +196,7 @@ def main() -> None:
         match_threshold=args.visit_match_threshold,
         same_camera_max_age_seconds=args.visit_same_camera_max_age_seconds,
         cross_camera_max_age_seconds=args.visit_cross_camera_max_age_seconds,
+        log_decisions=args.log_visit_decisions,
     )
     depth_states: Dict[int, DepthEntranceState] = {}
 
@@ -205,6 +221,8 @@ def main() -> None:
                 "iou_threshold": args.iou_threshold,
                 "max_missed": args.max_missed,
                 "depth_trigger_mode": args.depth_trigger_mode,
+                "camera_role": args.camera_role,
+                "log_visit_decisions": args.log_visit_decisions,
                 "speed": args.speed,
                 "plane_json": None if args.plane_json is None else str(args.plane_json.resolve()),
                 "plane_enter_direction": plane_enter_direction,
