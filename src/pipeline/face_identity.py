@@ -22,6 +22,9 @@ from pipeline.tracking import Track
 
 DEFAULT_FACE_MATCH_THRESHOLD = 0.68
 DEFAULT_FACE_MIN_DET_SCORE = 0.45
+DEFAULT_FACE_MIN_TRACK_WIDTH_PX = 30
+DEFAULT_FACE_MIN_TRACK_HEIGHT_PX = 80
+FACE_RECOGNITION_TRACK_STATUSES = {"NEW", "TRACKED"}
 
 
 @dataclass
@@ -104,6 +107,18 @@ def add_face_identity_args(parser: argparse.ArgumentParser) -> argparse.Argument
         default=DEFAULT_EMBEDDING_DET_THRESH,
         help="InsightFace detector threshold.",
     )
+    parser.add_argument(
+        "--face-min-track-width-px",
+        type=int,
+        default=DEFAULT_FACE_MIN_TRACK_WIDTH_PX,
+        help="Minimum tracked person box width required before running/accepting face recognition for that track.",
+    )
+    parser.add_argument(
+        "--face-min-track-height-px",
+        type=int,
+        default=DEFAULT_FACE_MIN_TRACK_HEIGHT_PX,
+        help="Minimum tracked person box height required before running/accepting face recognition for that track.",
+    )
     return parser
 
 
@@ -130,6 +145,24 @@ def associate_face_to_track(
         return max(0, track.x2 - track.x1) * max(0, track.y2 - track.y1)
 
     return min(candidates, key=area).track_id
+
+
+def face_recognition_eligible_tracks(
+    tracks: Sequence[Track],
+    *,
+    min_width_px: int = DEFAULT_FACE_MIN_TRACK_WIDTH_PX,
+    min_height_px: int = DEFAULT_FACE_MIN_TRACK_HEIGHT_PX,
+) -> list[Track]:
+    eligible: list[Track] = []
+    for track in tracks:
+        if track.status not in FACE_RECOGNITION_TRACK_STATUSES:
+            continue
+        width = max(0, track.x2 - track.x1)
+        height = max(0, track.y2 - track.y1)
+        if width < min_width_px or height < min_height_px:
+            continue
+        eligible.append(track)
+    return eligible
 
 
 def build_face_recognizer(args: argparse.Namespace) -> FaceRecognizer | None:
@@ -175,6 +208,8 @@ class InsightFaceFaceRecognizer:
         *,
         tracks: Sequence[Track],
     ) -> list[RecognizedFace]:
+        if not tracks:
+            return []
         faces = self.analyzer.get(frame)
         results: list[RecognizedFace] = []
         for face in faces:
@@ -183,16 +218,19 @@ class InsightFaceFaceRecognizer:
             embedding = np.asarray(face.embedding, dtype=np.float32)
             if embedding.size == 0:
                 continue
+            bbox = self._bbox_from_face(face, frame.shape)
+            track_id = associate_face_to_track(bbox, tracks)
+            if track_id is None:
+                continue
             normalized = l2_normalize(embedding)
             identity, score = self._match_or_create(normalized)
-            bbox = self._bbox_from_face(face, frame.shape)
             results.append(
                 RecognizedFace(
                     bbox=bbox,
                     det_score=float(face.det_score),
                     identity_id=identity.identity_id,
                     best_score=score,
-                    track_id=associate_face_to_track(bbox, tracks),
+                    track_id=track_id,
                 )
             )
         return results
@@ -241,11 +279,15 @@ LocalFaceIdentityMatcher = InsightFaceFaceRecognizer
 def draw_recognized_faces(
     frame: np.ndarray,
     faces: Sequence[RecognizedFace],
+    *,
+    show_labels: bool = True,
 ) -> None:
     for face in faces:
         x1, y1, x2, y2 = face.bbox
         color = (0, 255, 255)
         cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+        if not show_labels:
+            continue
         score_text = "new" if face.best_score is None else f"{face.best_score:.2f}"
         track_text = "" if face.track_id is None else f" T{face.track_id}"
         label = f"{face.identity_id}{track_text} {score_text}"

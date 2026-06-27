@@ -39,6 +39,7 @@ from pipeline.face_identity import (
     add_face_identity_args,
     build_face_recognizer,
     draw_recognized_faces,
+    face_recognition_eligible_tracks,
 )
 from pipeline.rgbd_recording import (
     DEFAULT_PLANE_CALIBRATIONS_DIR,
@@ -301,7 +302,14 @@ def build_argparser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--hide-depth-window",
         action="store_true",
-        help="Show only the synchronized RGB window.",
+        default=True,
+        help="Show only the synchronized RGB window. This is the default.",
+    )
+    parser.add_argument(
+        "--show-depth-window",
+        action="store_false",
+        dest="hide_depth_window",
+        help="Show the synchronized tiled depth window for debugging.",
     )
     parser.add_argument(
         "--detector-backend",
@@ -369,8 +377,8 @@ def build_argparser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--depth-trigger-mode",
         choices=["threshold", "plane"],
-        default="threshold",
-        help="Use simple depth thresholding or 3D plane crossing for entry detection.",
+        default="plane",
+        help="Use simple depth thresholding or 3D plane crossing for entry detection. Default: plane.",
     )
     parser.add_argument(
         "--depth-threshold-mm",
@@ -609,7 +617,7 @@ def build_stream_states(
             camera_role=camera_role,
         )
 
-        if args.depth_trigger_mode == "plane":
+        if args.depth_trigger_mode == "plane" and is_entrance_enabled(camera_role):
             args_for_stream = argparse.Namespace(**vars(args))
             args_for_stream.plane_json = resolve_plane_json_path(
                 plane_json=args.plane_json,
@@ -625,6 +633,8 @@ def build_stream_states(
             state.plane = plane_from_args(args_for_stream)
             state.plane_enter_direction = plane_enter_direction_from_args(args_for_stream)
             print(f"Loaded plane for {info.device_id} from {args_for_stream.plane_json}")
+        elif args.depth_trigger_mode == "plane":
+            print(f"Skipping plane load for observer-only device {info.device_id}.")
 
         result.append(state)
     return result
@@ -665,6 +675,9 @@ def main() -> None:
             else args.observer_match_threshold
         ),
         observer_visit_max_age_seconds=args.observer_visit_max_age_seconds,
+        observer_handoff_min_delay_seconds=args.observer_handoff_min_delay_seconds,
+        observer_handoff_max_delay_seconds=args.observer_handoff_max_delay_seconds,
+        observer_handoff_threshold=args.observer_handoff_threshold,
         log_decisions=args.log_visit_decisions,
     )
     stream_states = build_stream_states(streams=streams, args=args, camera_roles=camera_roles)
@@ -827,7 +840,8 @@ def build_processed_rgb_frame(
     detections = detector.detect(rgb_frame)
     tracks = state.tracker.update(detections)
 
-    if args.depth_trigger_mode == "plane":
+    entrance_enabled = is_entrance_enabled(state.camera_role)
+    if args.depth_trigger_mode == "plane" and entrance_enabled:
         depth_result = process_depth_plane_logic(
             tracks=tracks,
             depth_frame_mm=depth_frame_mm,
@@ -858,7 +872,12 @@ def build_processed_rgb_frame(
 
     recognized_faces = []
     if face_matcher is not None:
-        recognized_faces = face_matcher.recognize(rgb_frame, tracks=tracks)
+        face_tracks = face_recognition_eligible_tracks(
+            tracks,
+            min_width_px=args.face_min_track_width_px,
+            min_height_px=args.face_min_track_height_px,
+        )
+        recognized_faces = face_matcher.recognize(rgb_frame, tracks=face_tracks)
     body_evidence_by_track = body_evidence_extractor.extract(rgb_frame, tracks=tracks)
     host_seconds = (
         0.0
@@ -879,7 +898,8 @@ def build_processed_rgb_frame(
         artifact_writer.write_track_evidence(track_evidence)
     visit_assignments = {}
     observer_enabled = is_observer_enabled(state.camera_role)
-    entrance_enabled = is_entrance_enabled(state.camera_role)
+    if not entrance_enabled:
+        entered_track_ids = []
     for track_id, track_evidence in track_visit_evidence_by_id.items():
         decision = visit_registry.resolve_existing_track(track_evidence)
         resolution = "existing_track"
@@ -946,7 +966,7 @@ def build_processed_rgb_frame(
             )
 
     draw_tracks(overlay, tracks)
-    draw_visit_labels(overlay, tracks, visit_assignments)
+    draw_visit_labels(overlay, tracks, visit_assignments, show_face_evidence=False)
     draw_depth_samples(
         overlay,
         tracks=tracks,
@@ -956,7 +976,7 @@ def build_processed_rgb_frame(
         plane_mode=args.depth_trigger_mode == "plane",
     )
     if face_matcher is not None:
-        draw_recognized_faces(overlay, recognized_faces)
+        draw_recognized_faces(overlay, recognized_faces, show_labels=False)
     state.last_processed_frame_index = (
         None if state.stream.current_frame_meta is None else state.stream.current_frame_meta.frame_index
     )

@@ -16,6 +16,9 @@ from pipeline.visit_identity import BodyAppearance, VisitAssignment
 DEFAULT_ENTRANCE_MERGE_WINDOW_SECONDS = 2.0
 DEFAULT_OBSERVER_MATCH_THRESHOLD = 0.58
 DEFAULT_OBSERVER_VISIT_MAX_AGE_SECONDS = 1800.0
+DEFAULT_OBSERVER_HANDOFF_MIN_DELAY_SECONDS = 0.0
+DEFAULT_OBSERVER_HANDOFF_MAX_DELAY_SECONDS = 8.0
+DEFAULT_OBSERVER_HANDOFF_THRESHOLD = 0.35
 
 VISIT_ORIGIN_ENTRANCE = "entrance_confirmed"
 VISIT_ORIGIN_OBSERVER = "observer_only"
@@ -119,6 +122,24 @@ def add_visit_registry_args(parser: argparse.ArgumentParser) -> argparse.Argumen
         help="How long inactive visits remain match candidates for observer cameras.",
     )
     parser.add_argument(
+        "--observer-handoff-min-delay-seconds",
+        type=float,
+        default=DEFAULT_OBSERVER_HANDOFF_MIN_DELAY_SECONDS,
+        help="Minimum delay after an entrance event for temporal handoff to an observer track.",
+    )
+    parser.add_argument(
+        "--observer-handoff-max-delay-seconds",
+        type=float,
+        default=DEFAULT_OBSERVER_HANDOFF_MAX_DELAY_SECONDS,
+        help="Maximum delay after an entrance event for temporal handoff to an observer track.",
+    )
+    parser.add_argument(
+        "--observer-handoff-threshold",
+        type=float,
+        default=DEFAULT_OBSERVER_HANDOFF_THRESHOLD,
+        help="Minimum temporal handoff score required to attach a new observer track to an entrance-confirmed visit.",
+    )
+    parser.add_argument(
         "--log-visit-decisions",
         action="store_true",
         help="Print visit registry assignment and merge decisions for tuning.",
@@ -159,11 +180,17 @@ class VisitRegistry:
         entrance_merge_window_seconds: float = DEFAULT_ENTRANCE_MERGE_WINDOW_SECONDS,
         observer_match_threshold: float = DEFAULT_OBSERVER_MATCH_THRESHOLD,
         observer_visit_max_age_seconds: float = DEFAULT_OBSERVER_VISIT_MAX_AGE_SECONDS,
+        observer_handoff_min_delay_seconds: float = DEFAULT_OBSERVER_HANDOFF_MIN_DELAY_SECONDS,
+        observer_handoff_max_delay_seconds: float = DEFAULT_OBSERVER_HANDOFF_MAX_DELAY_SECONDS,
+        observer_handoff_threshold: float = DEFAULT_OBSERVER_HANDOFF_THRESHOLD,
         log_decisions: bool = False,
     ) -> None:
         self.entrance_merge_window_seconds = entrance_merge_window_seconds
         self.observer_match_threshold = observer_match_threshold
         self.observer_visit_max_age_seconds = observer_visit_max_age_seconds
+        self.observer_handoff_min_delay_seconds = observer_handoff_min_delay_seconds
+        self.observer_handoff_max_delay_seconds = observer_handoff_max_delay_seconds
+        self.observer_handoff_threshold = observer_handoff_threshold
         self.log_decisions = log_decisions
         self.next_visit_id = 1
         self.visits: dict[int, ShopVisit] = {}
@@ -193,6 +220,22 @@ class VisitRegistry:
         existing = self.resolve_existing_track(observation)
         if existing is not None:
             visit = self.visits[existing.assignment.visit_id]
+            if visit.origin != VISIT_ORIGIN_ENTRANCE:
+                entrance_visit = self._find_entrance_time_match(observation, exclude_visit_id=visit.visit_id)
+                if entrance_visit is not None:
+                    merged_visit = self._merge_visits(target=entrance_visit, source=visit)
+                    self._bind_track(observation, merged_visit)
+                    self._update_visit(merged_visit, observation)
+                    if observation.host_seconds not in merged_visit.entrance_observation_times:
+                        merged_visit.entrance_observation_times.append(observation.host_seconds)
+                    return self._decision(
+                        observation=observation,
+                        visit=merged_visit,
+                        decision="entrance_merged",
+                        reason="existing_observer_track_merged_by_entrance_time_window",
+                        score=None,
+                        matched_visit_id=merged_visit.visit_id,
+                    )
             if visit.origin != VISIT_ORIGIN_ENTRANCE:
                 visit.origin = VISIT_ORIGIN_ENTRANCE
                 existing.assignment.origin = visit.origin
@@ -262,6 +305,23 @@ class VisitRegistry:
                 matched_visit_id=visit.visit_id,
             )
 
+        handoff_visit, handoff_score, handoff_breakdown = self._find_entrance_handoff_match(
+            observation
+        )
+        if handoff_visit is not None and handoff_score is not None:
+            self._bind_track(observation, handoff_visit)
+            self._update_visit(handoff_visit, observation)
+            handoff_visit.observer_observation_count += 1
+            return self._decision(
+                observation=observation,
+                visit=handoff_visit,
+                decision="observer_handoff_reused",
+                reason="entrance_handoff_time_window",
+                score=handoff_score,
+                matched_visit_id=handoff_visit.visit_id,
+                score_breakdown=handoff_breakdown,
+            )
+
         visit, score, score_breakdown = self._find_best_observer_match(
             observation,
             preferred_origin=VISIT_ORIGIN_ENTRANCE,
@@ -298,10 +358,17 @@ class VisitRegistry:
             score_breakdown=score_breakdown,
         )
 
-    def _find_entrance_time_match(self, observation: TrackVisitEvidence) -> ShopVisit | None:
+    def _find_entrance_time_match(
+        self,
+        observation: TrackVisitEvidence,
+        *,
+        exclude_visit_id: int | None = None,
+    ) -> ShopVisit | None:
         best_visit: ShopVisit | None = None
         best_gap = float("inf")
         for visit in self.visits.values():
+            if visit.visit_id == exclude_visit_id:
+                continue
             if visit.origin != VISIT_ORIGIN_ENTRANCE:
                 continue
             for event_time in visit.entrance_observation_times:
@@ -389,6 +456,73 @@ class VisitRegistry:
     def _bind_track(self, observation: TrackVisitEvidence, visit: ShopVisit) -> None:
         self.track_to_visit[(observation.device_id, observation.track_id)] = visit.visit_id
 
+    def _merge_visits(self, *, target: ShopVisit, source: ShopVisit) -> ShopVisit:
+        if target.visit_id == source.visit_id:
+            return target
+
+        target.merged_visit_ids.add(source.visit_id)
+        target.merged_visit_ids.update(source.merged_visit_ids)
+        target.created_host_seconds = min(target.created_host_seconds, source.created_host_seconds)
+        source_is_newer = source.last_seen_host_seconds > target.last_seen_host_seconds
+        target.last_seen_host_seconds = max(target.last_seen_host_seconds, source.last_seen_host_seconds)
+        if source_is_newer:
+            target.last_device_id = source.last_device_id
+            target.last_track_id = source.last_track_id
+
+        total_count = target.observation_count + source.observation_count
+        if source.appearance is not None:
+            if target.appearance is None:
+                target.appearance = source.appearance
+            elif total_count > 0:
+                merged_hist = (
+                    (target.appearance.histogram * target.observation_count)
+                    + (source.appearance.histogram * source.observation_count)
+                ) / max(total_count, 1)
+                norm = float(np.linalg.norm(merged_hist))
+                if norm > 1e-8:
+                    merged_hist = merged_hist / norm
+                target.appearance = BodyAppearance(
+                    histogram=merged_hist.astype(np.float32),
+                    aspect_ratio=(
+                        (target.appearance.aspect_ratio * target.observation_count)
+                        + (source.appearance.aspect_ratio * source.observation_count)
+                    )
+                    / max(total_count, 1),
+                    height_px=int(
+                        round(
+                            (
+                                (target.appearance.height_px * target.observation_count)
+                                + (source.appearance.height_px * source.observation_count)
+                            )
+                            / max(total_count, 1)
+                        )
+                    ),
+                )
+
+        if source.depth_mm is not None:
+            if target.depth_mm is None:
+                target.depth_mm = source.depth_mm
+            elif total_count > 0:
+                target.depth_mm = (
+                    (target.depth_mm * target.observation_count)
+                    + (source.depth_mm * source.observation_count)
+                ) / max(total_count, 1)
+
+        target.face_identity_ids.update(source.face_identity_ids)
+        for face_id in source.face_identity_ids:
+            self.face_to_visit[face_id] = target.visit_id
+        target.entrance_observation_times = sorted(
+            set(target.entrance_observation_times + source.entrance_observation_times)
+        )
+        target.observer_observation_count += source.observer_observation_count
+        target.observation_count = total_count
+
+        for track_key, visit_id in list(self.track_to_visit.items()):
+            if visit_id == source.visit_id:
+                self.track_to_visit[track_key] = target.visit_id
+        del self.visits[source.visit_id]
+        return target
+
     def _update_visit(self, visit: ShopVisit, observation: TrackVisitEvidence) -> None:
         count = visit.observation_count
         if observation.body_appearance is not None:
@@ -459,9 +593,15 @@ class VisitRegistry:
                     f"appearance={float(score_breakdown.get('appearance_score', 0.0)):.3f} "
                     f"depth={float(score_breakdown.get('depth_score', 0.0)):.3f} "
                     f"time={float(score_breakdown.get('time_score', 0.0)):.3f} "
-                    f"face={float(score_breakdown.get('face_score', 0.0)):.3f} "
-                    f"bonus={float(score_breakdown.get('entrance_bonus', 0.0)):.3f}"
+                f"face={float(score_breakdown.get('face_score', 0.0)):.3f} "
+                f"bonus={float(score_breakdown.get('entrance_bonus', 0.0)):.3f}"
                 )
+                if "handoff_delay_seconds" in score_breakdown:
+                    breakdown_text += (
+                        f" handoff_delay={float(score_breakdown.get('handoff_delay_seconds', 0.0)):.3f}"
+                        f" handoff_time={float(score_breakdown.get('handoff_time_score', 0.0)):.3f}"
+                        f" handoff_candidates={int(score_breakdown.get('handoff_candidate_count', 0))}"
+                    )
             print(
                 f"VISIT_REGISTRY device_id={observation.device_id} track_id={observation.track_id} "
                 f"visit_id={visit.visit_id} origin={visit.origin} decision={decision} "
@@ -469,6 +609,97 @@ class VisitRegistry:
                 f"{breakdown_text}"
             )
         return result
+
+    def _find_entrance_handoff_match(
+        self,
+        observation: TrackVisitEvidence,
+    ) -> tuple[ShopVisit | None, float | None, dict[str, float | int | str | None] | None]:
+        window = self.observer_handoff_max_delay_seconds - self.observer_handoff_min_delay_seconds
+        if window <= 0.0:
+            return None, None, None
+
+        candidates_by_visit_id: dict[int, tuple[float, ShopVisit, float, float]] = {}
+        for visit in self.visits.values():
+            if visit.origin != VISIT_ORIGIN_ENTRANCE:
+                continue
+            for entrance_time in visit.entrance_observation_times:
+                delay_seconds = observation.host_seconds - entrance_time
+                if delay_seconds < self.observer_handoff_min_delay_seconds:
+                    continue
+                if delay_seconds > self.observer_handoff_max_delay_seconds:
+                    continue
+                time_score = 1.0 - (
+                    (delay_seconds - self.observer_handoff_min_delay_seconds) / window
+                )
+                existing = candidates_by_visit_id.get(visit.visit_id)
+                if existing is None or time_score > existing[0]:
+                    candidates_by_visit_id[visit.visit_id] = (
+                        time_score,
+                        visit,
+                        delay_seconds,
+                        entrance_time,
+                    )
+
+        candidates = list(candidates_by_visit_id.values())
+        if not candidates:
+            return None, None, None
+
+        candidates.sort(key=lambda item: item[0], reverse=True)
+        best_score, best_visit, best_delay, best_entrance_time = candidates[0]
+        if best_score < self.observer_handoff_threshold:
+            return None, best_score, {
+                "candidate_visit_id": best_visit.visit_id,
+                "candidate_origin": best_visit.origin,
+                "handoff_delay_seconds": best_delay,
+                "handoff_entrance_time": best_entrance_time,
+                "handoff_time_score": best_score,
+                "handoff_candidate_count": len(candidates),
+                "appearance_score": _appearance_similarity(observation.body_appearance, best_visit.appearance),
+                "depth_score": _depth_similarity(observation.depth_mm, best_visit.depth_mm),
+                "time_score": best_score,
+                "face_score": 1.0 if set(observation.face_identity_ids) & best_visit.face_identity_ids else 0.0,
+                "entrance_bonus": 0.0,
+                "weighted_score": best_score,
+            }
+
+        # If two entrance visits have almost identical handoff timing, time alone is ambiguous.
+        ambiguous_candidates = [
+            candidate
+            for candidate in candidates[1:]
+            if (best_score - candidate[0]) <= 0.05
+        ]
+        if ambiguous_candidates:
+            return None, best_score, {
+                "candidate_visit_id": best_visit.visit_id,
+                "candidate_origin": best_visit.origin,
+                "handoff_delay_seconds": best_delay,
+                "handoff_entrance_time": best_entrance_time,
+                "handoff_time_score": best_score,
+                "handoff_candidate_count": len(candidates),
+                "handoff_ambiguous_count": len(ambiguous_candidates),
+                "appearance_score": _appearance_similarity(observation.body_appearance, best_visit.appearance),
+                "depth_score": _depth_similarity(observation.depth_mm, best_visit.depth_mm),
+                "time_score": best_score,
+                "face_score": 1.0 if set(observation.face_identity_ids) & best_visit.face_identity_ids else 0.0,
+                "entrance_bonus": 0.0,
+                "weighted_score": best_score,
+            }
+
+        breakdown = {
+            "candidate_visit_id": best_visit.visit_id,
+            "candidate_origin": best_visit.origin,
+            "handoff_delay_seconds": best_delay,
+            "handoff_entrance_time": best_entrance_time,
+            "handoff_time_score": best_score,
+            "handoff_candidate_count": len(candidates),
+            "appearance_score": _appearance_similarity(observation.body_appearance, best_visit.appearance),
+            "depth_score": _depth_similarity(observation.depth_mm, best_visit.depth_mm),
+            "time_score": best_score,
+            "face_score": 1.0 if set(observation.face_identity_ids) & best_visit.face_identity_ids else 0.0,
+            "entrance_bonus": 0.0,
+            "weighted_score": best_score,
+        }
+        return best_visit, best_score, breakdown
 
 
 def _appearance_similarity(left: BodyAppearance | None, right: BodyAppearance | None) -> float:

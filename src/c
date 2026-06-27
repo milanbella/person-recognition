@@ -1,17 +1,40 @@
 set -xe
+
+# 194430107110B32F00 name=3.4.1               1 entrance_observer 
+# 1944301051851C1300 name=3.3.1.1.1 2         3 observer
+# 194430103142B32F00 name=5.1.1.1             2 entrance_observer 
+# 194430105114AF2F00 name=3.2.1.1 
+# 1944301061B0B32F00 name=3.1.1.1             4  observer
+
+#194430107110B32F00 194430103142B32F00 1944301051851C1300 1944301061B0B32F00 entrance_observer entrance_observer observer observer
+
+
+
 #python ./main.py --device-id 194430107110B32F00
 #python ./main.py --device-id 19443010C10A3A2E00
 #python ./detect_door_aruco.py --device-id 194430107110B32F00 --show-rejected
 #python ./detect_door_aruco.py --device-id 194430107110B32F00 --dictionary DICT_4X4_50 --show-rejected
 #python ./detect_door_aruco.py --device-id 194430107110B32F00
-#python ./detect_door_aruco.py --device-id 19443010C10A3A2E00
+#python ./detect_door_aruco.py --device-id 194430103142B32F00
+
+#python ./fit_plane_from_aruco.py --device-id 194430107110B32F00
+#python ./fit_plane_from_aruco.py --device-id 194430103142B32F00
+
 
 #python ./record_rgbd_stream.py --device-id 194430107110B32F00 --duration-seconds 10
 #python ./fit_plane_from_aruco.py --device-id 194430107110B32F00
 #python ./replay_depth_tuner.py --device-id 194430107110B32F00 --depth-trigger-mode plane --show-depth-window
 
 #python ./record_rgbd_stream.py --device-id 194430107110B32F00 --duration-seconds 120 --show-preview
-python ./replay_depth_tuner.py --device-id 194430107110B32F00 --camera-role entrance_observer --log-visit-decisions  --enable-face-recognition
+#python ./replay_depth_tuner.py --device-id 194430107110B32F00 --camera-role entrance_observer --log-visit-decisions  --enable-face-recognition
+
+#python ./record_rgbd_stream.py --device-id 194430107110B32F00 --duration-seconds 120 &
+#python ./record_rgbd_stream.py --device-id 194430103142B32F00 --duration-seconds 120 &
+#python ./record_rgbd_stream.py --device-id 1944301051851C1300 --duration-seconds 120 &
+#python ./record_rgbd_stream.py --device-id 1944301061B0B32F00 --duration-seconds 120 &
+#wait
+
+python ./replay_synced_rgbd_streams.py --device-id 194430107110B32F00 194430103142B32F00 1944301051851C1300 1944301061B0B32F00 --camera-role entrance_observer entrance_observer observer observer --output-dir ./synced_test_001 --log-visit-decisions --enable-face-recognition
 
 
 

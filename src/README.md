@@ -44,6 +44,7 @@ The old on-device `RVC2` experiment scripts were intentionally removed.
       - generic face recognizer protocol/factory and current InsightFace/ArcFace replay-local identity assignment
       - current face backend is `insightface`; use `--face-backend insightface`
       - attaches observed `face_person_###` labels to tracked faces during RGBD replay
+      - face recognition is limited to `NEW` / `TRACKED` person tracks above the minimum face-track size thresholds
     - `pipeline.body_evidence`
       - generic per-track body evidence extractor protocol/factory
       - current body backend is `hsv`; use `--body-backend hsv`
@@ -54,11 +55,14 @@ The old on-device `RVC2` experiment scripts were intentionally removed.
     - `pipeline.visit_identity`
       - within-visit physical-person identity layer above temporary `track_id`
       - reattaches new track ids to existing `visit_id` values using clothing/body appearance, depth, and recent timing
+      - default visit match threshold is `0.45`
       - treats fragmented `face_person_###` labels as evidence attached to a visit, not as the only visit identity source
+      - frame overlays show `V#_E` for entrance-confirmed visits and `V#_O` for observer-only visits
     - `pipeline.visit_registry`
       - shop-wide active visit registry for synchronized multi-camera replay
       - merges entrance-camera plane events into one `entrance_confirmed` visit by timestamp window
       - lets observer cameras attach to entrance-confirmed visits or create `observer_only` visits when no match is found
+      - supports temporal entrance-to-observer handoff for new observer tracks that appear shortly after an entrance event
       - builds visit observations from normalized evidence, not raw RGB frames
       - uses `FrameEvidence` for one camera frame and `TrackVisitEvidence` for one track's visit-matching evidence
 - `pipeline.entry_session`
@@ -89,13 +93,16 @@ The old on-device `RVC2` experiment scripts were intentionally removed.
 
 - `replay_synced_rgbd_streams.py`
   - replays multiple recorded RGBD streams in sync using recorded RGB frame timestamps
-  - shows synchronized tiled RGB views and optional synchronized tiled depth views
+  - shows synchronized tiled RGB views; depth view is hidden by default and can be enabled with `--show-depth-window`
   - accepts one or more `--device-id` values and derives the matching RGBD recording folders
+  - defaults to calibrated plane-trigger mode
   - can optionally run replay-local face identity assignment with `--enable-face-recognition`
   - assigns shared registry-owned `visit_id` labels across the synchronized replay
   - defaults every stream to `--camera-role entrance`
   - supports `--camera-role entrance_observer` for entrance cameras that should also contribute observer evidence
   - supports `--camera-role observer` for in-shop observer streams
+  - observer-only streams do not require plane calibration and never emit entrance events
+  - supports temporal entrance-to-observer handoff via `--observer-handoff-*` tuning flags
   - supports `--output-dir` for replay artifacts: visit decisions, track visit evidence, entrance events, and final visit summaries
 
 - `replay_depth_tuner.py`
@@ -104,7 +111,9 @@ The old on-device `RVC2` experiment scripts were intentionally removed.
   - defaults to calibrated plane-trigger mode; `--depth-trigger-mode threshold` remains available for fallback/debug
   - accepts `--camera-role` as a single-stream debug label; full entrance/observer role resolution lives in `replay_synced_rgbd_streams.py`
   - supports `--log-visit-decisions` for single-stream `visit_id` creation/matching debug output
+  - uses `observer_only` for unconfirmed local visit hypotheses and promotes the visit to `entrance_confirmed` when a plane entry event fires
   - can optionally run replay-local face identity assignment with `--enable-face-recognition`
+  - skips face assignment for `LOST` / `REMOVED` tracks and tracks below `--face-min-track-width-px` / `--face-min-track-height-px`
   - writes `visit_id` and attached face identity ids into depth event logs
 
 - `fit_plane_from_tags.py`

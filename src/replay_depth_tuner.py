@@ -34,6 +34,7 @@ from pipeline.face_identity import (
     add_face_identity_args,
     build_face_recognizer,
     draw_recognized_faces,
+    face_recognition_eligible_tracks,
 )
 from pipeline.rgbd_recording import (
     DEFAULT_PLANE_CALIBRATIONS_DIR,
@@ -44,11 +45,18 @@ from pipeline.rgbd_recording import (
 )
 from pipeline.tracking import build_person_tracker, draw_tracks
 from pipeline.visit_identity import (
+    VISIT_ORIGIN_ENTRANCE,
+    VISIT_ORIGIN_OBSERVER,
     VisitIdentityManager,
     add_visit_identity_args,
     draw_visit_labels,
 )
-from pipeline.visit_registry import CAMERA_ROLE_CHOICES, CAMERA_ROLE_ENTRANCE
+from pipeline.visit_registry import (
+    CAMERA_ROLE_CHOICES,
+    CAMERA_ROLE_ENTRANCE,
+    CAMERA_ROLE_ENTRANCE_OBSERVER,
+    CAMERA_ROLE_OBSERVER,
+)
 
 
 def build_argparser() -> argparse.ArgumentParser:
@@ -154,6 +162,12 @@ def build_event_log_path(recording_dir: Path, explicit_path: Path | None) -> Pat
     return recording_dir / "depth_events.jsonl"
 
 
+def default_visit_origin_for_camera_role(camera_role: str) -> str:
+    if camera_role in {CAMERA_ROLE_OBSERVER, CAMERA_ROLE_ENTRANCE_OBSERVER, CAMERA_ROLE_ENTRANCE}:
+        return VISIT_ORIGIN_OBSERVER
+    return VISIT_ORIGIN_OBSERVER
+
+
 def main() -> None:
     args = build_argparser().parse_args()
     recording_dir = resolve_recording_dir(
@@ -197,6 +211,7 @@ def main() -> None:
         same_camera_max_age_seconds=args.visit_same_camera_max_age_seconds,
         cross_camera_max_age_seconds=args.visit_cross_camera_max_age_seconds,
         log_decisions=args.log_visit_decisions,
+        default_origin=default_visit_origin_for_camera_role(args.camera_role),
     )
     depth_states: Dict[int, DepthEntranceState] = {}
 
@@ -285,7 +300,12 @@ def main() -> None:
 
             recognized_faces = []
             if face_matcher is not None:
-                recognized_faces = face_matcher.recognize(rgb_frame, tracks=tracks)
+                face_tracks = face_recognition_eligible_tracks(
+                    tracks,
+                    min_width_px=args.face_min_track_width_px,
+                    min_height_px=args.face_min_track_height_px,
+                )
+                recognized_faces = face_matcher.recognize(rgb_frame, tracks=face_tracks)
             body_evidence_by_track = body_evidence_extractor.extract(rgb_frame, tracks=tracks)
             body_appearances = {
                 track_id: evidence.appearance
@@ -307,6 +327,12 @@ def main() -> None:
                 if sample is None:
                     continue
                 visit_assignment = visit_assignments.get(track_id)
+                if visit_assignment is not None:
+                    visit_manager.promote_visit_origin(
+                        visit_assignment.visit_id,
+                        VISIT_ORIGIN_ENTRANCE,
+                    )
+                    visit_assignment.origin = VISIT_ORIGIN_ENTRANCE
                 event_count += 1
                 event_payload = {
                     "type": "depth_plane_entry_event"
@@ -322,6 +348,7 @@ def main() -> None:
                     "matched_depth_delta_ms": frame_meta.matched_depth_delta_ms,
                     "depth_mm": sample.depth_mm,
                     "visit_id": None if visit_assignment is None else visit_assignment.visit_id,
+                    "origin": None if visit_assignment is None else visit_assignment.origin,
                     "face_identity_ids": []
                     if visit_assignment is None
                     else list(visit_assignment.face_identity_ids),
@@ -334,6 +361,7 @@ def main() -> None:
                     print(
                         f"DEPTH_PLANE_ENTRY_EVENT track_id={track_id} "
                         f"visit_id={None if visit_assignment is None else visit_assignment.visit_id} "
+                        f"origin={None if visit_assignment is None else visit_assignment.origin} "
                         f"host_synced_seconds={frame_meta.rgb_host_synced_seconds:.3f} "
                         f"plane_mm={signed_distances_mm.get(track_id, float('nan')):.0f} "
                         f"depth_mm={sample.depth_mm:.0f}"
@@ -342,6 +370,7 @@ def main() -> None:
                     print(
                         f"DEPTH_ENTRY_EVENT track_id={track_id} "
                         f"visit_id={None if visit_assignment is None else visit_assignment.visit_id} "
+                        f"origin={None if visit_assignment is None else visit_assignment.origin} "
                         f"host_synced_seconds={frame_meta.rgb_host_synced_seconds:.3f} "
                         f"depth_mm={sample.depth_mm:.0f}"
                     )

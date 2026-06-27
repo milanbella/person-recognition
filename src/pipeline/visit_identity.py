@@ -12,9 +12,11 @@ from pipeline.face_identity import RecognizedFace
 from pipeline.tracking import Track
 
 
-DEFAULT_VISIT_APPEARANCE_THRESHOLD = 0.60
+DEFAULT_VISIT_APPEARANCE_THRESHOLD = 0.45
 DEFAULT_VISIT_SAME_CAMERA_MAX_AGE_SECONDS = 8.0
 DEFAULT_VISIT_CROSS_CAMERA_MAX_AGE_SECONDS = 4.0
+VISIT_ORIGIN_ENTRANCE = "entrance_confirmed"
+VISIT_ORIGIN_OBSERVER = "observer_only"
 
 
 @dataclass
@@ -27,6 +29,7 @@ class BodyAppearance:
 @dataclass
 class VisitIdentity:
     visit_id: int
+    origin: str
     last_seen_host_seconds: float
     last_device_id: str
     last_track_id: int
@@ -44,7 +47,7 @@ class VisitAssignment:
     device_id: str
     face_identity_ids: tuple[str, ...]
     matched_score: float | None
-    origin: str = "local"
+    origin: str = VISIT_ORIGIN_OBSERVER
 
 
 def add_visit_identity_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
@@ -103,20 +106,22 @@ def draw_visit_labels(
     frame: np.ndarray,
     tracks: Sequence[Track],
     assignments: Mapping[int, VisitAssignment],
+    *,
+    show_face_evidence: bool = True,
 ) -> None:
     for track in tracks:
         assignment = assignments.get(track.track_id)
         if assignment is None:
             continue
         face_suffix = ""
-        if assignment.face_identity_ids:
+        if show_face_evidence and assignment.face_identity_ids:
             compact_faces = ",".join(face_id.replace("face_person_", "F") for face_id in assignment.face_identity_ids)
             face_suffix = f" {compact_faces}"
         origin_suffix = ""
         if assignment.origin == "entrance_confirmed":
-            origin_suffix = "E"
+            origin_suffix = "_E"
         elif assignment.origin == "observer_only":
-            origin_suffix = "O"
+            origin_suffix = "_O"
         label = f"V{assignment.visit_id}{origin_suffix}{face_suffix}"
         y = min(frame.shape[0] - 10, max(40, track.y1 + 22))
         cv2.putText(
@@ -149,11 +154,13 @@ class VisitIdentityManager:
         same_camera_max_age_seconds: float = DEFAULT_VISIT_SAME_CAMERA_MAX_AGE_SECONDS,
         cross_camera_max_age_seconds: float = DEFAULT_VISIT_CROSS_CAMERA_MAX_AGE_SECONDS,
         log_decisions: bool = False,
+        default_origin: str = VISIT_ORIGIN_OBSERVER,
     ) -> None:
         self.match_threshold = match_threshold
         self.same_camera_max_age_seconds = same_camera_max_age_seconds
         self.cross_camera_max_age_seconds = cross_camera_max_age_seconds
         self.log_decisions = log_decisions
+        self.default_origin = default_origin
         self.next_visit_id = 1
         self.visits: dict[int, VisitIdentity] = {}
         self.track_to_visit: dict[tuple[str, int], int] = {}
@@ -239,9 +246,16 @@ class VisitIdentityManager:
                 device_id=device_id,
                 face_identity_ids=tuple(sorted(visit.face_identity_ids)),
                 matched_score=matched_score,
+                origin=visit.origin,
             )
 
         return assignments
+
+    def promote_visit_origin(self, visit_id: int, origin: str) -> None:
+        visit = self.visits.get(visit_id)
+        if visit is None:
+            return
+        visit.origin = origin
 
     def _visit_from_known_face(self, face_ids: set[str]) -> int | None:
         for face_id in sorted(face_ids):
@@ -291,6 +305,7 @@ class VisitIdentityManager:
         self.next_visit_id += 1
         self.visits[visit_id] = VisitIdentity(
             visit_id=visit_id,
+            origin=self.default_origin,
             last_seen_host_seconds=host_seconds,
             last_device_id=device_id,
             last_track_id=track_id,

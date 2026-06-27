@@ -27,6 +27,18 @@ def build_argparser() -> argparse.ArgumentParser:
         default=DEFAULT_CAMERA_FPS,
         help="Camera output FPS.",
     )
+    parser.add_argument(
+        "--width",
+        type=int,
+        default=PREVIEW_WIDTH,
+        help="Requested RGB preview width.",
+    )
+    parser.add_argument(
+        "--height",
+        type=int,
+        default=PREVIEW_HEIGHT,
+        help="Requested RGB preview height.",
+    )
     return parser
 
 
@@ -39,11 +51,14 @@ def main() -> None:
     print_connected_device(device)
 
     with dai.Pipeline(device) as pipeline:
-        print("Step 1: host-side RGB frame capture and preview.")
+        print(
+            "Step 1: host-side RGB frame capture and preview "
+            f"size={args.width}x{args.height} fps={args.fps}."
+        )
 
         camera = pipeline.create(dai.node.Camera).build()
         camera_out = camera.requestOutput(
-            size=(PREVIEW_WIDTH, PREVIEW_HEIGHT),
+            size=(args.width, args.height),
             type=dai.ImgFrame.Type.BGR888p,
             fps=args.fps,
         )
