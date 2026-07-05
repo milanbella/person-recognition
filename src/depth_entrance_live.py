@@ -140,6 +140,10 @@ def main() -> None:
                         min_valid_pixels=args.depth_min_valid_pixels,
                         roi_width_fraction=args.depth_roi_width_fraction,
                         roi_height_fraction=args.depth_roi_height_fraction,
+                        host_seconds=float(rgb_message.getTimestamp().total_seconds()),
+                        track_split_recovery=args.plane_track_split_recovery,
+                        track_split_recovery_max_age_seconds=args.plane_track_split_recovery_max_age_seconds,
+                        track_split_recovery_max_centroid_distance_px=args.plane_track_split_recovery_max_centroid_distance_px,
                     )
                 else:
                     depth_result = process_depth_entrance_logic(
@@ -154,8 +158,13 @@ def main() -> None:
                         roi_height_fraction=args.depth_roi_height_fraction,
                     )
                 entered_track_ids = depth_result.entered_track_ids
+                exited_track_ids = depth_result.exited_track_ids
                 depth_samples = depth_result.depth_samples
                 signed_distances_mm = depth_result.signed_distances_mm
+                entry_reasons_by_track = depth_result.entry_reasons_by_track
+                recovered_entry_source_track_ids = depth_result.recovered_entry_source_track_ids
+                leave_reasons_by_track = depth_result.leave_reasons_by_track
+                recovered_leave_source_track_ids = depth_result.recovered_leave_source_track_ids
 
                 for track_id in entered_track_ids:
                     sample = depth_samples.get(track_id)
@@ -165,11 +174,29 @@ def main() -> None:
                         signed_mm = signed_distances_mm.get(track_id, float("nan"))
                         print(
                             f"DEPTH_PLANE_ENTRY_EVENT track_id={track_id} "
+                            f"reason={entry_reasons_by_track.get(track_id, 'direct_crossing')} "
+                            f"source_track_id={recovered_entry_source_track_ids.get(track_id)} "
                             f"depth_mm={sample.depth_mm:.0f} plane_mm={signed_mm:.0f}"
                         )
                     else:
                         print(
                             f"DEPTH_ENTRY_EVENT track_id={track_id} depth_mm={sample.depth_mm:.0f}"
+                        )
+                for track_id in exited_track_ids:
+                    sample = depth_samples.get(track_id)
+                    if sample is None:
+                        continue
+                    if args.depth_trigger_mode == "plane":
+                        signed_mm = signed_distances_mm.get(track_id, float("nan"))
+                        print(
+                            f"DEPTH_PLANE_LEAVE_EVENT track_id={track_id} "
+                            f"reason={leave_reasons_by_track.get(track_id, 'direct_crossing')} "
+                            f"source_track_id={recovered_leave_source_track_ids.get(track_id)} "
+                            f"depth_mm={sample.depth_mm:.0f} plane_mm={signed_mm:.0f}"
+                        )
+                    else:
+                        print(
+                            f"DEPTH_LEAVE_EVENT track_id={track_id} depth_mm={sample.depth_mm:.0f}"
                         )
                 if entered_track_ids:
                     prefix = "PLANE ENTRY" if args.depth_trigger_mode == "plane" else "DEPTH ENTRY"

@@ -72,7 +72,7 @@ The old on-device `RVC2` experiment scripts were intentionally removed.
       - shared helpers for sampling aligned stereo depth inside tracked person boxes
       - includes depth-threshold and calibrated-plane entrance trigger modes
       - calibrated plane mode is the default; threshold mode remains available for fallback/debug
-      - depth trigger functions return `DepthEntranceResult` with `entered_track_ids`, `depth_samples`, and `signed_distances_mm`
+      - depth trigger functions return `DepthEntranceResult` with `entered_track_ids`, `exited_track_ids`, `depth_samples`, and `signed_distances_mm`
 
 - `main.py`
   - host-side camera capture baseline
@@ -103,11 +103,27 @@ The old on-device `RVC2` experiment scripts were intentionally removed.
   - supports `--camera-role observer` for in-shop observer streams
   - observer-only streams do not require plane calibration and never emit entrance events
   - supports temporal entrance-to-observer handoff via `--observer-handoff-*` tuning flags
-  - supports `--output-dir` for replay artifacts: visit decisions, track visit evidence, entrance events, and final visit summaries
+  - supports `--log-plane-trace` for per-frame plane signed-distance debugging on entrance-capable cameras
+  - supports `--plane-track-split-recovery` to recover entry/leave events when a tracker split happens exactly at the entrance plane
+  - supports `--output-dir` for replay artifacts: visit decisions, track visit evidence, entrance/leave plane-crossing events, and final visit summaries
+
+- `live_synced_rgbd_streams.py`
+  - live multi-OAK RGBD pipeline equivalent to synchronized replay
+  - opens all `--device-id` cameras at once and uses host-synced DepthAI timestamps to pair RGB frames with nearest aligned depth frames
+  - uses one shared `VisitRegistry` across all live streams
+  - supports the same `--camera-role entrance`, `entrance_observer`, and `observer` behavior as synced replay
+  - observer-only streams do not require plane calibration and never emit entrance/leave events
+  - supports optional face recognition and body evidence for live visit matching
+  - supports optional shop API integration:
+    - entry binds `visit_id` to the latest recent unbound `ShoppingCustomer`
+    - leave marks the matching `ShoppingCustomer` as left by `visitId`
+  - supports `--log-plane-trace` for per-frame plane signed-distance debugging on entrance-capable cameras
+  - supports `--plane-track-split-recovery` to recover entry/leave events when a tracker split happens exactly at the entrance plane
+  - supports `--output-dir` for live artifacts: visit decisions, track visit evidence, entrance/leave plane-crossing events, live config, and final visit summaries
 
 - `replay_depth_tuner.py`
   - replays one recorded RGBD stream through detection, tracking, and depth-based entrance logic
-  - writes replayed depth entrance-event timing logs from recorded timestamps and aligned recorded depth
+  - writes replayed depth entrance/leave event timing logs from recorded timestamps and aligned recorded depth
   - defaults to calibrated plane-trigger mode; `--depth-trigger-mode threshold` remains available for fallback/debug
   - accepts `--camera-role` as a single-stream debug label; full entrance/observer role resolution lives in `replay_synced_rgbd_streams.py`
   - supports `--log-visit-decisions` for single-stream `visit_id` creation/matching debug output
@@ -135,7 +151,7 @@ The old on-device `RVC2` experiment scripts were intentionally removed.
 - `depth_entrance_live.py`
   - first live prototype for depth-based entrance triggering
   - uses CAM_A RGB plus CAM_B/C stereo depth aligned to RGB
-  - samples depth near the lower body and emits `DEPTH_ENTRY_EVENT` when a tracked person crosses a depth threshold
+  - samples depth near the lower body and emits `DEPTH_ENTRY_EVENT` / `DEPTH_LEAVE_EVENT` when a tracked person crosses the configured depth/plane trigger
 
 - `phase1_host_detection_scrfd.py`
   - host-side Step 2 detector harness

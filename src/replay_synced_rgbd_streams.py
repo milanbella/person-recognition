@@ -32,6 +32,7 @@ from pipeline.depth import (
     process_depth_entrance_logic,
     process_depth_plane_logic,
     resolve_plane_json_path,
+    add_plane_track_split_recovery_args,
 )
 from pipeline.detection import PersonDetector, build_person_detector
 from pipeline.face_identity import (
@@ -73,11 +74,20 @@ class SyncedStreamState:
     intrinsics: CameraIntrinsics
     tracker: PersonTracker
     depth_states: dict[int, DepthEntranceState] = field(default_factory=dict)
+    visit_plane_states: dict[int, "VisitPlaneState"] = field(default_factory=dict)
     plane: object | None = None
     plane_enter_direction: str | None = None
     last_processed_frame_index: int | None = None
     cached_rgb_overlay: np.ndarray | None = None
     camera_role: str = "entrance"
+
+
+@dataclass
+class VisitPlaneState:
+    entered: bool = False
+    last_signed_distance_mm: float | None = None
+    last_track_id: int | None = None
+    last_seen_seconds: float | None = None
 
 
 class ReplayArtifactWriter:
@@ -476,6 +486,15 @@ def build_argparser() -> argparse.ArgumentParser:
         default=None,
         help="Optional directory for synced replay artifacts: decisions, evidence, entrance events, and final visits.",
     )
+    parser.add_argument(
+        "--log-plane-trace",
+        action="store_true",
+        help=(
+            "Log per-frame plane signed distance for each entrance-capable camera track. "
+            "Useful for debugging missed entry/leave crossings and track splits."
+        ),
+    )
+    add_plane_track_split_recovery_args(parser)
     add_face_identity_args(parser)
     add_body_evidence_args(parser)
     add_visit_identity_args(parser)
@@ -648,6 +667,64 @@ def resolve_camera_roles(args: argparse.Namespace) -> list[str]:
             "--camera-role must be omitted or provide exactly one role per --device-id."
         )
     return list(args.camera_role)
+
+
+def host_seconds_from_stream(state: SyncedStreamState) -> float:
+    return (
+        0.0
+        if state.stream.current_frame_meta is None
+        else state.stream.current_frame_meta.rgb_host_synced_seconds
+    )
+
+
+def log_plane_trace(
+    *,
+    prefix: str,
+    device_id: str,
+    host_seconds: float,
+    tracks: list[Any],
+    depth_samples: dict[int, Any],
+    signed_distances_mm: dict[int, float],
+    depth_states: dict[int, DepthEntranceState],
+    entered_track_ids: set[int],
+    exited_track_ids: set[int],
+) -> None:
+    for track in tracks:
+        signed_mm = signed_distances_mm.get(track.track_id)
+        sample = depth_samples.get(track.track_id)
+        if signed_mm is None or sample is None:
+            continue
+        state = depth_states.get(track.track_id)
+        entered_state = False if state is None else state.entered
+        event = "none"
+        if track.track_id in entered_track_ids:
+            event = "entry"
+        elif track.track_id in exited_track_ids:
+            event = "leave"
+        print(
+            f"{prefix} device_id={device_id} "
+            f"track_id={track.track_id} status={track.status} "
+            f"time={host_seconds:.3f} plane_mm={signed_mm:.0f} "
+            f"depth_mm={sample.depth_mm:.0f} entered_state={entered_state} "
+            f"event={event}"
+        )
+
+
+def _visit_plane_inside(signed_distance_mm: float, *, plane_enter_direction: str) -> bool:
+    if plane_enter_direction == "positive_to_negative":
+        return signed_distance_mm <= 0.0
+    return signed_distance_mm >= 0.0
+
+
+def _visit_plane_outside(
+    signed_distance_mm: float,
+    *,
+    plane_enter_direction: str,
+    plane_hysteresis_mm: float,
+) -> bool:
+    if plane_enter_direction == "positive_to_negative":
+        return signed_distance_mm >= plane_hysteresis_mm
+    return signed_distance_mm <= -plane_hysteresis_mm
 
 
 def main() -> None:
@@ -841,6 +918,7 @@ def build_processed_rgb_frame(
     tracks = state.tracker.update(detections)
 
     entrance_enabled = is_entrance_enabled(state.camera_role)
+    host_seconds = host_seconds_from_stream(state)
     if args.depth_trigger_mode == "plane" and entrance_enabled:
         depth_result = process_depth_plane_logic(
             tracks=tracks,
@@ -853,6 +931,10 @@ def build_processed_rgb_frame(
             min_valid_pixels=args.depth_min_valid_pixels,
             roi_width_fraction=args.depth_roi_width_fraction,
             roi_height_fraction=args.depth_roi_height_fraction,
+            host_seconds=host_seconds,
+            track_split_recovery=args.plane_track_split_recovery,
+            track_split_recovery_max_age_seconds=args.plane_track_split_recovery_max_age_seconds,
+            track_split_recovery_max_centroid_distance_px=args.plane_track_split_recovery_max_centroid_distance_px,
         )
     else:
         depth_result = process_depth_entrance_logic(
@@ -867,8 +949,25 @@ def build_processed_rgb_frame(
             roi_height_fraction=args.depth_roi_height_fraction,
         )
     entered_track_ids = depth_result.entered_track_ids
+    exited_track_ids = depth_result.exited_track_ids
     depth_samples = depth_result.depth_samples
     signed_distances_mm = depth_result.signed_distances_mm
+    entry_reasons_by_track = depth_result.entry_reasons_by_track
+    recovered_entry_source_track_ids = depth_result.recovered_entry_source_track_ids
+    leave_reasons_by_track = depth_result.leave_reasons_by_track
+    recovered_leave_source_track_ids = depth_result.recovered_leave_source_track_ids
+    if args.log_plane_trace and args.depth_trigger_mode == "plane" and entrance_enabled:
+        log_plane_trace(
+            prefix="SYNC_PLANE_TRACE",
+            device_id=state.stream.info.device_id,
+            host_seconds=host_seconds_from_stream(state),
+            tracks=tracks,
+            depth_samples=depth_samples,
+            signed_distances_mm=signed_distances_mm,
+            depth_states=state.depth_states,
+            entered_track_ids=set(entered_track_ids),
+            exited_track_ids=set(exited_track_ids),
+        )
 
     recognized_faces = []
     if face_matcher is not None:
@@ -879,11 +978,6 @@ def build_processed_rgb_frame(
         )
         recognized_faces = face_matcher.recognize(rgb_frame, tracks=face_tracks)
     body_evidence_by_track = body_evidence_extractor.extract(rgb_frame, tracks=tracks)
-    host_seconds = (
-        0.0
-        if state.stream.current_frame_meta is None
-        else state.stream.current_frame_meta.rgb_host_synced_seconds
-    )
     frame_evidence = FrameEvidence(
         device_id=state.stream.info.device_id,
         host_seconds=host_seconds,
@@ -900,6 +994,7 @@ def build_processed_rgb_frame(
     observer_enabled = is_observer_enabled(state.camera_role)
     if not entrance_enabled:
         entered_track_ids = []
+        exited_track_ids = []
     for track_id, track_evidence in track_visit_evidence_by_id.items():
         decision = visit_registry.resolve_existing_track(track_evidence)
         resolution = "existing_track"
@@ -943,6 +1038,8 @@ def build_processed_rgb_frame(
             "plane_signed_distance_mm": signed_distances_mm.get(track_id)
             if args.depth_trigger_mode == "plane"
             else None,
+            "entry_reason": entry_reasons_by_track.get(track_id, "direct_crossing"),
+            "recovered_entry_source_track_id": recovered_entry_source_track_ids.get(track_id),
         }
         artifact_writer.write_entrance_event(event_payload)
         if args.depth_trigger_mode == "plane":
@@ -950,6 +1047,114 @@ def build_processed_rgb_frame(
                 f"SYNC_DEPTH_PLANE_ENTRY_EVENT device_id={state.stream.info.device_id} "
                 f"track_id={track_id} "
                 f"visit_id={None if visit_assignment is None else visit_assignment.visit_id} "
+                f"reason={entry_reasons_by_track.get(track_id, 'direct_crossing')} "
+                f"source_track_id={recovered_entry_source_track_ids.get(track_id)} "
+                f"host_synced_seconds="
+                f"{state.stream.current_frame_meta.rgb_host_synced_seconds:.3f} "
+                f"plane_mm={signed_distances_mm.get(track_id, float('nan')):.0f} "
+                f"depth_mm={sample.depth_mm:.0f}"
+            )
+            if visit_assignment is not None:
+                visit_plane_state = state.visit_plane_states.setdefault(
+                    visit_assignment.visit_id,
+                    VisitPlaneState(),
+                )
+                visit_plane_state.entered = True
+                visit_plane_state.last_signed_distance_mm = signed_distances_mm.get(track_id)
+                visit_plane_state.last_track_id = track_id
+                visit_plane_state.last_seen_seconds = host_seconds
+        else:
+            print(
+                f"SYNC_DEPTH_ENTRY_EVENT device_id={state.stream.info.device_id} "
+                f"track_id={track_id} "
+                f"visit_id={None if visit_assignment is None else visit_assignment.visit_id} "
+                f"reason={entry_reasons_by_track.get(track_id, 'direct_crossing')} "
+                f"source_track_id={recovered_entry_source_track_ids.get(track_id)} "
+                f"host_synced_seconds="
+                f"{state.stream.current_frame_meta.rgb_host_synced_seconds:.3f} "
+                f"depth_mm={sample.depth_mm:.0f}"
+            )
+
+    visit_plane_leave_track_ids: list[int] = []
+    if args.depth_trigger_mode == "plane" and entrance_enabled:
+        for track_id, visit_assignment in visit_assignments.items():
+            if track_id in entered_track_ids or track_id in exited_track_ids:
+                continue
+            signed_distance_mm = signed_distances_mm.get(track_id)
+            if signed_distance_mm is None:
+                continue
+            visit_plane_state = state.visit_plane_states.setdefault(
+                visit_assignment.visit_id,
+                VisitPlaneState(),
+            )
+            if (
+                visit_plane_state.entered
+                and _visit_plane_outside(
+                    signed_distance_mm,
+                    plane_enter_direction=str(state.plane_enter_direction),
+                    plane_hysteresis_mm=float(args.plane_hysteresis_mm),
+                )
+            ):
+                visit_plane_state.entered = False
+                visit_plane_state.last_signed_distance_mm = signed_distance_mm
+                visit_plane_state.last_track_id = track_id
+                visit_plane_state.last_seen_seconds = host_seconds
+                visit_plane_leave_track_ids.append(track_id)
+                leave_reasons_by_track[track_id] = "visit_plane_crossing"
+            elif _visit_plane_inside(
+                signed_distance_mm,
+                plane_enter_direction=str(state.plane_enter_direction),
+            ):
+                visit_plane_state.last_signed_distance_mm = signed_distance_mm
+                visit_plane_state.last_track_id = track_id
+                visit_plane_state.last_seen_seconds = host_seconds
+
+    for track_id in [*exited_track_ids, *visit_plane_leave_track_ids]:
+        sample = depth_samples.get(track_id)
+        if sample is None:
+            continue
+        visit_assignment = visit_assignments.get(track_id)
+        recovered_source_track_id = recovered_leave_source_track_ids.get(track_id)
+        if visit_assignment is None and recovered_source_track_id is not None:
+            visit_assignment = visit_registry.assignment_for_track(
+                device_id=state.stream.info.device_id,
+                track_id=recovered_source_track_id,
+            )
+        event_payload = {
+            "type": "sync_depth_plane_leave_event"
+            if args.depth_trigger_mode == "plane"
+            else "sync_depth_leave_event",
+            "device_id": state.stream.info.device_id,
+            "camera_role": state.camera_role,
+            "track_id": track_id,
+            "visit_id": None if visit_assignment is None else visit_assignment.visit_id,
+            "host_synced_seconds": None
+            if state.stream.current_frame_meta is None
+            else state.stream.current_frame_meta.rgb_host_synced_seconds,
+            "depth_mm": sample.depth_mm,
+            "plane_signed_distance_mm": signed_distances_mm.get(track_id)
+            if args.depth_trigger_mode == "plane"
+            else None,
+            "leave_reason": leave_reasons_by_track.get(track_id, "direct_crossing"),
+            "recovered_leave_source_track_id": recovered_source_track_id,
+        }
+        artifact_writer.write_entrance_event(event_payload)
+        if args.depth_trigger_mode == "plane":
+            if visit_assignment is not None:
+                visit_plane_state = state.visit_plane_states.setdefault(
+                    visit_assignment.visit_id,
+                    VisitPlaneState(),
+                )
+                visit_plane_state.entered = False
+                visit_plane_state.last_signed_distance_mm = signed_distances_mm.get(track_id)
+                visit_plane_state.last_track_id = track_id
+                visit_plane_state.last_seen_seconds = host_seconds
+            print(
+                f"SYNC_DEPTH_PLANE_LEAVE_EVENT device_id={state.stream.info.device_id} "
+                f"track_id={track_id} "
+                f"visit_id={None if visit_assignment is None else visit_assignment.visit_id} "
+                f"reason={leave_reasons_by_track.get(track_id, 'direct_crossing')} "
+                f"source_track_id={recovered_source_track_id} "
                 f"host_synced_seconds="
                 f"{state.stream.current_frame_meta.rgb_host_synced_seconds:.3f} "
                 f"plane_mm={signed_distances_mm.get(track_id, float('nan')):.0f} "
@@ -957,7 +1162,7 @@ def build_processed_rgb_frame(
             )
         else:
             print(
-                f"SYNC_DEPTH_ENTRY_EVENT device_id={state.stream.info.device_id} "
+                f"SYNC_DEPTH_LEAVE_EVENT device_id={state.stream.info.device_id} "
                 f"track_id={track_id} "
                 f"visit_id={None if visit_assignment is None else visit_assignment.visit_id} "
                 f"host_synced_seconds="

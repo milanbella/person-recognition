@@ -215,6 +215,22 @@ class VisitRegistry:
             matched_visit_id=visit.visit_id,
         )
 
+    def assignment_for_track(self, *, device_id: str, track_id: int) -> VisitAssignment | None:
+        visit_id = self.track_to_visit.get((device_id, track_id))
+        if visit_id is None:
+            return None
+        visit = self.visits.get(visit_id)
+        if visit is None:
+            return None
+        return VisitAssignment(
+            visit_id=visit.visit_id,
+            track_id=track_id,
+            device_id=device_id,
+            face_identity_ids=tuple(sorted(visit.face_identity_ids)),
+            matched_score=None,
+            origin=visit.origin,
+        )
+
     def resolve_entrance_track(self, track_evidence: TrackVisitEvidence) -> VisitRegistryDecision:
         observation = track_evidence
         existing = self.resolve_existing_track(observation)

@@ -281,6 +281,10 @@ def main() -> None:
                     min_valid_pixels=args.depth_min_valid_pixels,
                     roi_width_fraction=args.depth_roi_width_fraction,
                     roi_height_fraction=args.depth_roi_height_fraction,
+                    host_seconds=frame_meta.rgb_host_synced_seconds,
+                    track_split_recovery=args.plane_track_split_recovery,
+                    track_split_recovery_max_age_seconds=args.plane_track_split_recovery_max_age_seconds,
+                    track_split_recovery_max_centroid_distance_px=args.plane_track_split_recovery_max_centroid_distance_px,
                 )
             else:
                 depth_result = process_depth_entrance_logic(
@@ -295,8 +299,13 @@ def main() -> None:
                     roi_height_fraction=args.depth_roi_height_fraction,
                 )
             entered_track_ids = depth_result.entered_track_ids
+            exited_track_ids = depth_result.exited_track_ids
             depth_samples = depth_result.depth_samples
             signed_distances_mm = depth_result.signed_distances_mm
+            entry_reasons_by_track = depth_result.entry_reasons_by_track
+            recovered_entry_source_track_ids = depth_result.recovered_entry_source_track_ids
+            leave_reasons_by_track = depth_result.leave_reasons_by_track
+            recovered_leave_source_track_ids = depth_result.recovered_leave_source_track_ids
 
             recognized_faces = []
             if face_matcher is not None:
@@ -369,6 +378,62 @@ def main() -> None:
                 else:
                     print(
                         f"DEPTH_ENTRY_EVENT track_id={track_id} "
+                        f"visit_id={None if visit_assignment is None else visit_assignment.visit_id} "
+                        f"origin={None if visit_assignment is None else visit_assignment.origin} "
+                        f"host_synced_seconds={frame_meta.rgb_host_synced_seconds:.3f} "
+                        f"depth_mm={sample.depth_mm:.0f}"
+                    )
+            for track_id in exited_track_ids:
+                sample = depth_samples.get(track_id)
+                if sample is None:
+                    continue
+                visit_assignment = visit_assignments.get(track_id)
+                recovered_source_track_id = recovered_leave_source_track_ids.get(track_id)
+                if visit_assignment is None and recovered_source_track_id is not None:
+                    visit_assignment = visit_manager.assignment_for_track(
+                        device_id=recording.device_id,
+                        track_id=recovered_source_track_id,
+                    )
+                event_count += 1
+                event_payload = {
+                    "type": "depth_plane_leave_event"
+                    if args.depth_trigger_mode == "plane"
+                    else "depth_leave_event",
+                    "device_id": recording.device_id,
+                    "track_id": track_id,
+                    "frame_index": frame_meta.frame_index,
+                    "rgb_sequence_num": frame_meta.rgb_sequence_num,
+                    "rgb_host_synced_seconds": frame_meta.rgb_host_synced_seconds,
+                    "depth_sequence_num": frame_meta.depth_sequence_num,
+                    "depth_host_synced_seconds": frame_meta.depth_host_synced_seconds,
+                    "matched_depth_delta_ms": frame_meta.matched_depth_delta_ms,
+                    "depth_mm": sample.depth_mm,
+                    "visit_id": None if visit_assignment is None else visit_assignment.visit_id,
+                    "origin": None if visit_assignment is None else visit_assignment.origin,
+                    "face_identity_ids": []
+                    if visit_assignment is None
+                    else list(visit_assignment.face_identity_ids),
+                }
+                if args.depth_trigger_mode == "plane":
+                    event_payload["plane_signed_distance_mm"] = signed_distances_mm.get(track_id)
+                    event_payload["leave_reason"] = leave_reasons_by_track.get(track_id, "direct_crossing")
+                    event_payload["recovered_leave_source_track_id"] = recovered_source_track_id
+                event_log.write(json.dumps(event_payload) + "\n")
+                event_log.flush()
+                if args.depth_trigger_mode == "plane":
+                    print(
+                        f"DEPTH_PLANE_LEAVE_EVENT track_id={track_id} "
+                        f"visit_id={None if visit_assignment is None else visit_assignment.visit_id} "
+                        f"origin={None if visit_assignment is None else visit_assignment.origin} "
+                        f"reason={leave_reasons_by_track.get(track_id, 'direct_crossing')} "
+                        f"source_track_id={recovered_source_track_id} "
+                        f"host_synced_seconds={frame_meta.rgb_host_synced_seconds:.3f} "
+                        f"plane_mm={signed_distances_mm.get(track_id, float('nan')):.0f} "
+                        f"depth_mm={sample.depth_mm:.0f}"
+                    )
+                else:
+                    print(
+                        f"DEPTH_LEAVE_EVENT track_id={track_id} "
                         f"visit_id={None if visit_assignment is None else visit_assignment.visit_id} "
                         f"origin={None if visit_assignment is None else visit_assignment.origin} "
                         f"host_synced_seconds={frame_meta.rgb_host_synced_seconds:.3f} "

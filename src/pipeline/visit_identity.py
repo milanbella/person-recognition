@@ -257,6 +257,22 @@ class VisitIdentityManager:
             return
         visit.origin = origin
 
+    def assignment_for_track(self, *, device_id: str, track_id: int) -> VisitAssignment | None:
+        visit_id = self.track_to_visit.get((device_id, track_id))
+        if visit_id is None:
+            return None
+        visit = self.visits.get(visit_id)
+        if visit is None:
+            return None
+        return VisitAssignment(
+            visit_id=visit.visit_id,
+            track_id=track_id,
+            device_id=device_id,
+            face_identity_ids=tuple(sorted(visit.face_identity_ids)),
+            matched_score=None,
+            origin=visit.origin,
+        )
+
     def _visit_from_known_face(self, face_ids: set[str]) -> int | None:
         for face_id in sorted(face_ids):
             visit_id = self.face_to_visit.get(face_id)

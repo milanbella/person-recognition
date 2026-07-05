@@ -20,6 +20,8 @@ DEFAULT_PLANE_HYSTERESIS_MM = 150
 DEFAULT_DEPTH_MIN_VALID_PIXELS = 25
 DEFAULT_DEPTH_ROI_WIDTH_FRACTION = 0.30
 DEFAULT_DEPTH_ROI_HEIGHT_FRACTION = 0.22
+DEFAULT_PLANE_TRACK_SPLIT_RECOVERY_MAX_AGE_SECONDS = 1.0
+DEFAULT_PLANE_TRACK_SPLIT_RECOVERY_MAX_CENTROID_DISTANCE_PX = 220.0
 
 
 @dataclass
@@ -50,13 +52,22 @@ class DepthEntranceState:
     last_depth_mm: Optional[float] = None
     entered: bool = False
     recent_depths_mm: list[float] = field(default_factory=list)
+    last_track_status: str | None = None
+    last_seen_seconds: float | None = None
+    last_centroid_px: tuple[float, float] | None = None
+    last_signed_distance_mm: float | None = None
 
 
 @dataclass
 class DepthEntranceResult:
     entered_track_ids: list[int]
     depth_samples: Dict[int, DepthSample]
+    exited_track_ids: list[int] = field(default_factory=list)
     signed_distances_mm: Dict[int, float] = field(default_factory=dict)
+    entry_reasons_by_track: Dict[int, str] = field(default_factory=dict)
+    recovered_entry_source_track_ids: Dict[int, int] = field(default_factory=dict)
+    leave_reasons_by_track: Dict[int, str] = field(default_factory=dict)
+    recovered_leave_source_track_ids: Dict[int, int] = field(default_factory=dict)
 
 
 def build_depth_entrance_argparser(
@@ -145,6 +156,7 @@ def add_depth_entrance_args(parser: argparse.ArgumentParser) -> argparse.Argumen
         default=DEFAULT_PLANE_HYSTERESIS_MM,
         help="Signed-distance hysteresis for plane-crossing rearm logic.",
     )
+    add_plane_track_split_recovery_args(parser)
     parser.add_argument(
         "--depth-min-valid-pixels",
         type=int,
@@ -337,6 +349,7 @@ def process_depth_entrance_logic(
     roi_height_fraction: float,
 ) -> DepthEntranceResult:
     entered_track_ids: list[int] = []
+    exited_track_ids: list[int] = []
     depth_samples: Dict[int, DepthSample] = {}
 
     active_ids = {track.track_id for track in tracks if track.status != "REMOVED"}
@@ -376,12 +389,14 @@ def process_depth_entrance_logic(
             entered_track_ids.append(track.track_id)
         elif state.entered and sample.depth_mm >= rearm_depth_mm:
             state.entered = False
+            exited_track_ids.append(track.track_id)
 
         state.last_depth_mm = sample.depth_mm
 
     return DepthEntranceResult(
         entered_track_ids=entered_track_ids,
         depth_samples=depth_samples,
+        exited_track_ids=exited_track_ids,
     )
 
 
@@ -425,6 +440,152 @@ def orient_plane_normal_toward_positive_z(plane: Plane3D) -> Plane3D:
     return flip_plane_normal(plane)
 
 
+def add_plane_track_split_recovery_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
+    parser.add_argument(
+        "--plane-track-split-recovery",
+        action="store_true",
+        help=(
+            "Recover plane entry/leave events when a NEW track starts on the other side "
+            "of the plane shortly after another same-camera track split near the plane."
+        ),
+    )
+    parser.add_argument(
+        "--plane-track-split-recovery-max-age-seconds",
+        type=float,
+        default=DEFAULT_PLANE_TRACK_SPLIT_RECOVERY_MAX_AGE_SECONDS,
+        help="Maximum time gap for plane track-split entry/leave recovery.",
+    )
+    parser.add_argument(
+        "--plane-track-split-recovery-max-centroid-distance-px",
+        type=float,
+        default=DEFAULT_PLANE_TRACK_SPLIT_RECOVERY_MAX_CENTROID_DISTANCE_PX,
+        help="Maximum centroid distance in pixels for plane track-split entry/leave recovery.",
+    )
+    return parser
+
+
+def _is_inside_after_enter_direction(
+    signed_distance_mm: float,
+    *,
+    plane_enter_direction: str,
+) -> bool:
+    if plane_enter_direction == "positive_to_negative":
+        return signed_distance_mm <= 0.0
+    return signed_distance_mm >= 0.0
+
+
+def _is_outside_before_enter_direction(
+    signed_distance_mm: float,
+    *,
+    plane_enter_direction: str,
+    plane_hysteresis_mm: float,
+) -> bool:
+    if plane_enter_direction == "positive_to_negative":
+        return signed_distance_mm >= plane_hysteresis_mm
+    return signed_distance_mm <= -plane_hysteresis_mm
+
+
+def _centroid_distance_px(left: tuple[float, float], right: tuple[float, float]) -> float:
+    dx = left[0] - right[0]
+    dy = left[1] - right[1]
+    return math.sqrt((dx * dx) + (dy * dy))
+
+
+def _find_track_split_recovery_source(
+    *,
+    new_track: Track,
+    new_signed_distance_mm: float,
+    candidate_states: Dict[int, DepthEntranceState],
+    plane_enter_direction: str,
+    plane_hysteresis_mm: float,
+    host_seconds: float | None,
+    max_age_seconds: float,
+    max_centroid_distance_px: float,
+) -> int | None:
+    new_centroid = new_track.centroid()
+    best_track_id: int | None = None
+    best_distance = float("inf")
+
+    for candidate_track_id, state in candidate_states.items():
+        if candidate_track_id == new_track.track_id:
+            continue
+        if state.entered:
+            continue
+        if state.last_signed_distance_mm is None or state.last_centroid_px is None:
+            continue
+        if not _is_outside_before_enter_direction(
+            state.last_signed_distance_mm,
+            plane_enter_direction=plane_enter_direction,
+            plane_hysteresis_mm=plane_hysteresis_mm,
+        ):
+            continue
+        if not _is_inside_after_enter_direction(
+            new_signed_distance_mm,
+            plane_enter_direction=plane_enter_direction,
+        ):
+            continue
+        if host_seconds is not None and state.last_seen_seconds is not None:
+            age_seconds = host_seconds - state.last_seen_seconds
+            if age_seconds < 0.0 or age_seconds > max_age_seconds:
+                continue
+        distance_px = _centroid_distance_px(new_centroid, state.last_centroid_px)
+        if distance_px > max_centroid_distance_px:
+            continue
+        if distance_px < best_distance:
+            best_distance = distance_px
+            best_track_id = candidate_track_id
+
+    return best_track_id
+
+
+def _find_track_split_leave_recovery_source(
+    *,
+    new_track: Track,
+    new_signed_distance_mm: float,
+    candidate_states: Dict[int, DepthEntranceState],
+    plane_enter_direction: str,
+    plane_hysteresis_mm: float,
+    host_seconds: float | None,
+    max_age_seconds: float,
+    max_centroid_distance_px: float,
+) -> int | None:
+    new_centroid = new_track.centroid()
+    best_track_id: int | None = None
+    best_distance = float("inf")
+
+    if not _is_outside_before_enter_direction(
+        new_signed_distance_mm,
+        plane_enter_direction=plane_enter_direction,
+        plane_hysteresis_mm=plane_hysteresis_mm,
+    ):
+        return None
+
+    for candidate_track_id, state in candidate_states.items():
+        if candidate_track_id == new_track.track_id:
+            continue
+        if not state.entered:
+            continue
+        if state.last_signed_distance_mm is None or state.last_centroid_px is None:
+            continue
+        if not _is_inside_after_enter_direction(
+            state.last_signed_distance_mm,
+            plane_enter_direction=plane_enter_direction,
+        ):
+            continue
+        if host_seconds is not None and state.last_seen_seconds is not None:
+            age_seconds = host_seconds - state.last_seen_seconds
+            if age_seconds < 0.0 or age_seconds > max_age_seconds:
+                continue
+        distance_px = _centroid_distance_px(new_centroid, state.last_centroid_px)
+        if distance_px > max_centroid_distance_px:
+            continue
+        if distance_px < best_distance:
+            best_distance = distance_px
+            best_track_id = candidate_track_id
+
+    return best_track_id
+
+
 def process_depth_plane_logic(
     *,
     tracks: Sequence[Track],
@@ -437,15 +598,27 @@ def process_depth_plane_logic(
     min_valid_pixels: int,
     roi_width_fraction: float,
     roi_height_fraction: float,
+    host_seconds: float | None = None,
+    track_split_recovery: bool = False,
+    track_split_recovery_max_age_seconds: float = DEFAULT_PLANE_TRACK_SPLIT_RECOVERY_MAX_AGE_SECONDS,
+    track_split_recovery_max_centroid_distance_px: float = DEFAULT_PLANE_TRACK_SPLIT_RECOVERY_MAX_CENTROID_DISTANCE_PX,
 ) -> DepthEntranceResult:
     entered_track_ids: list[int] = []
+    exited_track_ids: list[int] = []
     depth_samples: Dict[int, DepthSample] = {}
     signed_distances_mm: Dict[int, float] = {}
+    entry_reasons_by_track: Dict[int, str] = {}
+    recovered_entry_source_track_ids: Dict[int, int] = {}
+    leave_reasons_by_track: Dict[int, str] = {}
+    recovered_leave_source_track_ids: Dict[int, int] = {}
 
     active_ids = {track.track_id for track in tracks if track.status != "REMOVED"}
+    retired_states: dict[int, DepthEntranceState] = {}
     for track_id in list(states.keys()):
         if track_id not in active_ids:
-            states.pop(track_id, None)
+            retired_state = states.pop(track_id, None)
+            if retired_state is not None:
+                retired_states[track_id] = retired_state
 
     for track in tracks:
         if track.status not in {"NEW", "TRACKED", "LOST"}:
@@ -472,6 +645,61 @@ def process_depth_plane_logic(
 
         if state.last_depth_mm is None:
             state.last_depth_mm = signed_distance_mm
+            if (
+                track_split_recovery
+                and track.status == "NEW"
+                and _is_inside_after_enter_direction(
+                    signed_distance_mm,
+                    plane_enter_direction=plane_enter_direction,
+                )
+            ):
+                source_track_id = _find_track_split_recovery_source(
+                    new_track=track,
+                    new_signed_distance_mm=signed_distance_mm,
+                    candidate_states={**retired_states, **states},
+                    plane_enter_direction=plane_enter_direction,
+                    plane_hysteresis_mm=plane_hysteresis_mm,
+                    host_seconds=host_seconds,
+                    max_age_seconds=track_split_recovery_max_age_seconds,
+                    max_centroid_distance_px=track_split_recovery_max_centroid_distance_px,
+                )
+                if source_track_id is not None:
+                    state.entered = True
+                    entered_track_ids.append(track.track_id)
+                    entry_reasons_by_track[track.track_id] = "track_split_recovery"
+                    recovered_entry_source_track_ids[track.track_id] = source_track_id
+            if (
+                track_split_recovery
+                and track.status == "NEW"
+                and _is_outside_before_enter_direction(
+                    signed_distance_mm,
+                    plane_enter_direction=plane_enter_direction,
+                    plane_hysteresis_mm=plane_hysteresis_mm,
+                )
+            ):
+                source_track_id = _find_track_split_leave_recovery_source(
+                    new_track=track,
+                    new_signed_distance_mm=signed_distance_mm,
+                    candidate_states={**retired_states, **states},
+                    plane_enter_direction=plane_enter_direction,
+                    plane_hysteresis_mm=plane_hysteresis_mm,
+                    host_seconds=host_seconds,
+                    max_age_seconds=track_split_recovery_max_age_seconds,
+                    max_centroid_distance_px=track_split_recovery_max_centroid_distance_px,
+                )
+                if source_track_id is not None:
+                    state.entered = False
+                    exited_track_ids.append(track.track_id)
+                    leave_reasons_by_track[track.track_id] = "track_split_recovery"
+                    recovered_leave_source_track_ids[track.track_id] = source_track_id
+                    if source_track_id in states:
+                        states[source_track_id].entered = False
+                    if source_track_id in retired_states:
+                        retired_states[source_track_id].entered = False
+            state.last_track_status = track.status
+            state.last_seen_seconds = host_seconds
+            state.last_centroid_px = track.centroid()
+            state.last_signed_distance_mm = signed_distance_mm
             continue
 
         last_signed_distance_mm = state.last_depth_mm
@@ -480,22 +708,37 @@ def process_depth_plane_logic(
             if not state.entered and crossed and track.status in {"TRACKED", "LOST"}:
                 state.entered = True
                 entered_track_ids.append(track.track_id)
+                entry_reasons_by_track[track.track_id] = "direct_crossing"
             elif state.entered and signed_distance_mm >= plane_hysteresis_mm:
                 state.entered = False
+                exited_track_ids.append(track.track_id)
+                leave_reasons_by_track[track.track_id] = "direct_crossing"
         else:
             crossed = last_signed_distance_mm < 0.0 and signed_distance_mm >= 0.0
             if not state.entered and crossed and track.status in {"TRACKED", "LOST"}:
                 state.entered = True
                 entered_track_ids.append(track.track_id)
+                entry_reasons_by_track[track.track_id] = "direct_crossing"
             elif state.entered and signed_distance_mm <= -plane_hysteresis_mm:
                 state.entered = False
+                exited_track_ids.append(track.track_id)
+                leave_reasons_by_track[track.track_id] = "direct_crossing"
 
         state.last_depth_mm = signed_distance_mm
+        state.last_track_status = track.status
+        state.last_seen_seconds = host_seconds
+        state.last_centroid_px = track.centroid()
+        state.last_signed_distance_mm = signed_distance_mm
 
     return DepthEntranceResult(
         entered_track_ids=entered_track_ids,
         depth_samples=depth_samples,
+        exited_track_ids=exited_track_ids,
         signed_distances_mm=signed_distances_mm,
+        entry_reasons_by_track=entry_reasons_by_track,
+        recovered_entry_source_track_ids=recovered_entry_source_track_ids,
+        leave_reasons_by_track=leave_reasons_by_track,
+        recovered_leave_source_track_ids=recovered_leave_source_track_ids,
     )
 
 
