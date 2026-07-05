@@ -444,10 +444,17 @@ def add_plane_track_split_recovery_args(parser: argparse.ArgumentParser) -> argp
     parser.add_argument(
         "--plane-track-split-recovery",
         action="store_true",
+        default=True,
         help=(
             "Recover plane entry/leave events when a NEW track starts on the other side "
             "of the plane shortly after another same-camera track split near the plane."
         ),
+    )
+    parser.add_argument(
+        "--disable-plane-track-split-recovery",
+        action="store_false",
+        dest="plane_track_split_recovery",
+        help="Disable plane entry/leave recovery across short tracker splits.",
     )
     parser.add_argument(
         "--plane-track-split-recovery-max-age-seconds",

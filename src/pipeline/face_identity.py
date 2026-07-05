@@ -57,7 +57,14 @@ def add_face_identity_args(parser: argparse.ArgumentParser) -> argparse.Argument
     parser.add_argument(
         "--enable-face-recognition",
         action="store_true",
+        default=True,
         help="Run InsightFace/ArcFace on replay frames and assign local face identities.",
+    )
+    parser.add_argument(
+        "--disable-face-recognition",
+        action="store_false",
+        dest="enable_face_recognition",
+        help="Disable InsightFace/ArcFace face identity assignment.",
     )
     parser.add_argument(
         "--face-backend",

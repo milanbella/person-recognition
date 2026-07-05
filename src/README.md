@@ -96,7 +96,7 @@ The old on-device `RVC2` experiment scripts were intentionally removed.
   - shows synchronized tiled RGB views; depth view is hidden by default and can be enabled with `--show-depth-window`
   - accepts one or more `--device-id` values and derives the matching RGBD recording folders
   - defaults to calibrated plane-trigger mode
-  - can optionally run replay-local face identity assignment with `--enable-face-recognition`
+  - runs replay-local face identity assignment by default; disable it with `--disable-face-recognition`
   - assigns shared registry-owned `visit_id` labels across the synchronized replay
   - defaults every stream to `--camera-role entrance`
   - supports `--camera-role entrance_observer` for entrance cameras that should also contribute observer evidence
@@ -104,7 +104,7 @@ The old on-device `RVC2` experiment scripts were intentionally removed.
   - observer-only streams do not require plane calibration and never emit entrance events
   - supports temporal entrance-to-observer handoff via `--observer-handoff-*` tuning flags
   - supports `--log-plane-trace` for per-frame plane signed-distance debugging on entrance-capable cameras
-  - supports `--plane-track-split-recovery` to recover entry/leave events when a tracker split happens exactly at the entrance plane
+  - enables plane track-split recovery by default to recover entry/leave events when a tracker split happens exactly at the entrance plane; disable it with `--disable-plane-track-split-recovery`
   - supports `--output-dir` for replay artifacts: visit decisions, track visit evidence, entrance/leave plane-crossing events, and final visit summaries
 
 - `live_synced_rgbd_streams.py`
@@ -113,12 +113,12 @@ The old on-device `RVC2` experiment scripts were intentionally removed.
   - uses one shared `VisitRegistry` across all live streams
   - supports the same `--camera-role entrance`, `entrance_observer`, and `observer` behavior as synced replay
   - observer-only streams do not require plane calibration and never emit entrance/leave events
-  - supports optional face recognition and body evidence for live visit matching
+  - runs face recognition and body evidence for live visit matching by default; disable face recognition with `--disable-face-recognition`
   - supports optional shop API integration:
     - entry binds `visit_id` to the latest recent unbound `ShoppingCustomer`
     - leave marks the matching `ShoppingCustomer` as left by `visitId`
   - supports `--log-plane-trace` for per-frame plane signed-distance debugging on entrance-capable cameras
-  - supports `--plane-track-split-recovery` to recover entry/leave events when a tracker split happens exactly at the entrance plane
+  - enables plane track-split recovery by default to recover entry/leave events when a tracker split happens exactly at the entrance plane; disable it with `--disable-plane-track-split-recovery`
   - supports `--output-dir` for live artifacts: visit decisions, track visit evidence, entrance/leave plane-crossing events, live config, and final visit summaries
 
 - `replay_depth_tuner.py`
@@ -128,7 +128,7 @@ The old on-device `RVC2` experiment scripts were intentionally removed.
   - accepts `--camera-role` as a single-stream debug label; full entrance/observer role resolution lives in `replay_synced_rgbd_streams.py`
   - supports `--log-visit-decisions` for single-stream `visit_id` creation/matching debug output
   - uses `observer_only` for unconfirmed local visit hypotheses and promotes the visit to `entrance_confirmed` when a plane entry event fires
-  - can optionally run replay-local face identity assignment with `--enable-face-recognition`
+  - runs replay-local face identity assignment by default; disable it with `--disable-face-recognition`
   - skips face assignment for `LOST` / `REMOVED` tracks and tracks below `--face-min-track-width-px` / `--face-min-track-height-px`
   - writes `visit_id` and attached face identity ids into depth event logs
 

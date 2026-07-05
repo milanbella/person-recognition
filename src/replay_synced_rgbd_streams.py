@@ -1009,6 +1009,7 @@ def build_processed_rgb_frame(
                 decision=decision,
             )
 
+    entered_visit_ids_this_frame: set[int] = set()
     for track_id in entered_track_ids:
         sample = depth_samples.get(track_id)
         if sample is None:
@@ -1023,6 +1024,8 @@ def build_processed_rgb_frame(
                 decision=decision,
             )
         visit_assignment = visit_assignments.get(track_id)
+        if visit_assignment is not None:
+            entered_visit_ids_this_frame.add(visit_assignment.visit_id)
         event_payload = {
             "type": "sync_depth_plane_entry_event"
             if args.depth_trigger_mode == "plane"
@@ -1079,6 +1082,8 @@ def build_processed_rgb_frame(
     if args.depth_trigger_mode == "plane" and entrance_enabled:
         for track_id, visit_assignment in visit_assignments.items():
             if track_id in entered_track_ids or track_id in exited_track_ids:
+                continue
+            if visit_assignment.visit_id in entered_visit_ids_this_frame:
                 continue
             signed_distance_mm = signed_distances_mm.get(track_id)
             if signed_distance_mm is None:
