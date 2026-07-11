@@ -27,6 +27,7 @@ from pipeline.config import (
     DEFAULT_EVIDENCE_DIR,
     DEFAULT_INSIGHTFACE_CACHE_ROOT,
 )
+from pipeline.onnx_runtime import prepare_onnx_runtime
 
 
 @dataclass
@@ -106,7 +107,7 @@ def l2_normalize(vector: np.ndarray) -> np.ndarray:
 
 
 def select_runtime(cache_root: Path, model_pack: str) -> Tuple[List[str], int]:
-    available = ort.get_available_providers()
+    available = prepare_onnx_runtime()
     if "CUDAExecutionProvider" in available:
         try:
             session = ort.InferenceSession(

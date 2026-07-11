@@ -3,5 +3,5 @@ fastapi
 insightface
 numpy
 opencv-python
-onnxruntime-gpu
+onnxruntime-gpu[cuda,cudnn]==1.26.0
 uvicorn

@@ -29,6 +29,7 @@ from pipeline.config import (
     PREVIEW_HEIGHT,
     PREVIEW_WIDTH,
 )
+from pipeline.onnx_runtime import prepare_onnx_runtime
 
 
 @dataclass
@@ -142,7 +143,7 @@ class ScrfdPersonDetector:
         )
 
     def _select_runtime(self) -> Tuple[List[str], int]:
-        available = ort.get_available_providers()
+        available = prepare_onnx_runtime()
         if "CUDAExecutionProvider" in available:
             try:
                 test_session = ort.InferenceSession(
