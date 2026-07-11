@@ -4,5 +4,6 @@ src/.depthai_cached_models/
 src/__pycache__/
 src/pipeline/__pycache__/
 src/recordings/
+src/state/
 *.swp
 src/plane_calibrations/

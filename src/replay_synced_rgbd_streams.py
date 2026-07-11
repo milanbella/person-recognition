@@ -88,6 +88,7 @@ class VisitPlaneState:
     last_signed_distance_mm: float | None = None
     last_track_id: int | None = None
     last_seen_seconds: float | None = None
+    inside_track_ids_after_entry: set[int] = field(default_factory=set)
 
 
 class ReplayArtifactWriter:
@@ -248,6 +249,8 @@ def _shop_visit_to_dict(visit: ShopVisit) -> dict[str, Any]:
     return {
         "visit_id": visit.visit_id,
         "origin": visit.origin,
+        "status": visit.status,
+        "closed_host_seconds": visit.closed_host_seconds,
         "created_host_seconds": visit.created_host_seconds,
         "last_seen_host_seconds": visit.last_seen_host_seconds,
         "last_device_id": visit.last_device_id,
@@ -1063,6 +1066,7 @@ def build_processed_rgb_frame(
                     VisitPlaneState(),
                 )
                 visit_plane_state.entered = True
+                visit_plane_state.inside_track_ids_after_entry = {track_id}
                 visit_plane_state.last_signed_distance_mm = signed_distances_mm.get(track_id)
                 visit_plane_state.last_track_id = track_id
                 visit_plane_state.last_seen_seconds = host_seconds
@@ -1094,6 +1098,7 @@ def build_processed_rgb_frame(
             )
             if (
                 visit_plane_state.entered
+                and track_id in visit_plane_state.inside_track_ids_after_entry
                 and _visit_plane_outside(
                     signed_distance_mm,
                     plane_enter_direction=str(state.plane_enter_direction),
@@ -1101,6 +1106,7 @@ def build_processed_rgb_frame(
                 )
             ):
                 visit_plane_state.entered = False
+                visit_plane_state.inside_track_ids_after_entry.clear()
                 visit_plane_state.last_signed_distance_mm = signed_distance_mm
                 visit_plane_state.last_track_id = track_id
                 visit_plane_state.last_seen_seconds = host_seconds
@@ -1110,10 +1116,12 @@ def build_processed_rgb_frame(
                 signed_distance_mm,
                 plane_enter_direction=str(state.plane_enter_direction),
             ):
+                visit_plane_state.inside_track_ids_after_entry.add(track_id)
                 visit_plane_state.last_signed_distance_mm = signed_distance_mm
                 visit_plane_state.last_track_id = track_id
                 visit_plane_state.last_seen_seconds = host_seconds
 
+    closed_visit_ids_this_frame: set[int] = set()
     for track_id in [*exited_track_ids, *visit_plane_leave_track_ids]:
         sample = depth_samples.get(track_id)
         if sample is None:
@@ -1125,6 +1133,8 @@ def build_processed_rgb_frame(
                 device_id=state.stream.info.device_id,
                 track_id=recovered_source_track_id,
             )
+        if visit_assignment is not None and visit_assignment.visit_id in closed_visit_ids_this_frame:
+            continue
         event_payload = {
             "type": "sync_depth_plane_leave_event"
             if args.depth_trigger_mode == "plane"
@@ -1144,6 +1154,10 @@ def build_processed_rgb_frame(
             "recovered_leave_source_track_id": recovered_source_track_id,
         }
         artifact_writer.write_entrance_event(event_payload)
+        closed_visit_id = None if visit_assignment is None else visit_assignment.visit_id
+        visit_registry.close_visit(closed_visit_id, host_seconds=host_seconds)
+        if closed_visit_id is not None:
+            closed_visit_ids_this_frame.add(closed_visit_id)
         if args.depth_trigger_mode == "plane":
             if visit_assignment is not None:
                 visit_plane_state = state.visit_plane_states.setdefault(
@@ -1151,6 +1165,7 @@ def build_processed_rgb_frame(
                     VisitPlaneState(),
                 )
                 visit_plane_state.entered = False
+                visit_plane_state.inside_track_ids_after_entry.clear()
                 visit_plane_state.last_signed_distance_mm = signed_distances_mm.get(track_id)
                 visit_plane_state.last_track_id = track_id
                 visit_plane_state.last_seen_seconds = host_seconds

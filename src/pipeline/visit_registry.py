@@ -22,6 +22,8 @@ DEFAULT_OBSERVER_HANDOFF_THRESHOLD = 0.35
 
 VISIT_ORIGIN_ENTRANCE = "entrance_confirmed"
 VISIT_ORIGIN_OBSERVER = "observer_only"
+VISIT_STATUS_ACTIVE = "active"
+VISIT_STATUS_CLOSED = "closed"
 
 CAMERA_ROLE_ENTRANCE = "entrance"
 CAMERA_ROLE_OBSERVER = "observer"
@@ -79,6 +81,8 @@ class ShopVisit:
     entrance_observation_times: list[float] = field(default_factory=list)
     observer_observation_count: int = 0
     merged_visit_ids: set[int] = field(default_factory=set)
+    status: str = VISIT_STATUS_ACTIVE
+    closed_host_seconds: float | None = None
 
 
 @dataclass
@@ -199,11 +203,15 @@ class VisitRegistry:
 
     def resolve_existing_track(self, track_evidence: TrackVisitEvidence) -> VisitRegistryDecision | None:
         observation = track_evidence
-        visit_id = self.track_to_visit.get((observation.device_id, observation.track_id))
+        track_key = (observation.device_id, observation.track_id)
+        visit_id = self.track_to_visit.get(track_key)
         if visit_id is None:
             return None
         visit = self.visits.get(visit_id)
         if visit is None:
+            return None
+        if self._is_visit_closed(visit):
+            self.track_to_visit.pop(track_key, None)
             return None
         self._update_visit(visit, observation)
         return self._decision(
@@ -221,6 +229,9 @@ class VisitRegistry:
             return None
         visit = self.visits.get(visit_id)
         if visit is None:
+            return None
+        if self._is_visit_closed(visit):
+            self.track_to_visit.pop((device_id, track_id), None)
             return None
         return VisitAssignment(
             visit_id=visit.visit_id,
@@ -385,6 +396,8 @@ class VisitRegistry:
         for visit in self.visits.values():
             if visit.visit_id == exclude_visit_id:
                 continue
+            if self._is_visit_closed(visit):
+                continue
             if visit.origin != VISIT_ORIGIN_ENTRANCE:
                 continue
             for event_time in visit.entrance_observation_times:
@@ -398,7 +411,9 @@ class VisitRegistry:
         for face_id in observation.face_identity_ids:
             visit_id = self.face_to_visit.get(face_id)
             if visit_id is not None and visit_id in self.visits:
-                return self.visits[visit_id]
+                visit = self.visits[visit_id]
+                if not self._is_visit_closed(visit):
+                    return visit
         return None
 
     def _find_best_observer_match(
@@ -411,6 +426,8 @@ class VisitRegistry:
         best_score: float | None = None
         best_breakdown: dict[str, float | int | str | None] | None = None
         for visit in self.visits.values():
+            if self._is_visit_closed(visit):
+                continue
             if visit.origin != preferred_origin:
                 continue
             age_seconds = observation.host_seconds - visit.last_seen_host_seconds
@@ -474,6 +491,10 @@ class VisitRegistry:
 
     def _merge_visits(self, *, target: ShopVisit, source: ShopVisit) -> ShopVisit:
         if target.visit_id == source.visit_id:
+            return target
+        if self._is_visit_closed(target):
+            return source
+        if self._is_visit_closed(source):
             return target
 
         target.merged_visit_ids.add(source.visit_id)
@@ -636,6 +657,8 @@ class VisitRegistry:
 
         candidates_by_visit_id: dict[int, tuple[float, ShopVisit, float, float]] = {}
         for visit in self.visits.values():
+            if self._is_visit_closed(visit):
+                continue
             if visit.origin != VISIT_ORIGIN_ENTRANCE:
                 continue
             for entrance_time in visit.entrance_observation_times:
@@ -716,6 +739,24 @@ class VisitRegistry:
             "weighted_score": best_score,
         }
         return best_visit, best_score, breakdown
+
+    def close_visit(self, visit_id: int | None, *, host_seconds: float | None = None) -> None:
+        if visit_id is None:
+            return
+        visit = self.visits.get(visit_id)
+        if visit is None:
+            return
+        visit.status = VISIT_STATUS_CLOSED
+        visit.closed_host_seconds = host_seconds
+        for track_key, mapped_visit_id in list(self.track_to_visit.items()):
+            if mapped_visit_id == visit_id:
+                self.track_to_visit.pop(track_key, None)
+        for face_id, mapped_visit_id in list(self.face_to_visit.items()):
+            if mapped_visit_id == visit_id:
+                self.face_to_visit.pop(face_id, None)
+
+    def _is_visit_closed(self, visit: ShopVisit) -> bool:
+        return visit.status == VISIT_STATUS_CLOSED
 
 
 def _appearance_similarity(left: BodyAppearance | None, right: BodyAppearance | None) -> float:

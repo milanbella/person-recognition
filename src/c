@@ -53,4 +53,5 @@ python ./live_synced_rgbd_streams.py \
 	--shop-api-base-url https://ovie.sk  \
 	--shop-api-key a7171251-bcf8-4f02-bb66-79e860af340c \
 	--shop-id 1 
+    --state-db state/shop_state.sqlite
 

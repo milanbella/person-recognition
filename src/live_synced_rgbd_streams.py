@@ -52,6 +52,7 @@ from pipeline.face_identity import (
     face_recognition_eligible_tracks,
 )
 from pipeline.rgbd_recording import DEFAULT_PLANE_CALIBRATIONS_DIR
+from pipeline.shop_state_store import DEFAULT_SHOP_STATE_DB, ShopStateStore
 from pipeline.tracking import PersonTracker, build_person_tracker, draw_tracks
 from pipeline.visit_identity import add_visit_identity_args, draw_visit_labels
 from pipeline.visit_registry import (
@@ -136,9 +137,9 @@ class ShopApiClient:
         if self.enabled and self.shop_id is None:
             raise ValueError("--shop-id is required when --shop-api-base-url is set.")
 
-    def bind_visit(self, visit_id: int | None) -> None:
+    def bind_visit(self, visit_id: int | None) -> str | None:
         if not self.enabled or visit_id is None or visit_id in self.bound_visit_ids:
-            return
+            return None
         latest = self._post(
             "/shop-api/shopping-customer/latest-without-visit-id",
             {
@@ -152,12 +153,12 @@ class ShopApiClient:
                 f"SHOP_API_BIND_SKIPPED visit_id={visit_id} "
                 f"reason=no_recent_unbound_customer max_age_seconds={self.max_age_seconds}"
             )
-            return
+            return None
 
         customer_id = latest.get("customerId")
         if not customer_id:
             print(f"SHOP_API_BIND_FAILED visit_id={visit_id} reason=missing_customer_id")
-            return
+            return None
 
         self._post(
             "/shop-api/shopping-customer/set-visit-id",
@@ -169,10 +170,11 @@ class ShopApiClient:
         )
         self.bound_visit_ids.add(visit_id)
         print(f"SHOP_API_VISIT_BOUND visit_id={visit_id} customer_id={customer_id}")
+        return str(customer_id)
 
-    def mark_left(self, visit_id: int | None) -> None:
+    def mark_left(self, visit_id: int | None) -> bool:
         if not self.enabled or visit_id is None or visit_id in self.left_visit_ids:
-            return
+            return False
         self._post(
             "/shop-api/shopping-customer/mark-left",
             {
@@ -182,6 +184,7 @@ class ShopApiClient:
         )
         self.left_visit_ids.add(visit_id)
         print(f"SHOP_API_VISIT_LEFT visit_id={visit_id}")
+        return True
 
     def _post(
         self,
@@ -238,6 +241,11 @@ def build_argparser() -> argparse.ArgumentParser:
     parser.add_argument("--fps", type=int, default=DEFAULT_CAMERA_FPS, help="Camera output FPS.")
     parser.add_argument("--columns", type=int, default=2, help="Columns for tiled live view.")
     parser.add_argument(
+        "--headless",
+        action="store_true",
+        help="Run without OpenCV windows. Use this for systemd/background service mode.",
+    )
+    parser.add_argument(
         "--hide-depth-window",
         action="store_true",
         default=True,
@@ -252,6 +260,12 @@ def build_argparser() -> argparse.ArgumentParser:
     parser.add_argument("--max-window-width", type=int, default=1600, help="Maximum RGB/depth window width.")
     parser.add_argument("--max-window-height", type=int, default=900, help="Maximum RGB/depth window height.")
     parser.add_argument("--output-dir", type=Path, default=None, help="Optional live artifact output directory.")
+    parser.add_argument(
+        "--state-db",
+        type=Path,
+        default=DEFAULT_SHOP_STATE_DB,
+        help="SQLite database for operational live visit state. Default: state/shop_state.sqlite.",
+    )
     parser.add_argument("--detector-backend", choices=["scrfd"], default=DEFAULT_PERSON_DETECTOR_BACKEND)
     parser.add_argument("--model", type=Path, default=DEFAULT_PERSON_DETECTOR_MODEL)
     parser.add_argument("--input-width", type=int, default=DEFAULT_DETECTION_INPUT_WIDTH)
@@ -455,6 +469,7 @@ def process_latest_rgb_frame(
     visit_registry: VisitRegistry,
     artifact_writer: ReplayArtifactWriter,
     shop_api_client: ShopApiClient,
+    shop_state_store: ShopStateStore,
     args: argparse.Namespace,
 ) -> None:
     rgb_msg = state.rgb_queue.tryGet()
@@ -499,6 +514,7 @@ def process_latest_rgb_frame(
         visit_registry=visit_registry,
         artifact_writer=artifact_writer,
         shop_api_client=shop_api_client,
+        shop_state_store=shop_state_store,
         args=args,
     )
     state.cached_rgb_overlay = overlay
@@ -519,6 +535,7 @@ def build_processed_live_rgb_frame(
     visit_registry: VisitRegistry,
     artifact_writer: ReplayArtifactWriter,
     shop_api_client: ShopApiClient,
+    shop_state_store: ShopStateStore,
     args: argparse.Namespace,
 ) -> np.ndarray:
     detections = detector.detect(rgb_frame)
@@ -657,6 +674,19 @@ def build_processed_live_rgb_frame(
             "recovered_entry_source_track_id": recovered_entry_source_track_ids.get(track_id),
         }
         artifact_writer.write_entrance_event(event_payload)
+        shop_state_store.record_entry(
+            visit_id=visit_id,
+            host_seconds=rgb_host_synced_seconds,
+            device_id=state.device_id,
+            camera_role=state.camera_role,
+            track_id=track_id,
+            depth_mm=sample.depth_mm,
+            plane_signed_distance_mm=signed_distances_mm.get(track_id)
+            if args.depth_trigger_mode == "plane"
+            else None,
+            reason=entry_reasons_by_track.get(track_id, "direct_crossing"),
+            event_payload=event_payload,
+        )
         if args.depth_trigger_mode == "plane":
             print(
                 f"LIVE_DEPTH_PLANE_ENTRY_EVENT device_id={state.device_id} "
@@ -673,6 +703,7 @@ def build_processed_live_rgb_frame(
                     VisitPlaneState(),
                 )
                 visit_plane_state.entered = True
+                visit_plane_state.inside_track_ids_after_entry = {track_id}
                 visit_plane_state.last_signed_distance_mm = signed_distances_mm.get(track_id)
                 visit_plane_state.last_track_id = track_id
                 visit_plane_state.last_seen_seconds = rgb_host_synced_seconds
@@ -683,7 +714,11 @@ def build_processed_live_rgb_frame(
                 f"host_synced_seconds={rgb_host_synced_seconds:.3f} depth_mm={sample.depth_mm:.0f}"
             )
         try:
-            shop_api_client.bind_visit(visit_id)
+            shopping_customer_id = shop_api_client.bind_visit(visit_id)
+            shop_state_store.record_shop_customer_binding(
+                visit_id=visit_id,
+                shopping_customer_id=shopping_customer_id,
+            )
         except RuntimeError as exc:
             print(f"SHOP_API_BIND_ERROR visit_id={visit_id} error={exc}")
 
@@ -703,6 +738,7 @@ def build_processed_live_rgb_frame(
             )
             if (
                 visit_plane_state.entered
+                and track_id in visit_plane_state.inside_track_ids_after_entry
                 and _visit_plane_outside(
                     signed_distance_mm,
                     plane_enter_direction=str(state.plane_enter_direction),
@@ -710,6 +746,7 @@ def build_processed_live_rgb_frame(
                 )
             ):
                 visit_plane_state.entered = False
+                visit_plane_state.inside_track_ids_after_entry.clear()
                 visit_plane_state.last_signed_distance_mm = signed_distance_mm
                 visit_plane_state.last_track_id = track_id
                 visit_plane_state.last_seen_seconds = rgb_host_synced_seconds
@@ -719,10 +756,12 @@ def build_processed_live_rgb_frame(
                 signed_distance_mm,
                 plane_enter_direction=str(state.plane_enter_direction),
             ):
+                visit_plane_state.inside_track_ids_after_entry.add(track_id)
                 visit_plane_state.last_signed_distance_mm = signed_distance_mm
                 visit_plane_state.last_track_id = track_id
                 visit_plane_state.last_seen_seconds = rgb_host_synced_seconds
 
+    closed_visit_ids_this_frame: set[int] = set()
     for track_id in [*exited_track_ids, *visit_plane_leave_track_ids]:
         sample = depth_samples.get(track_id)
         if sample is None:
@@ -735,6 +774,8 @@ def build_processed_live_rgb_frame(
                 track_id=recovered_source_track_id,
             )
         visit_id = None if visit_assignment is None else visit_assignment.visit_id
+        if visit_id is not None and visit_id in closed_visit_ids_this_frame:
+            continue
         event_payload = {
             "type": "live_depth_plane_leave_event"
             if args.depth_trigger_mode == "plane"
@@ -755,6 +796,22 @@ def build_processed_live_rgb_frame(
             "recovered_leave_source_track_id": recovered_source_track_id,
         }
         artifact_writer.write_entrance_event(event_payload)
+        shop_state_store.record_leave(
+            visit_id=visit_id,
+            host_seconds=rgb_host_synced_seconds,
+            device_id=state.device_id,
+            camera_role=state.camera_role,
+            track_id=track_id,
+            depth_mm=sample.depth_mm,
+            plane_signed_distance_mm=signed_distances_mm.get(track_id)
+            if args.depth_trigger_mode == "plane"
+            else None,
+            reason=leave_reasons_by_track.get(track_id, "direct_crossing"),
+            event_payload=event_payload,
+        )
+        visit_registry.close_visit(visit_id, host_seconds=rgb_host_synced_seconds)
+        if visit_id is not None:
+            closed_visit_ids_this_frame.add(visit_id)
         if args.depth_trigger_mode == "plane":
             if visit_assignment is not None:
                 visit_plane_state = state.visit_plane_states.setdefault(
@@ -762,6 +819,7 @@ def build_processed_live_rgb_frame(
                     VisitPlaneState(),
                 )
                 visit_plane_state.entered = False
+                visit_plane_state.inside_track_ids_after_entry.clear()
                 visit_plane_state.last_signed_distance_mm = signed_distances_mm.get(track_id)
                 visit_plane_state.last_track_id = track_id
                 visit_plane_state.last_seen_seconds = rgb_host_synced_seconds
@@ -841,6 +899,12 @@ def main() -> None:
         observer_handoff_threshold=args.observer_handoff_threshold,
         log_decisions=args.log_visit_decisions,
     )
+    shop_state_store = ShopStateStore(args.state_db)
+    visit_registry.next_visit_id = max(visit_registry.next_visit_id, shop_state_store.next_visit_id())
+    print(
+        f"Using shop state DB {shop_state_store.db_path} "
+        f"next_visit_id={visit_registry.next_visit_id}"
+    )
     shop_api_client = ShopApiClient(
         base_url=args.shop_api_base_url,
         api_key=args.shop_api_key,
@@ -869,10 +933,13 @@ def main() -> None:
                 "Camera roles: "
                 + ", ".join(f"{state.device_id}={state.camera_role}" for state in states)
             )
-            print("Controls: q=quit")
-            cv2.namedWindow("Live Synchronized RGBD - RGB", cv2.WINDOW_NORMAL)
-            if not args.hide_depth_window:
-                cv2.namedWindow("Live Synchronized RGBD - Depth", cv2.WINDOW_NORMAL)
+            if args.headless:
+                print("Running headless: OpenCV windows are disabled.")
+            else:
+                print("Controls: q=quit")
+                cv2.namedWindow("Live Synchronized RGBD - RGB", cv2.WINDOW_NORMAL)
+                if not args.hide_depth_window:
+                    cv2.namedWindow("Live Synchronized RGBD - Depth", cv2.WINDOW_NORMAL)
 
             while True:
                 for state in states:
@@ -887,52 +954,56 @@ def main() -> None:
                         visit_registry=visit_registry,
                         artifact_writer=artifact_writer,
                         shop_api_client=shop_api_client,
+                        shop_state_store=shop_state_store,
                         args=args,
                     )
 
-                rgb_frames = [
-                    state.cached_rgb_overlay
-                    if state.cached_rgb_overlay is not None
-                    else placeholder_frame(f"Camera {index + 1}: waiting")
-                    for index, state in enumerate(states)
-                ]
-                rgb_grid = tile_frames([frame.copy() for frame in rgb_frames], args.columns)
-                cv2.imshow(
-                    "Live Synchronized RGBD - RGB",
-                    fit_to_window(
-                        rgb_grid,
-                        max_width=args.max_window_width,
-                        max_height=args.max_window_height,
-                    ),
-                )
-
-                if not args.hide_depth_window:
-                    depth_frames = [
-                        state.cached_depth_overlay
-                        if state.cached_depth_overlay is not None
-                        else placeholder_frame(f"Camera {index + 1}: no depth")
+                if not args.headless:
+                    rgb_frames = [
+                        state.cached_rgb_overlay
+                        if state.cached_rgb_overlay is not None
+                        else placeholder_frame(f"Camera {index + 1}: waiting")
                         for index, state in enumerate(states)
                     ]
-                    depth_grid = tile_frames([frame.copy() for frame in depth_frames], args.columns)
+                    rgb_grid = tile_frames([frame.copy() for frame in rgb_frames], args.columns)
                     cv2.imshow(
-                        "Live Synchronized RGBD - Depth",
+                        "Live Synchronized RGBD - RGB",
                         fit_to_window(
-                            depth_grid,
+                            rgb_grid,
                             max_width=args.max_window_width,
                             max_height=args.max_window_height,
                         ),
                     )
 
-                key = cv2.waitKey(1) & 0xFF
-                if key == ord("q"):
-                    break
+                    if not args.hide_depth_window:
+                        depth_frames = [
+                            state.cached_depth_overlay
+                            if state.cached_depth_overlay is not None
+                            else placeholder_frame(f"Camera {index + 1}: no depth")
+                            for index, state in enumerate(states)
+                        ]
+                        depth_grid = tile_frames([frame.copy() for frame in depth_frames], args.columns)
+                        cv2.imshow(
+                            "Live Synchronized RGBD - Depth",
+                            fit_to_window(
+                                depth_grid,
+                                max_width=args.max_window_width,
+                                max_height=args.max_window_height,
+                            ),
+                        )
+
+                    key = cv2.waitKey(1) & 0xFF
+                    if key == ord("q"):
+                        break
                 time.sleep(0.001)
     except KeyboardInterrupt:
         print("Interrupted by user.")
     finally:
         artifact_writer.write_final_visits(visit_registry)
         artifact_writer.close()
-        cv2.destroyAllWindows()
+        shop_state_store.close()
+        if not args.headless:
+            cv2.destroyAllWindows()
 
 
 if __name__ == "__main__":
