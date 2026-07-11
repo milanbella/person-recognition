@@ -1,5 +1,7 @@
 depthai
+fastapi
 insightface
 numpy
 opencv-python
 onnxruntime-gpu
+uvicorn

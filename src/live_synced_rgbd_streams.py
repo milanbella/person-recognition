@@ -1,6 +1,8 @@
 import argparse
 import json
 import math
+import signal
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -51,6 +53,7 @@ from pipeline.face_identity import (
     draw_recognized_faces,
     face_recognition_eligible_tracks,
 )
+from pipeline.mjpeg_stream_server import MjpegStreamServer
 from pipeline.rgbd_recording import DEFAULT_PLANE_CALIBRATIONS_DIR
 from pipeline.shop_state_store import DEFAULT_SHOP_STATE_DB, ShopStateStore
 from pipeline.tracking import PersonTracker, build_person_tracker, draw_tracks
@@ -101,6 +104,7 @@ class LiveSyncedStreamState:
     plane: object | None = None
     plane_enter_direction: str | None = None
     latest_depth_visual: np.ndarray | None = None
+    cached_rgb_raw: np.ndarray | None = None
     cached_rgb_overlay: np.ndarray | None = None
     cached_depth_overlay: np.ndarray | None = None
     last_processed_rgb_sequence: int | None = None
@@ -245,6 +249,21 @@ def build_argparser() -> argparse.ArgumentParser:
         action="store_true",
         help="Run without OpenCV windows. Use this for systemd/background service mode.",
     )
+    parser.add_argument("--stream-host", default="0.0.0.0", help="MJPEG streaming API bind address.")
+    parser.add_argument("--stream-port", type=int, default=8002, help="MJPEG streaming API port.")
+    parser.add_argument("--stream-jpeg-quality", type=int, default=70, help="MJPEG quality from 1 to 100.")
+    parser.add_argument(
+        "--stream-annotated",
+        action="store_true",
+        help="Stream the annotated tracking view instead of raw RGB frames.",
+    )
+    parser.add_argument(
+        "--stream-camera-timeout-seconds",
+        type=float,
+        default=3.0,
+        help="Seconds without a published frame before a camera is reported offline.",
+    )
+    parser.add_argument("--disable-streaming", action="store_true", help="Disable the MJPEG streaming API.")
     parser.add_argument(
         "--hide-depth-window",
         action="store_true",
@@ -483,6 +502,7 @@ def process_latest_rgb_frame(
     rgb_host_synced_seconds = float(rgb_msg.getTimestamp().total_seconds())
     best_depth = choose_best_depth_packet(state.recent_depth_packets, rgb_host_synced_seconds)
     rgb_frame = rgb_msg.getCvFrame()
+    state.cached_rgb_raw = rgb_frame
     state.last_rgb_host_synced_seconds = rgb_host_synced_seconds
     state.last_processed_rgb_sequence = rgb_sequence
 
@@ -881,6 +901,20 @@ def main() -> None:
         return
     if not args.device_id:
         raise ValueError("--device-id is required unless --list-devices is set.")
+    if not 1 <= args.stream_port <= 65535:
+        raise ValueError("--stream-port must be between 1 and 65535.")
+    if not 1 <= args.stream_jpeg_quality <= 100:
+        raise ValueError("--stream-jpeg-quality must be between 1 and 100.")
+    if args.stream_camera_timeout_seconds <= 0:
+        raise ValueError("--stream-camera-timeout-seconds must be greater than zero.")
+
+    stop_requested = threading.Event()
+
+    def request_stop(_signum: int, _frame: object) -> None:
+        stop_requested.set()
+
+    signal.signal(signal.SIGINT, request_stop)
+    signal.signal(signal.SIGTERM, request_stop)
 
     camera_roles = resolve_camera_roles(args)
     detector = build_person_detector(args)
@@ -917,8 +951,19 @@ def main() -> None:
     if artifact_writer.enabled:
         print(f"Writing live artifacts to {artifact_writer.output_dir}")
 
+    stream_server: MjpegStreamServer | None = None
     states: list[LiveSyncedStreamState] = []
     try:
+        if not args.disable_streaming:
+            stream_server = MjpegStreamServer(
+                camera_device_ids=list(args.device_id),
+                host=args.stream_host,
+                port=args.stream_port,
+                jpeg_quality=args.stream_jpeg_quality,
+                camera_timeout_seconds=args.stream_camera_timeout_seconds,
+            )
+            stream_server.start()
+
         with ExitStack() as stack:
             states = [
                 create_live_stream_state(
@@ -941,11 +986,12 @@ def main() -> None:
                 if not args.hide_depth_window:
                     cv2.namedWindow("Live Synchronized RGBD - Depth", cv2.WINDOW_NORMAL)
 
-            while True:
-                for state in states:
+            while not stop_requested.is_set():
+                for camera_index, state in enumerate(states):
                     if state.device.isClosed() or not state.pipeline.isRunning():
                         raise RuntimeError(f"Live pipeline stopped for device {state.device_id}.")
                     drain_depth_queue(state)
+                    previous_rgb_sequence = state.last_processed_rgb_sequence
                     process_latest_rgb_frame(
                         state=state,
                         detector=detector,
@@ -957,6 +1003,17 @@ def main() -> None:
                         shop_state_store=shop_state_store,
                         args=args,
                     )
+                    if (
+                        stream_server is not None
+                        and state.last_processed_rgb_sequence != previous_rgb_sequence
+                    ):
+                        stream_frame = (
+                            state.cached_rgb_overlay
+                            if args.stream_annotated
+                            else state.cached_rgb_raw
+                        )
+                        if stream_frame is not None:
+                            stream_server.publish(camera_index, stream_frame)
 
                 if not args.headless:
                     rgb_frames = [
@@ -999,6 +1056,8 @@ def main() -> None:
     except KeyboardInterrupt:
         print("Interrupted by user.")
     finally:
+        if stream_server is not None:
+            stream_server.stop()
         artifact_writer.write_final_visits(visit_registry)
         artifact_writer.close()
         shop_state_store.close()
