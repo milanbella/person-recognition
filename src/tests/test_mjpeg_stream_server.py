@@ -3,8 +3,10 @@ import time
 import unittest
 
 import numpy as np
+from fastapi import HTTPException
 
 from pipeline.mjpeg_stream_server import MjpegStreamServer
+from pipeline.observer_api import ObserverCameraSnapshot
 
 
 class MjpegStreamServerTests(unittest.TestCase):
@@ -46,6 +48,61 @@ class MjpegStreamServerTests(unittest.TestCase):
     def test_rejects_unknown_camera_index(self) -> None:
         with self.assertRaises(KeyError):
             self.server.publish(9, np.zeros((8, 8, 3), dtype=np.uint8))
+
+    def test_observer_snapshot_startup_active_and_stale_states(self) -> None:
+        starting = self.server.observer_snapshot_payload(0)
+        self.assertEqual(starting["camera"]["status"], "starting")
+        self.assertEqual(starting["observations"], [])
+
+        snapshot = ObserverCameraSnapshot(
+            camera_index=0,
+            device_id="camera-a",
+            camera_role="observer",
+            rgb_sequence_number=1,
+            host_synced_seconds=2.0,
+            published_at_unix_milliseconds=3,
+            frame_width=8,
+            frame_height=8,
+            observations=(),
+        )
+        self.server.publish_observer_snapshot(0, snapshot)
+        self.assertEqual(self.server.observer_snapshot_payload(0)["camera"]["status"], "active")
+        time.sleep(0.15)
+        stale = self.server.observer_snapshot_payload(0)
+        self.assertEqual(stale["camera"]["status"], "offline")
+        self.assertEqual(stale["observations"], [])
+
+    def test_entrance_only_camera_rejects_observer_snapshots(self) -> None:
+        server = MjpegStreamServer(
+            camera_device_ids=["entrance-camera"],
+            camera_roles=["entrance"],
+        )
+        try:
+            with self.assertRaises(ValueError):
+                server.observer_snapshot_payload(0)
+        finally:
+            server.stop()
+
+    def test_observer_route_returns_404_and_409(self) -> None:
+        server = MjpegStreamServer(
+            camera_device_ids=["entrance-camera"],
+            camera_roles=["entrance"],
+        )
+        try:
+            route = next(
+                route
+                for route in server.app.routes
+                if getattr(route, "path", None) == "/observer-cameras/{cam_index}/observations"
+            )
+            with self.assertRaises(HTTPException) as unknown:
+                route.endpoint(9)
+            self.assertEqual(unknown.exception.status_code, 404)
+
+            with self.assertRaises(HTTPException) as wrong_role:
+                route.endpoint(0)
+            self.assertEqual(wrong_role.exception.status_code, 409)
+        finally:
+            server.stop()
 
 
 if __name__ == "__main__":

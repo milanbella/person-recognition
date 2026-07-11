@@ -24,6 +24,16 @@ class ShopStateStore:
         row = self.connection.execute("SELECT COALESCE(MAX(visit_id), 0) + 1 AS next_id FROM visits").fetchone()
         return int(row["next_id"])
 
+    def load_shop_customer_bindings(self) -> dict[int, str]:
+        rows = self.connection.execute(
+            """
+            SELECT visit_id, shopping_customer_id
+            FROM visits
+            WHERE shopping_customer_id IS NOT NULL AND shopping_customer_id <> ''
+            """
+        ).fetchall()
+        return {int(row["visit_id"]): str(row["shopping_customer_id"]) for row in rows}
+
     def record_entry(
         self,
         *,

@@ -54,6 +54,7 @@ from pipeline.face_identity import (
     face_recognition_eligible_tracks,
 )
 from pipeline.mjpeg_stream_server import MjpegStreamServer
+from pipeline.observer_api import ObserverCameraSnapshot, build_observer_camera_snapshot
 from pipeline.rgbd_recording import DEFAULT_PLANE_CALIBRATIONS_DIR
 from pipeline.shop_state_store import DEFAULT_SHOP_STATE_DB, ShopStateStore
 from pipeline.tracking import PersonTracker, build_person_tracker, draw_tracks
@@ -88,6 +89,12 @@ class LiveDepthPacket:
     frame_mm: np.ndarray
 
 
+@dataclass(frozen=True)
+class ProcessedLiveFrame:
+    overlay: np.ndarray
+    observer_snapshot: ObserverCameraSnapshot | None
+
+
 @dataclass
 class LiveSyncedStreamState:
     device_id: str
@@ -106,6 +113,7 @@ class LiveSyncedStreamState:
     latest_depth_visual: np.ndarray | None = None
     cached_rgb_raw: np.ndarray | None = None
     cached_rgb_overlay: np.ndarray | None = None
+    cached_observer_snapshot: ObserverCameraSnapshot | None = None
     cached_depth_overlay: np.ndarray | None = None
     last_processed_rgb_sequence: int | None = None
     last_rgb_host_synced_seconds: float | None = None
@@ -481,6 +489,7 @@ def drain_depth_queue(state: LiveSyncedStreamState) -> None:
 
 def process_latest_rgb_frame(
     *,
+    camera_index: int,
     state: LiveSyncedStreamState,
     detector: PersonDetector,
     face_matcher: FaceRecognizer | None,
@@ -489,6 +498,7 @@ def process_latest_rgb_frame(
     artifact_writer: ReplayArtifactWriter,
     shop_api_client: ShopApiClient,
     shop_state_store: ShopStateStore,
+    customer_ids_by_visit: dict[int, str],
     args: argparse.Namespace,
 ) -> None:
     rgb_msg = state.rgb_queue.tryGet()
@@ -519,9 +529,11 @@ def process_latest_rgb_frame(
             cv2.LINE_AA,
         )
         state.cached_rgb_overlay = overlay
+        state.cached_observer_snapshot = None
         return
 
-    overlay = build_processed_live_rgb_frame(
+    processed_frame = build_processed_live_rgb_frame(
+        camera_index=camera_index,
         state=state,
         rgb_frame=rgb_frame,
         depth_frame_mm=best_depth.frame_mm,
@@ -535,14 +547,17 @@ def process_latest_rgb_frame(
         artifact_writer=artifact_writer,
         shop_api_client=shop_api_client,
         shop_state_store=shop_state_store,
+        customer_ids_by_visit=customer_ids_by_visit,
         args=args,
     )
-    state.cached_rgb_overlay = overlay
+    state.cached_rgb_overlay = processed_frame.overlay
+    state.cached_observer_snapshot = processed_frame.observer_snapshot
     state.cached_depth_overlay = colorize_depth(best_depth.frame_mm)
 
 
 def build_processed_live_rgb_frame(
     *,
+    camera_index: int,
     state: LiveSyncedStreamState,
     rgb_frame: np.ndarray,
     depth_frame_mm: np.ndarray,
@@ -556,8 +571,9 @@ def build_processed_live_rgb_frame(
     artifact_writer: ReplayArtifactWriter,
     shop_api_client: ShopApiClient,
     shop_state_store: ShopStateStore,
+    customer_ids_by_visit: dict[int, str],
     args: argparse.Namespace,
-) -> np.ndarray:
+) -> ProcessedLiveFrame:
     detections = detector.detect(rgb_frame)
     tracks = state.tracker.update(detections)
     entrance_enabled = is_entrance_enabled(state.camera_role)
@@ -739,6 +755,8 @@ def build_processed_live_rgb_frame(
                 visit_id=visit_id,
                 shopping_customer_id=shopping_customer_id,
             )
+            if visit_id is not None and shopping_customer_id is not None:
+                customer_ids_by_visit[visit_id] = shopping_customer_id
         except RuntimeError as exc:
             print(f"SHOP_API_BIND_ERROR visit_id={visit_id} error={exc}")
 
@@ -863,6 +881,22 @@ def build_processed_live_rgb_frame(
         except RuntimeError as exc:
             print(f"SHOP_API_MARK_LEFT_ERROR visit_id={visit_id} error={exc}")
 
+    observer_snapshot = None
+    if observer_enabled:
+        observer_snapshot = build_observer_camera_snapshot(
+            camera_index=camera_index,
+            device_id=state.device_id,
+            camera_role=state.camera_role,
+            rgb_frame=rgb_frame,
+            rgb_sequence_number=rgb_sequence_num,
+            host_synced_seconds=rgb_host_synced_seconds,
+            tracks=tracks,
+            track_visit_evidence_by_id=track_visit_evidence_by_id,
+            visit_assignments=visit_assignments,
+            depth_samples=depth_samples,
+            customer_ids_by_visit=customer_ids_by_visit,
+        )
+
     overlay = rgb_frame.copy()
     draw_tracks(overlay, tracks)
     draw_visit_labels(overlay, tracks, visit_assignments, show_face_evidence=False)
@@ -876,7 +910,7 @@ def build_processed_live_rgb_frame(
     )
     if face_matcher is not None:
         draw_recognized_faces(overlay, recognized_faces, show_labels=False)
-    return overlay
+    return ProcessedLiveFrame(overlay=overlay, observer_snapshot=observer_snapshot)
 
 
 def placeholder_frame(label: str) -> np.ndarray:
@@ -934,6 +968,7 @@ def main() -> None:
         log_decisions=args.log_visit_decisions,
     )
     shop_state_store = ShopStateStore(args.state_db)
+    customer_ids_by_visit = shop_state_store.load_shop_customer_bindings()
     visit_registry.next_visit_id = max(visit_registry.next_visit_id, shop_state_store.next_visit_id())
     print(
         f"Using shop state DB {shop_state_store.db_path} "
@@ -957,6 +992,7 @@ def main() -> None:
         if not args.disable_streaming:
             stream_server = MjpegStreamServer(
                 camera_device_ids=list(args.device_id),
+                camera_roles=camera_roles,
                 host=args.stream_host,
                 port=args.stream_port,
                 jpeg_quality=args.stream_jpeg_quality,
@@ -993,6 +1029,7 @@ def main() -> None:
                     drain_depth_queue(state)
                     previous_rgb_sequence = state.last_processed_rgb_sequence
                     process_latest_rgb_frame(
+                        camera_index=camera_index,
                         state=state,
                         detector=detector,
                         face_matcher=face_matcher,
@@ -1001,6 +1038,7 @@ def main() -> None:
                         artifact_writer=artifact_writer,
                         shop_api_client=shop_api_client,
                         shop_state_store=shop_state_store,
+                        customer_ids_by_visit=customer_ids_by_visit,
                         args=args,
                     )
                     if (
@@ -1014,6 +1052,11 @@ def main() -> None:
                         )
                         if stream_frame is not None:
                             stream_server.publish(camera_index, stream_frame)
+                        if state.cached_observer_snapshot is not None:
+                            stream_server.publish_observer_snapshot(
+                                camera_index,
+                                state.cached_observer_snapshot,
+                            )
 
                 if not args.headless:
                     rgb_frames = [

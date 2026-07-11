@@ -11,13 +11,19 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 
+from pipeline.observer_api import ObserverCameraSnapshot, observer_snapshot_payload
+from pipeline.visit_registry import is_observer_enabled
+
 
 @dataclass
 class _CameraFrame:
     device_id: str
+    camera_role: str
     jpeg: bytes | None = None
     sequence: int = 0
     last_frame_monotonic: float | None = None
+    observer_snapshot: ObserverCameraSnapshot | None = None
+    observer_snapshot_monotonic: float | None = None
 
 
 class MjpegStreamServer:
@@ -27,6 +33,7 @@ class MjpegStreamServer:
         self,
         *,
         camera_device_ids: list[str],
+        camera_roles: list[str] | None = None,
         host: str = "0.0.0.0",
         port: int = 8002,
         jpeg_quality: int = 70,
@@ -36,6 +43,10 @@ class MjpegStreamServer:
             raise ValueError("At least one camera device id is required for streaming.")
         if len(set(camera_device_ids)) != len(camera_device_ids):
             raise ValueError("Camera device ids must be unique.")
+        if camera_roles is None:
+            camera_roles = ["observer" for _device_id in camera_device_ids]
+        if len(camera_roles) != len(camera_device_ids):
+            raise ValueError("Camera roles must contain one role per camera device id.")
         if not 1 <= port <= 65535:
             raise ValueError("Stream port must be between 1 and 65535.")
         if not 1 <= jpeg_quality <= 100:
@@ -48,7 +59,7 @@ class MjpegStreamServer:
         self.jpeg_quality = jpeg_quality
         self.camera_timeout_seconds = camera_timeout_seconds
         self._cameras = {
-            index: _CameraFrame(device_id=device_id)
+            index: _CameraFrame(device_id=device_id, camera_role=camera_roles[index])
             for index, device_id in enumerate(camera_device_ids)
         }
         self._condition = threading.Condition()
@@ -77,6 +88,17 @@ class MjpegStreamServer:
         @app.get("/cameras-status")
         def cameras_status() -> dict[str, list[dict[str, int | str]]]:
             return self.camera_status_payload()
+
+        @app.get("/observer-cameras/{cam_index}/observations")
+        def observer_camera_observations(cam_index: int) -> dict[str, object]:
+            if cam_index not in self._cameras:
+                raise HTTPException(status_code=404, detail=f"Camera index {cam_index} is not configured.")
+            if not is_observer_enabled(self._cameras[cam_index].camera_role):
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Camera index {cam_index} is not observer-capable.",
+                )
+            return self.observer_snapshot_payload(cam_index)
 
         return app
 
@@ -158,6 +180,56 @@ class MjpegStreamServer:
                 for index, camera in self._cameras.items()
             ]
         return {"cameras": cameras}
+
+    def publish_observer_snapshot(
+        self,
+        camera_index: int,
+        snapshot: ObserverCameraSnapshot,
+    ) -> None:
+        if camera_index not in self._cameras:
+            raise KeyError(f"Camera index {camera_index} is not configured.")
+        if not is_observer_enabled(self._cameras[camera_index].camera_role):
+            raise ValueError(f"Camera index {camera_index} is not observer-capable.")
+        if snapshot.camera_index != camera_index:
+            raise ValueError("Observer snapshot camera index does not match publication index.")
+
+        with self._condition:
+            camera = self._cameras[camera_index]
+            camera.observer_snapshot = snapshot
+            camera.observer_snapshot_monotonic = time.monotonic()
+
+    def observer_snapshot_payload(self, camera_index: int) -> dict[str, object]:
+        if camera_index not in self._cameras:
+            raise KeyError(f"Camera index {camera_index} is not configured.")
+
+        now = time.monotonic()
+        with self._condition:
+            camera = self._cameras[camera_index]
+            if not is_observer_enabled(camera.camera_role):
+                raise ValueError(f"Camera index {camera_index} is not observer-capable.")
+            snapshot = camera.observer_snapshot
+            published_monotonic = camera.observer_snapshot_monotonic
+
+        if snapshot is None or published_monotonic is None:
+            return {
+                "camera": {
+                    "id": camera_index,
+                    "deviceId": camera.device_id,
+                    "role": camera.camera_role,
+                    "status": "starting",
+                },
+                "frame": None,
+                "observations": [],
+            }
+
+        age_milliseconds = max(0, int(round((now - published_monotonic) * 1000.0)))
+        is_fresh = now - published_monotonic <= self.camera_timeout_seconds
+        return observer_snapshot_payload(
+            snapshot,
+            age_milliseconds=age_milliseconds,
+            status="active" if is_fresh else "offline",
+            include_observations=is_fresh,
+        )
 
     def _generate_stream(self, camera_index: int) -> Iterator[bytes]:
         with self._condition:
