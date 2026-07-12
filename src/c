@@ -3,8 +3,8 @@ set -xe
 # 194430107110B32F00 name=3.4.1               1 entrance_observer 
 # 1944301051851C1300 name=3.3.1.1.1 2         3 observer
 # 194430103142B32F00 name=5.1.1.1             2 entrance_observer 
-# 194430105114AF2F00 name=3.2.1.1 
-# 1944301061B0B32F00 name=3.1.1.1             4  observer
+# 194430105114AF2F00 name=3.2.1.1             5 observer
+# 1944301061B0B32F00 name=3.1.1.1             4 observer
 
 #194430107110B32F00 194430103142B32F00 1944301051851C1300 1944301061B0B32F00 entrance_observer entrance_observer observer observer
 
@@ -46,12 +46,12 @@ set -xe
 
 
 python ./live_synced_rgbd_streams.py \
-	--device-id 194430107110B32F00 194430103142B32F00 1944301051851C1300 1944301061B0B32F00 \
-	--camera-role entrance_observer entrance_observer observer observer \
+	--device-id 194430107110B32F00 194430103142B32F00 1944301051851C1300 1944301061B0B32F00 194430105114AF2F00 \
+	--camera-role entrance_observer entrance_observer observer observer observer \
 	--output-dir ./live_runs/shop_live_001 \
 	--log-visit-decisions \
 	--shop-api-base-url https://ovie.sk  \
 	--shop-api-key a7171251-bcf8-4f02-bb66-79e860af340c \
-	--shop-id 1 
+	--shop-id 1 \
     --state-db state/shop_state.sqlite
 
