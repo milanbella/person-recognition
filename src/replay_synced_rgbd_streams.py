@@ -34,7 +34,7 @@ from pipeline.depth import (
     resolve_plane_json_path,
     add_plane_track_split_recovery_args,
 )
-from pipeline.detection import PersonDetector, build_person_detector
+from pipeline.detection import DETECTOR_BACKEND_CHOICES, PersonDetector, build_person_detector
 from pipeline.face_identity import (
     FaceRecognizer,
     add_face_identity_args,
@@ -326,9 +326,9 @@ def build_argparser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--detector-backend",
-        choices=["scrfd"],
+        choices=DETECTOR_BACKEND_CHOICES,
         default=DEFAULT_PERSON_DETECTOR_BACKEND,
-        help="Person detector backend. Current default is SCRFD via InsightFace model zoo.",
+        help="Person detector backend. YOLO is the only supported backend.",
     )
     parser.add_argument(
         "--model",
@@ -359,6 +359,12 @@ def build_argparser() -> argparse.ArgumentParser:
         type=float,
         default=DEFAULT_DETECTION_NMS_THRESHOLD,
         help="NMS IoU threshold.",
+    )
+    parser.add_argument(
+        "--yolo-person-class-id",
+        type=int,
+        default=0,
+        help="YOLO class id representing a person. COCO models use class 0.",
     )
     parser.add_argument(
         "--tracker-backend",

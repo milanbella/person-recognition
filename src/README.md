@@ -20,8 +20,9 @@ The old on-device `RVC2` experiment scripts were intentionally removed.
       - shared OAK device discovery and explicit device selection helpers
       - provides `--device-id` / `--list-devices` support for live scripts
     - `pipeline.detection`
-      - generic person detector protocol/factory, current SCRFD detector wrapper, detection arg helpers, and drawing helpers
-      - current detector backend is `scrfd`; use `--detector-backend scrfd` and `--model <onnx-path>`
+      - generic person detector protocol/factory, ONNX YOLO detector wrapper, detection arg helpers, and drawing helpers
+      - YOLO is the person detector backend and `../models/yolo26n.onnx` is the default model
+      - comparison models are `../models/yolo11n.onnx` and `../models/yolo11s.onnx`; COCO class id `0` is `person`
     - `pipeline.detectors`
       - detector adapter API re-exports for future detector backends
     - `pipeline.tracking`
@@ -110,6 +111,8 @@ The old on-device `RVC2` experiment scripts were intentionally removed.
 - `live_synced_rgbd_streams.py`
   - live multi-OAK RGBD pipeline equivalent to synchronized replay
   - opens all `--device-id` cameras at once and uses host-synced DepthAI timestamps to pair RGB frames with nearest aligned depth frames
+  - `--frame-width` and `--frame-height` jointly configure RGB capture, aligned depth, raw MJPEG streaming, and frame metadata; defaults are `3840x2160`
+  - YOLO inference remains independently configured at `640x384` and maps detections back to the configured source-frame coordinates
   - uses one shared `VisitRegistry` across all live streams
   - supports the same `--camera-role entrance`, `entrance_observer`, and `observer` behavior as synced replay
   - observer-only streams do not require plane calibration and never emit entrance/leave events
@@ -155,33 +158,32 @@ The old on-device `RVC2` experiment scripts were intentionally removed.
   - samples depth near the lower body and emits `DEPTH_ENTRY_EVENT` / `DEPTH_LEAVE_EVENT` when a tracked person crosses the configured depth/plane trigger
 
 - `phase1_host_detection_scrfd.py`
-  - host-side Step 2 detector harness
-  - host-side SCRFD detection using the InsightFace ONNX wrapper
+  - legacy-named host-side Step 2 detector harness
+  - uses the shared YOLO ONNX detector
   - reads OAK USB frames and draws person detections on the host
   - prefers CUDA when available and falls back to CPU when the local GPU runtime is incomplete
 
 ## Model Provenance
 
 - default detector model:
-  - `C:\wi\luxonis\person-recognition\models\scrfd_person_2.5g.onnx`
+  - `C:\wi\luxonis\person-recognition\models\yolo26n.onnx`
 - source:
-  - InsightFace v0.7 release asset: `https://github.com/deepinsight/insightface/releases/download/v0.7/scrfd_person_2.5g.onnx`
-  - SourceForge InsightFace mirror listing: `https://sourceforge.net/projects/insightface.mirror/files/v0.7/`
+  - Ultralytics YOLO26n checkpoint: `https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo26n.pt`
+  - exported with Ultralytics `8.4.92`, ONNX opset 20, `end2end=False`, and no embedded NMS
 - local SHA256:
-  - `76522ba15eecb0712780509e912884aba066e9834be0c85761918cdcf76de5b5`
+  - `354cdf0ec4144d797f4ef77ecdb8227303d0c3122e43a391de6d44e6de37155f`
 - ONNX metadata:
-  - `producer_name=pytorch`
-  - `producer_version=1.7`
-  - `graph_name=torch-jit-export`
-  - `opset=11`
+  - input `[1, 3, 384, 640]`
+  - output `[1, 84, 5040]`
+  - RGB camera, streaming, and evidence crops remain `3840x2160`; only detector inference is resized to `640x384`
 - production caveat:
-  - InsightFace model downloads are documented as non-commercial research assets; verify licensing before production deployment or replace this detector with a production-safe model.
+  - verify Ultralytics licensing for commercial production deployment
 
 ## Model Adapter Boundary
 
 - person detection, face recognition, and body evidence are now selected through small backend factories
-- current defaults preserve existing behavior:
-  - `--detector-backend scrfd`
+- current defaults:
+  - `--detector-backend yolo`
   - `--tracker-backend iou`
   - `--face-backend insightface`
   - `--body-backend hsv`
@@ -192,18 +194,18 @@ The old on-device `RVC2` experiment scripts were intentionally removed.
 - tracking, depth plane logic, visit identity, visit registry, and event logging should not import model-specific classes directly
 
 - `phase2_host_tracking_scrfd.py`
-  - host-side tracking baseline on top of SCRFD detections
+  - legacy-named host-side tracking baseline on top of person detections
   - uses a small local IoU-based tracker first, so tracking can be validated before adding a heavier tracker dependency
   - draws track IDs, track states, and short centroid histories on the host
 
 - `phase3_host_entrance_line_scrfd.py`
-  - host-side entrance-line logic on top of SCRFD tracking
+  - legacy-named host-side entrance-line logic on top of YOLO tracking
   - adds one configurable line, side classification, short centroid history, and one-shot entry events
   - logs `ENTRY_EVENT track_id=...` when a track crosses from outside to inside
   - confirmed to emit entrance events in the running system
 
 - `phase4_host_recognition_evidence_scrfd.py`
-  - host-side recognition evidence collection on top of SCRFD entrance events
+  - legacy-named host-side recognition evidence collection on top of YOLO entrance events
   - saves pre-entry and post-entry crops for the entering track
   - keeps recognition out of scope and focuses only on evidence capture quality
 

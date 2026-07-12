@@ -25,7 +25,7 @@ from pipeline.tracking import build_person_tracker, draw_tracks
 
 def build_argparser() -> argparse.ArgumentParser:
     return build_entrance_argparser(
-        description="Step 6: host-side entrance-line logic on top of SCRFD tracking."
+        description="Step 6: host-side entrance-line logic on top of YOLO tracking."
     )
 
 def main() -> None:
@@ -43,7 +43,7 @@ def main() -> None:
     states: Dict[int, EntranceState] = {}
 
     with dai.Pipeline(device) as pipeline:
-        print("Step 6: host-side entrance-line logic on top of SCRFD tracking.")
+        print("Step 6: host-side entrance-line logic on top of YOLO tracking.")
 
         camera = pipeline.create(dai.node.Camera).build()
         camera_out = camera.requestOutput(
@@ -99,7 +99,7 @@ def main() -> None:
                         outside_side=args.outside_side,
                     )
 
-                cv2.imshow("OAK Host SCRFD Entrance Line", frame)
+                cv2.imshow("OAK Host YOLO Entrance Line", frame)
                 key = cv2.waitKey(1) & 0xFF
                 if key == ord("q"):
                     print("Exiting...")

@@ -18,7 +18,7 @@ from pipeline.detection import (
 
 def build_argparser() -> argparse.ArgumentParser:
     return build_detection_argparser(
-        description="Step 2: host-side SCRFD detection on OAK USB frames."
+        description="Step 2: host-side YOLO detection on OAK USB frames."
     )
 
 
@@ -34,7 +34,7 @@ def main() -> None:
     print_connected_device(device)
 
     with dai.Pipeline(device) as pipeline:
-        print("Step 2: host-side SCRFD detection on OAK USB frames.")
+        print("Step 2: host-side YOLO detection on OAK USB frames.")
 
         camera = pipeline.create(dai.node.Camera).build()
         camera_out = camera.requestOutput(
@@ -59,7 +59,7 @@ def main() -> None:
                 detections = detector.detect(frame)
                 draw_detections(frame, detections)
 
-                cv2.imshow("OAK Host SCRFD Detection", frame)
+                cv2.imshow("OAK Host YOLO Detection", frame)
 
                 key = cv2.waitKey(1) & 0xFF
                 if key == ord("q"):

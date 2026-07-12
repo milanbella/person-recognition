@@ -3,8 +3,7 @@ from __future__ import annotations
 from pipeline.detection import (
     Detection,
     PersonDetector,
-    ScrfdInsightFaceDetector,
-    ScrfdPersonDetector,
+    YoloOnnxPersonDetector,
     add_detection_args,
     build_detection_argparser,
     build_person_detector,
@@ -14,8 +13,7 @@ from pipeline.detection import (
 __all__ = [
     "Detection",
     "PersonDetector",
-    "ScrfdInsightFaceDetector",
-    "ScrfdPersonDetector",
+    "YoloOnnxPersonDetector",
     "add_detection_args",
     "build_detection_argparser",
     "build_person_detector",

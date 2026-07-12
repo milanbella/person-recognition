@@ -26,7 +26,7 @@ class EntranceState:
 
 
 def build_entrance_argparser(
-    description: str = "Step 6: host-side entrance-line logic on top of SCRFD tracking.",
+    description: str = "Step 6: host-side entrance-line logic on top of YOLO tracking.",
 ) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=description)
     add_detection_args(parser)

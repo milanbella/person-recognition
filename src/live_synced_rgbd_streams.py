@@ -45,7 +45,7 @@ from pipeline.depth import (
     resolve_plane_json_path,
     add_plane_track_split_recovery_args,
 )
-from pipeline.detection import PersonDetector, build_person_detector
+from pipeline.detection import DETECTOR_BACKEND_CHOICES, PersonDetector, build_person_detector
 from pipeline.face_identity import (
     FaceRecognizer,
     add_face_identity_args,
@@ -251,6 +251,18 @@ def build_argparser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--list-devices", action="store_true", help="List available OAK devices and exit.")
     parser.add_argument("--fps", type=int, default=DEFAULT_CAMERA_FPS, help="Camera output FPS.")
+    parser.add_argument(
+        "--frame-width",
+        type=int,
+        default=PREVIEW_WIDTH,
+        help="RGB camera and raw MJPEG stream width. Default: 3840.",
+    )
+    parser.add_argument(
+        "--frame-height",
+        type=int,
+        default=PREVIEW_HEIGHT,
+        help="RGB camera and raw MJPEG stream height. Default: 2160.",
+    )
     parser.add_argument("--columns", type=int, default=2, help="Columns for tiled live view.")
     parser.add_argument(
         "--headless",
@@ -293,12 +305,13 @@ def build_argparser() -> argparse.ArgumentParser:
         default=DEFAULT_SHOP_STATE_DB,
         help="SQLite database for operational live visit state. Default: state/shop_state.sqlite.",
     )
-    parser.add_argument("--detector-backend", choices=["scrfd"], default=DEFAULT_PERSON_DETECTOR_BACKEND)
+    parser.add_argument("--detector-backend", choices=DETECTOR_BACKEND_CHOICES, default=DEFAULT_PERSON_DETECTOR_BACKEND)
     parser.add_argument("--model", type=Path, default=DEFAULT_PERSON_DETECTOR_MODEL)
     parser.add_argument("--input-width", type=int, default=DEFAULT_DETECTION_INPUT_WIDTH)
     parser.add_argument("--input-height", type=int, default=DEFAULT_DETECTION_INPUT_HEIGHT)
     parser.add_argument("--score-threshold", type=float, default=DEFAULT_DETECTION_SCORE_THRESHOLD)
     parser.add_argument("--nms-threshold", type=float, default=DEFAULT_DETECTION_NMS_THRESHOLD)
+    parser.add_argument("--yolo-person-class-id", type=int, default=0)
     parser.add_argument("--tracker-backend", choices=["iou"], default=DEFAULT_PERSON_TRACKER_BACKEND)
     parser.add_argument("--iou-threshold", type=float, default=DEFAULT_TRACKING_IOU_THRESHOLD)
     parser.add_argument("--max-missed", type=int, default=DEFAULT_TRACKING_MAX_MISSED)
@@ -385,13 +398,13 @@ def create_live_stream_state(
     device = resolve_live_device(device_id)
     calibration = device.readCalibration()
     intrinsics = intrinsics_from_matrix(
-        calibration.getCameraIntrinsics(dai.CameraBoardSocket.CAM_A, (PREVIEW_WIDTH, PREVIEW_HEIGHT))
+        calibration.getCameraIntrinsics(dai.CameraBoardSocket.CAM_A, (args.frame_width, args.frame_height))
     )
 
     pipeline = stack.enter_context(dai.Pipeline(device))
     cam_rgb = pipeline.create(dai.node.Camera).build(dai.CameraBoardSocket.CAM_A)
     rgb_output = cam_rgb.requestOutput(
-        size=(PREVIEW_WIDTH, PREVIEW_HEIGHT),
+        size=(args.frame_width, args.frame_height),
         type=dai.ImgFrame.Type.BGR888p,
         fps=args.fps,
     )
@@ -402,7 +415,7 @@ def create_live_stream_state(
     stereo.setDefaultProfilePreset(dai.node.StereoDepth.PresetMode.DEFAULT)
     stereo.setLeftRightCheck(True)
     stereo.setDepthAlign(dai.CameraBoardSocket.CAM_A)
-    stereo.setOutputSize(PREVIEW_WIDTH, PREVIEW_HEIGHT)
+    stereo.setOutputSize(args.frame_width, args.frame_height)
     mono_left.requestFullResolutionOutput(fps=args.fps).link(stereo.left)
     mono_right.requestFullResolutionOutput(fps=args.fps).link(stereo.right)
 
@@ -456,8 +469,8 @@ def write_live_config(
         "type": "live_synced_rgbd_streams_config",
         "device_ids": list(args.device_id),
         "camera_roles": camera_roles,
-        "width": PREVIEW_WIDTH,
-        "height": PREVIEW_HEIGHT,
+        "width": args.frame_width,
+        "height": args.frame_height,
         "fps": args.fps,
         "args": {
             key: str(value) if isinstance(value, Path) else value
@@ -913,8 +926,8 @@ def build_processed_live_rgb_frame(
     return ProcessedLiveFrame(overlay=overlay, observer_snapshot=observer_snapshot)
 
 
-def placeholder_frame(label: str) -> np.ndarray:
-    frame = np.zeros((PREVIEW_HEIGHT, PREVIEW_WIDTH, 3), dtype=np.uint8)
+def placeholder_frame(label: str, *, width: int, height: int) -> np.ndarray:
+    frame = np.zeros((height, width, 3), dtype=np.uint8)
     cv2.putText(
         frame,
         label,
@@ -941,6 +954,8 @@ def main() -> None:
         raise ValueError("--stream-jpeg-quality must be between 1 and 100.")
     if args.stream_camera_timeout_seconds <= 0:
         raise ValueError("--stream-camera-timeout-seconds must be greater than zero.")
+    if args.frame_width <= 0 or args.frame_height <= 0:
+        raise ValueError("--frame-width and --frame-height must be greater than zero.")
 
     stop_requested = threading.Event()
 
@@ -1062,7 +1077,11 @@ def main() -> None:
                     rgb_frames = [
                         state.cached_rgb_overlay
                         if state.cached_rgb_overlay is not None
-                        else placeholder_frame(f"Camera {index + 1}: waiting")
+                        else placeholder_frame(
+                            f"Camera {index + 1}: waiting",
+                            width=args.frame_width,
+                            height=args.frame_height,
+                        )
                         for index, state in enumerate(states)
                     ]
                     rgb_grid = tile_frames([frame.copy() for frame in rgb_frames], args.columns)
@@ -1079,7 +1098,11 @@ def main() -> None:
                         depth_frames = [
                             state.cached_depth_overlay
                             if state.cached_depth_overlay is not None
-                            else placeholder_frame(f"Camera {index + 1}: no depth")
+                            else placeholder_frame(
+                                f"Camera {index + 1}: no depth",
+                                width=args.frame_width,
+                                height=args.frame_height,
+                            )
                             for index, state in enumerate(states)
                         ]
                         depth_grid = tile_frames([frame.copy() for frame in depth_frames], args.columns)

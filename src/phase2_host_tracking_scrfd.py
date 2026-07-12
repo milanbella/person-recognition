@@ -15,7 +15,7 @@ from pipeline.tracking import build_person_tracker, build_tracking_argparser, dr
 
 def build_argparser() -> argparse.ArgumentParser:
     return build_tracking_argparser(
-        description="Step 3/4: host-side tracking on top of host-side SCRFD detections."
+        description="Step 3/4: host-side tracking on top of host-side YOLO detections."
     )
 
 def main() -> None:
@@ -31,7 +31,7 @@ def main() -> None:
     print_connected_device(device)
 
     with dai.Pipeline(device) as pipeline:
-        print("Step 3/4: host-side tracking on top of host-side SCRFD detections.")
+        print("Step 3/4: host-side tracking on top of host-side YOLO detections.")
 
         camera = pipeline.create(dai.node.Camera).build()
         camera_out = camera.requestOutput(
@@ -57,7 +57,7 @@ def main() -> None:
                 tracks = tracker.update(detections)
                 draw_tracks(frame, tracks)
 
-                cv2.imshow("OAK Host SCRFD Tracking", frame)
+                cv2.imshow("OAK Host YOLO Tracking", frame)
                 key = cv2.waitKey(1) & 0xFF
                 if key == ord("q"):
                     print("Exiting...")

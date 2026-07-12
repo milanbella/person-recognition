@@ -50,7 +50,7 @@ class PersonTracker(Protocol):
 
 
 def build_tracking_argparser(
-    description: str = "Step 3/4: host-side tracking on top of host-side SCRFD detections.",
+    description: str = "Step 3/4: host-side tracking on top of host-side YOLO detections.",
 ) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=description)
     add_detection_args(parser)

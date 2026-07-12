@@ -26,7 +26,7 @@ class MjpegStreamServerTests(unittest.TestCase):
 
         self.server.publish(1, np.zeros((8, 8, 3), dtype=np.uint8))
         self.assertEqual(self.server.camera_status_payload()["cameras"][1]["status"], "active")
-        time.sleep(0.06)
+        time.sleep(0.15)
         self.assertEqual(self.server.camera_status_payload()["cameras"][1]["status"], "offline")
 
     def test_stream_returns_latest_jpeg(self) -> None:

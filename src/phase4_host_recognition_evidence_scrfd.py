@@ -33,7 +33,7 @@ from pipeline.tracking import build_person_tracker, draw_tracks
 def build_argparser() -> argparse.ArgumentParser:
     parser = build_entrance_argparser(
         description=(
-        "Step 7: host-side recognition evidence capture on top of SCRFD entrance events."
+        "Step 7: host-side recognition evidence capture on top of YOLO entrance events."
         )
     )
     parser.add_argument(
@@ -83,7 +83,7 @@ def main() -> None:
     frame_index = 0
 
     with dai.Pipeline(device) as pipeline:
-        print("Step 7: host-side recognition evidence capture on top of SCRFD entrance events.")
+        print("Step 7: host-side recognition evidence capture on top of YOLO entrance events.")
 
         camera = pipeline.create(dai.node.Camera).build()
         camera_out = camera.requestOutput(
@@ -139,7 +139,7 @@ def main() -> None:
                 draw_entry_events(frame, entered_track_ids)
                 draw_evidence_status(frame, collector)
 
-                cv2.imshow("OAK Host SCRFD Recognition Evidence", frame)
+                cv2.imshow("OAK Host YOLO Recognition Evidence", frame)
                 key = cv2.waitKey(1) & 0xFF
                 if key == ord("q"):
                     print("Exiting...")
