@@ -19,6 +19,8 @@ DEFAULT_OBSERVER_VISIT_MAX_AGE_SECONDS = 1800.0
 DEFAULT_OBSERVER_HANDOFF_MIN_DELAY_SECONDS = 0.0
 DEFAULT_OBSERVER_HANDOFF_MAX_DELAY_SECONDS = 8.0
 DEFAULT_OBSERVER_HANDOFF_THRESHOLD = 0.35
+DEFAULT_OBSERVER_SINGLE_ACTIVE_FALLBACK_THRESHOLD = 0.25
+DEFAULT_OBSERVER_PROVISIONAL_SECONDS = 3.0
 
 VISIT_ORIGIN_ENTRANCE = "entrance_confirmed"
 VISIT_ORIGIN_OBSERVER = "observer_only"
@@ -61,6 +63,7 @@ class TrackVisitEvidence:
     track_id: int
     host_seconds: float
     track_bbox: tuple[int, int, int, int]
+    track_status: str = "TRACKED"
     face_identity_ids: tuple[str, ...] = ()
     body_appearance: BodyAppearance | None = None
     depth_mm: float | None = None
@@ -93,6 +96,14 @@ class VisitRegistryDecision:
     score: float | None = None
     matched_visit_id: int | None = None
     score_breakdown: dict[str, float | int | str | None] | None = None
+
+
+@dataclass
+class PendingObserverTrack:
+    first_seen_host_seconds: float
+    last_seen_host_seconds: float
+    best_candidate_visit_id: int | None = None
+    best_score: float | None = None
 
 
 def add_visit_registry_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
@@ -144,6 +155,24 @@ def add_visit_registry_args(parser: argparse.ArgumentParser) -> argparse.Argumen
         help="Minimum temporal handoff score required to attach a new observer track to an entrance-confirmed visit.",
     )
     parser.add_argument(
+        "--observer-single-active-fallback-threshold",
+        type=float,
+        default=DEFAULT_OBSERVER_SINGLE_ACTIVE_FALLBACK_THRESHOLD,
+        help=(
+            "Lower evidence threshold used only when exactly one eligible active "
+            "entrance-confirmed visit exists."
+        ),
+    )
+    parser.add_argument(
+        "--observer-provisional-seconds",
+        type=float,
+        default=DEFAULT_OBSERVER_PROVISIONAL_SECONDS,
+        help=(
+            "Seconds to retry matching an unmatched visible observer track before "
+            "creating an observer-only visit."
+        ),
+    )
+    parser.add_argument(
         "--log-visit-decisions",
         action="store_true",
         help="Print visit registry assignment and merge decisions for tuning.",
@@ -170,6 +199,7 @@ def build_track_visit_evidence(frame_evidence: FrameEvidence) -> dict[int, Track
             track_id=track.track_id,
             host_seconds=frame_evidence.host_seconds,
             track_bbox=(track.x1, track.y1, track.x2, track.y2),
+            track_status=track.status,
             face_identity_ids=tuple(sorted(faces_by_track.get(track.track_id, set()))),
             body_appearance=None if body_evidence is None else body_evidence.appearance,
             depth_mm=None if depth_sample is None else depth_sample.depth_mm,
@@ -187,19 +217,28 @@ class VisitRegistry:
         observer_handoff_min_delay_seconds: float = DEFAULT_OBSERVER_HANDOFF_MIN_DELAY_SECONDS,
         observer_handoff_max_delay_seconds: float = DEFAULT_OBSERVER_HANDOFF_MAX_DELAY_SECONDS,
         observer_handoff_threshold: float = DEFAULT_OBSERVER_HANDOFF_THRESHOLD,
+        observer_single_active_fallback_threshold: float = DEFAULT_OBSERVER_SINGLE_ACTIVE_FALLBACK_THRESHOLD,
+        observer_provisional_seconds: float = DEFAULT_OBSERVER_PROVISIONAL_SECONDS,
         log_decisions: bool = False,
     ) -> None:
+        if not 0.0 <= observer_single_active_fallback_threshold <= 1.0:
+            raise ValueError("observer_single_active_fallback_threshold must be between 0 and 1.")
+        if observer_provisional_seconds < 0.0:
+            raise ValueError("observer_provisional_seconds must be non-negative.")
         self.entrance_merge_window_seconds = entrance_merge_window_seconds
         self.observer_match_threshold = observer_match_threshold
         self.observer_visit_max_age_seconds = observer_visit_max_age_seconds
         self.observer_handoff_min_delay_seconds = observer_handoff_min_delay_seconds
         self.observer_handoff_max_delay_seconds = observer_handoff_max_delay_seconds
         self.observer_handoff_threshold = observer_handoff_threshold
+        self.observer_single_active_fallback_threshold = observer_single_active_fallback_threshold
+        self.observer_provisional_seconds = observer_provisional_seconds
         self.log_decisions = log_decisions
         self.next_visit_id = 1
         self.visits: dict[int, ShopVisit] = {}
         self.track_to_visit: dict[tuple[str, int], int] = {}
         self.face_to_visit: dict[str, int] = {}
+        self.pending_observer_tracks: dict[tuple[str, int], PendingObserverTrack] = {}
 
     def resolve_existing_track(self, track_evidence: TrackVisitEvidence) -> VisitRegistryDecision | None:
         observation = track_evidence
@@ -310,16 +349,18 @@ class VisitRegistry:
             matched_visit_id=None,
         )
 
-    def resolve_observer_track(self, track_evidence: TrackVisitEvidence) -> VisitRegistryDecision:
+    def resolve_observer_track(self, track_evidence: TrackVisitEvidence) -> VisitRegistryDecision | None:
         observation = track_evidence
+        self._prune_pending_observer_tracks(observation.host_seconds)
         existing = self.resolve_existing_track(observation)
         if existing is not None:
             visit = self.visits[existing.assignment.visit_id]
             visit.observer_observation_count += 1
             return existing
 
-        visit = self._find_exact_face_match(observation)
-        if visit is not None:
+        face_matches = self._find_exact_face_matches(observation)
+        if len(face_matches) == 1:
+            visit = face_matches[0]
             self._bind_track(observation, visit)
             self._update_visit(visit, observation)
             visit.observer_observation_count += 1
@@ -331,35 +372,44 @@ class VisitRegistry:
                 score=None,
                 matched_visit_id=visit.visit_id,
             )
+        has_face_conflict = len(face_matches) > 1
 
-        handoff_visit, handoff_score, handoff_breakdown = self._find_entrance_handoff_match(
-            observation
-        )
-        if handoff_visit is not None and handoff_score is not None:
-            self._bind_track(observation, handoff_visit)
-            self._update_visit(handoff_visit, observation)
-            handoff_visit.observer_observation_count += 1
-            return self._decision(
-                observation=observation,
-                visit=handoff_visit,
-                decision="observer_handoff_reused",
-                reason="entrance_handoff_time_window",
-                score=handoff_score,
-                matched_visit_id=handoff_visit.visit_id,
-                score_breakdown=handoff_breakdown,
+        if not has_face_conflict:
+            handoff_visit, handoff_score, handoff_breakdown = self._find_entrance_handoff_match(
+                observation
             )
+            if handoff_visit is not None and handoff_score is not None:
+                self._bind_track(observation, handoff_visit)
+                self._update_visit(handoff_visit, observation)
+                handoff_visit.observer_observation_count += 1
+                return self._decision(
+                    observation=observation,
+                    visit=handoff_visit,
+                    decision="observer_handoff_reused",
+                    reason="entrance_handoff_time_window",
+                    score=handoff_score,
+                    matched_visit_id=handoff_visit.visit_id,
+                    score_breakdown=handoff_breakdown,
+                )
 
-        visit, score, score_breakdown = self._find_best_observer_match(
+        entrance_candidates = self._observer_candidates(
             observation,
-            preferred_origin=VISIT_ORIGIN_ENTRANCE,
+            origin=VISIT_ORIGIN_ENTRANCE,
         )
+        visit, score, score_breakdown = self._best_observer_candidate(entrance_candidates)
         if visit is None:
-            visit, score, score_breakdown = self._find_best_observer_match(
+            observer_candidates = self._observer_candidates(
                 observation,
-                preferred_origin=VISIT_ORIGIN_OBSERVER,
+                origin=VISIT_ORIGIN_OBSERVER,
             )
+            visit, score, score_breakdown = self._best_observer_candidate(observer_candidates)
 
-        if visit is not None and score >= self.observer_match_threshold:
+        if (
+            not has_face_conflict
+            and visit is not None
+            and score is not None
+            and score >= self.observer_match_threshold
+        ):
             self._bind_track(observation, visit)
             self._update_visit(visit, observation)
             visit.observer_observation_count += 1
@@ -373,17 +423,99 @@ class VisitRegistry:
                 score_breakdown=score_breakdown,
             )
 
+        if not has_face_conflict and len(entrance_candidates) == 1:
+            fallback_visit, fallback_score, fallback_breakdown = entrance_candidates[0]
+            if fallback_score >= self.observer_single_active_fallback_threshold:
+                self._bind_track(observation, fallback_visit)
+                self._update_visit(fallback_visit, observation)
+                fallback_visit.observer_observation_count += 1
+                return self._decision(
+                    observation=observation,
+                    visit=fallback_visit,
+                    decision="observer_single_active_fallback",
+                    reason="single_eligible_entrance_visit",
+                    score=fallback_score,
+                    matched_visit_id=fallback_visit.visit_id,
+                    score_breakdown=fallback_breakdown,
+                )
+
+        return self._resolve_provisional_observer_track(
+            observation=observation,
+            candidate_visit=visit,
+            score=score,
+            score_breakdown=score_breakdown,
+            has_face_conflict=has_face_conflict,
+        )
+
+    def _resolve_provisional_observer_track(
+        self,
+        *,
+        observation: TrackVisitEvidence,
+        candidate_visit: ShopVisit | None,
+        score: float | None,
+        score_breakdown: dict[str, float | int | str | None] | None,
+        has_face_conflict: bool,
+    ) -> VisitRegistryDecision | None:
+        track_key = (observation.device_id, observation.track_id)
+        pending = self.pending_observer_tracks.get(track_key)
+
+        if observation.track_status not in {"NEW", "TRACKED"}:
+            if (
+                pending is not None
+                and observation.host_seconds - pending.last_seen_host_seconds
+                >= self.observer_provisional_seconds
+            ):
+                self.pending_observer_tracks.pop(track_key, None)
+            return None
+
+        if pending is None:
+            pending = PendingObserverTrack(
+                first_seen_host_seconds=observation.host_seconds,
+                last_seen_host_seconds=observation.host_seconds,
+            )
+            self.pending_observer_tracks[track_key] = pending
+        else:
+            pending.last_seen_host_seconds = observation.host_seconds
+
+        if score is not None and (pending.best_score is None or score > pending.best_score):
+            pending.best_score = score
+            pending.best_candidate_visit_id = (
+                None if candidate_visit is None else candidate_visit.visit_id
+            )
+
+        provisional_age = observation.host_seconds - pending.first_seen_host_seconds
+        if has_face_conflict:
+            self._log_provisional(
+                observation=observation,
+                pending=pending,
+                reason="conflicting_face_mappings",
+                score_breakdown=score_breakdown,
+            )
+            return None
+        if provisional_age < self.observer_provisional_seconds:
+            self._log_provisional(
+                observation=observation,
+                pending=pending,
+                reason="waiting_for_stronger_evidence",
+                score_breakdown=score_breakdown,
+            )
+            return None
+
+        self.pending_observer_tracks.pop(track_key, None)
         visit = self._create_visit(observation, origin=VISIT_ORIGIN_OBSERVER)
         visit.observer_observation_count += 1
         return self._decision(
             observation=observation,
             visit=visit,
             decision="new_observer_only_visit",
-            reason="no_active_visit_match" if score is None else "best_score_below_threshold",
+            reason="provisional_timeout",
             score=score,
             matched_visit_id=None,
             score_breakdown=score_breakdown,
         )
+
+    def is_observer_track_provisional(self, *, device_id: str, track_id: int) -> bool:
+        return (device_id, track_id) in self.pending_observer_tracks
 
     def _find_entrance_time_match(
         self,
@@ -408,37 +540,49 @@ class VisitRegistry:
         return best_visit
 
     def _find_exact_face_match(self, observation: TrackVisitEvidence) -> ShopVisit | None:
+        matches = self._find_exact_face_matches(observation)
+        return None if not matches else matches[0]
+
+    def _find_exact_face_matches(self, observation: TrackVisitEvidence) -> list[ShopVisit]:
+        matches: list[ShopVisit] = []
+        matched_visit_ids: set[int] = set()
         for face_id in observation.face_identity_ids:
             visit_id = self.face_to_visit.get(face_id)
-            if visit_id is not None and visit_id in self.visits:
-                visit = self.visits[visit_id]
-                if not self._is_visit_closed(visit):
-                    return visit
-        return None
+            if visit_id is None or visit_id in matched_visit_ids:
+                continue
+            visit = self.visits.get(visit_id)
+            if visit is None or self._is_visit_closed(visit):
+                continue
+            matches.append(visit)
+            matched_visit_ids.add(visit_id)
+        return matches
 
-    def _find_best_observer_match(
+    def _observer_candidates(
         self,
         observation: TrackVisitEvidence,
         *,
-        preferred_origin: str,
-    ) -> tuple[ShopVisit | None, float | None, dict[str, float | int | str | None] | None]:
-        best_visit: ShopVisit | None = None
-        best_score: float | None = None
-        best_breakdown: dict[str, float | int | str | None] | None = None
+        origin: str,
+    ) -> list[tuple[ShopVisit, float, dict[str, float | int | str | None]]]:
+        candidates: list[tuple[ShopVisit, float, dict[str, float | int | str | None]]] = []
         for visit in self.visits.values():
             if self._is_visit_closed(visit):
                 continue
-            if visit.origin != preferred_origin:
+            if visit.origin != origin:
                 continue
             age_seconds = observation.host_seconds - visit.last_seen_host_seconds
             if age_seconds < 0.0 or age_seconds > self.observer_visit_max_age_seconds:
                 continue
             score, breakdown = self._score_observer_candidate(observation, visit, age_seconds)
-            if best_score is None or score > best_score:
-                best_score = score
-                best_visit = visit
-                best_breakdown = breakdown
-        return best_visit, best_score, best_breakdown
+            candidates.append((visit, score, breakdown))
+        return candidates
+
+    @staticmethod
+    def _best_observer_candidate(
+        candidates: Sequence[tuple[ShopVisit, float, dict[str, float | int | str | None]]],
+    ) -> tuple[ShopVisit | None, float | None, dict[str, float | int | str | None] | None]:
+        if not candidates:
+            return None, None, None
+        return max(candidates, key=lambda candidate: candidate[1])
 
     def _score_observer_candidate(
         self,
@@ -487,7 +631,45 @@ class VisitRegistry:
         return visit
 
     def _bind_track(self, observation: TrackVisitEvidence, visit: ShopVisit) -> None:
-        self.track_to_visit[(observation.device_id, observation.track_id)] = visit.visit_id
+        track_key = (observation.device_id, observation.track_id)
+        self.pending_observer_tracks.pop(track_key, None)
+        self.track_to_visit[track_key] = visit.visit_id
+
+    def _prune_pending_observer_tracks(self, host_seconds: float) -> None:
+        stale_after_seconds = max(self.observer_provisional_seconds * 2.0, 5.0)
+        for track_key, pending in list(self.pending_observer_tracks.items()):
+            if host_seconds - pending.last_seen_host_seconds > stale_after_seconds:
+                self.pending_observer_tracks.pop(track_key, None)
+
+    def _log_provisional(
+        self,
+        *,
+        observation: TrackVisitEvidence,
+        pending: PendingObserverTrack,
+        reason: str,
+        score_breakdown: dict[str, float | int | str | None] | None,
+    ) -> None:
+        if not self.log_decisions:
+            return
+        score_text = "none" if pending.best_score is None else f"{pending.best_score:.3f}"
+        candidate_visit_id = pending.best_candidate_visit_id
+        provisional_age = observation.host_seconds - pending.first_seen_host_seconds
+        breakdown_text = ""
+        if score_breakdown is not None:
+            breakdown_text = (
+                f" appearance={float(score_breakdown.get('appearance_score', 0.0)):.3f}"
+                f" depth={float(score_breakdown.get('depth_score', 0.0)):.3f}"
+                f" time={float(score_breakdown.get('time_score', 0.0)):.3f}"
+                f" face={float(score_breakdown.get('face_score', 0.0)):.3f}"
+                f" bonus={float(score_breakdown.get('entrance_bonus', 0.0)):.3f}"
+            )
+        print(
+            f"VISIT_REGISTRY device_id={observation.device_id} track_id={observation.track_id} "
+            f"visit_id=none origin=provisional decision=observer_provisional "
+            f"reason={reason} score={score_text} time={observation.host_seconds:.3f} "
+            f"candidate_visit_id={candidate_visit_id} provisional_age={provisional_age:.3f}"
+            f"{breakdown_text}"
+        )
 
     def _merge_visits(self, *, target: ShopVisit, source: ShopVisit) -> ShopVisit:
         if target.visit_id == source.visit_id:

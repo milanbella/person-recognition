@@ -104,6 +104,8 @@ The old on-device `RVC2` experiment scripts were intentionally removed.
   - supports `--camera-role observer` for in-shop observer streams
   - observer-only streams do not require plane calibration and never emit entrance events
   - supports temporal entrance-to-observer handoff via `--observer-handoff-*` tuning flags
+  - when exactly one eligible entrance-confirmed visit exists, observer matching uses a `0.25` fallback threshold; otherwise the normal threshold remains unchanged
+  - unmatched visible observer tracks remain provisional for 3 seconds and retry matching before an `observer_only` visit is created
   - supports `--log-plane-trace` for per-frame plane signed-distance debugging on entrance-capable cameras
   - enables plane track-split recovery by default to recover entry/leave events when a tracker split happens exactly at the entrance plane; disable it with `--disable-plane-track-split-recovery`
   - supports `--output-dir` for replay artifacts: visit decisions, track visit evidence, entrance/leave plane-crossing events, and final visit summaries
@@ -117,6 +119,7 @@ The old on-device `RVC2` experiment scripts were intentionally removed.
   - supports the same `--camera-role entrance`, `entrance_observer`, and `observer` behavior as synced replay
   - observer-only streams do not require plane calibration and never emit entrance/leave events
   - runs face recognition and body evidence for live visit matching by default; disable face recognition with `--disable-face-recognition`
+  - supports `--observer-single-active-fallback-threshold` and `--observer-provisional-seconds` for conservative delayed observer-only visit creation
   - supports optional shop API integration:
     - entry binds `visit_id` to the latest recent unbound `ShoppingCustomer`
     - leave marks the matching `ShoppingCustomer` as left by `visitId`

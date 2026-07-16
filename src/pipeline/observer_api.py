@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
-from typing import Mapping, Sequence
+from typing import Collection, Mapping, Sequence
 
 import numpy as np
 
@@ -45,6 +45,7 @@ class ObservedPerson:
     face_identity_ids: tuple[str, ...]
     body: ObservedBody
     matched_score: float | None
+    match_state: str
 
 
 @dataclass(frozen=True)
@@ -98,6 +99,7 @@ def build_observer_camera_snapshot(
     visit_assignments: Mapping[int, VisitAssignment],
     depth_samples: Mapping[int, DepthSample],
     customer_ids_by_visit: Mapping[int, str],
+    provisional_track_ids: Collection[int] = (),
 ) -> ObserverCameraSnapshot:
     frame_height, frame_width = rgb_frame.shape[:2]
     observations: list[ObservedPerson] = []
@@ -128,6 +130,13 @@ def build_observer_camera_snapshot(
                     height_pixels=None if appearance is None else int(appearance.height_px),
                 ),
                 matched_score=None if assignment is None else assignment.matched_score,
+                match_state=(
+                    "matched"
+                    if assignment is not None
+                    else "provisional"
+                    if track.track_id in provisional_track_ids
+                    else "unassigned"
+                ),
             )
         )
 
@@ -203,7 +212,10 @@ def observer_snapshot_payload(
                     "aspectRatio": person.body.aspect_ratio,
                     "heightPixels": person.body.height_pixels,
                 },
-                "visitMatch": {"matchedScore": person.matched_score},
+                "visitMatch": {
+                    "matchedScore": person.matched_score,
+                    "state": person.match_state,
+                },
             }
             for person in snapshot.observations
         ]

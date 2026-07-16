@@ -75,6 +75,7 @@ class ObserverApiTests(unittest.TestCase):
         self.assertEqual(person["customerBindingStatus"], "bound")
         self.assertEqual(person["depth"]["validPixelCount"], 50)
         self.assertEqual(person["faceIdentityIds"], ["face_person_012"])
+        self.assertEqual(person["visitMatch"]["state"], "matched")
         self.assertNotIn("histogram", person["body"])
 
     def test_pending_customer_and_missing_depth_are_explicit(self) -> None:
@@ -110,6 +111,34 @@ class ObserverApiTests(unittest.TestCase):
         self.assertIsNone(person["customerId"])
         self.assertEqual(person["customerBindingStatus"], "pending")
         self.assertIsNone(person["depth"])
+        self.assertEqual(person["visitMatch"]["state"], "matched")
+
+    def test_provisional_match_state_is_additive_and_visit_remains_null(self) -> None:
+        track = Track(9, 1, 2, 11, 22, 0.9, status="NEW")
+        snapshot = build_observer_camera_snapshot(
+            camera_index=4,
+            device_id="remote-room",
+            camera_role="observer",
+            rgb_frame=np.zeros((100, 200, 3), dtype=np.uint8),
+            rgb_sequence_number=2,
+            host_synced_seconds=2.0,
+            tracks=[track],
+            track_visit_evidence_by_id={},
+            visit_assignments={},
+            depth_samples={},
+            customer_ids_by_visit={},
+            provisional_track_ids={9},
+        )
+
+        person = observer_snapshot_payload(
+            snapshot,
+            age_milliseconds=0,
+            status="active",
+            include_observations=True,
+        )["observations"][0]
+
+        self.assertIsNone(person["visitId"])
+        self.assertEqual(person["visitMatch"]["state"], "provisional")
 
     def test_shop_customer_bindings_reload_from_sqlite(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

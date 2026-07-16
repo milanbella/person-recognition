@@ -360,7 +360,13 @@ def process_depth_entrance_logic(
     rearm_depth_mm = depth_threshold_mm + depth_hysteresis_mm
 
     for track in tracks:
-        if track.status not in {"NEW", "TRACKED", "LOST"}:
+        if track.status == "LOST":
+            # Preserve the last active sample for recovery; the stale box may now cover background.
+            state = states.get(track.track_id)
+            if state is not None:
+                state.last_track_status = "LOST"
+            continue
+        if track.status not in {"NEW", "TRACKED"}:
             continue
 
         sample = sample_track_depth(
@@ -384,7 +390,7 @@ def process_depth_entrance_logic(
             continue
 
         crossed = state.last_depth_mm > depth_threshold_mm and sample.depth_mm <= depth_threshold_mm
-        if not state.entered and crossed and track.status in {"TRACKED", "LOST"}:
+        if not state.entered and crossed and track.status == "TRACKED":
             state.entered = True
             entered_track_ids.append(track.track_id)
         elif state.entered and sample.depth_mm >= rearm_depth_mm:
@@ -627,8 +633,24 @@ def process_depth_plane_logic(
             if retired_state is not None:
                 retired_states[track_id] = retired_state
 
+    lost_track_ids = {track.track_id for track in tracks if track.status == "LOST"}
+    recovery_source_states = {
+        **retired_states,
+        **{
+            track_id: states[track_id]
+            for track_id in lost_track_ids
+            if track_id in states
+        },
+    }
+
     for track in tracks:
-        if track.status not in {"NEW", "TRACKED", "LOST"}:
+        if track.status == "LOST":
+            # LOST state is evidence for a replacement track, never a source of new crossings.
+            state = states.get(track.track_id)
+            if state is not None:
+                state.last_track_status = "LOST"
+            continue
+        if track.status not in {"NEW", "TRACKED"}:
             continue
 
         sample = sample_track_depth(
@@ -663,7 +685,7 @@ def process_depth_plane_logic(
                 source_track_id = _find_track_split_recovery_source(
                     new_track=track,
                     new_signed_distance_mm=signed_distance_mm,
-                    candidate_states={**retired_states, **states},
+                    candidate_states=recovery_source_states,
                     plane_enter_direction=plane_enter_direction,
                     plane_hysteresis_mm=plane_hysteresis_mm,
                     host_seconds=host_seconds,
@@ -687,7 +709,7 @@ def process_depth_plane_logic(
                 source_track_id = _find_track_split_leave_recovery_source(
                     new_track=track,
                     new_signed_distance_mm=signed_distance_mm,
-                    candidate_states={**retired_states, **states},
+                    candidate_states=recovery_source_states,
                     plane_enter_direction=plane_enter_direction,
                     plane_hysteresis_mm=plane_hysteresis_mm,
                     host_seconds=host_seconds,
@@ -712,7 +734,7 @@ def process_depth_plane_logic(
         last_signed_distance_mm = state.last_depth_mm
         if plane_enter_direction == "positive_to_negative":
             crossed = last_signed_distance_mm > 0.0 and signed_distance_mm <= 0.0
-            if not state.entered and crossed and track.status in {"TRACKED", "LOST"}:
+            if not state.entered and crossed and track.status == "TRACKED":
                 state.entered = True
                 entered_track_ids.append(track.track_id)
                 entry_reasons_by_track[track.track_id] = "direct_crossing"
@@ -722,7 +744,7 @@ def process_depth_plane_logic(
                 leave_reasons_by_track[track.track_id] = "direct_crossing"
         else:
             crossed = last_signed_distance_mm < 0.0 and signed_distance_mm >= 0.0
-            if not state.entered and crossed and track.status in {"TRACKED", "LOST"}:
+            if not state.entered and crossed and track.status == "TRACKED":
                 state.entered = True
                 entered_track_ids.append(track.track_id)
                 entry_reasons_by_track[track.track_id] = "direct_crossing"

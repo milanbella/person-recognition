@@ -218,6 +218,7 @@ def _track_evidence_to_dict(track_evidence: TrackVisitEvidence) -> dict[str, Any
         "camera_role": track_evidence.camera_role,
         "device_id": track_evidence.device_id,
         "track_id": track_evidence.track_id,
+        "track_status": track_evidence.track_status,
         "host_seconds": track_evidence.host_seconds,
         "track_bbox": list(track_evidence.track_bbox),
         "face_identity_ids": list(track_evidence.face_identity_ids),
@@ -764,6 +765,8 @@ def main() -> None:
         observer_handoff_min_delay_seconds=args.observer_handoff_min_delay_seconds,
         observer_handoff_max_delay_seconds=args.observer_handoff_max_delay_seconds,
         observer_handoff_threshold=args.observer_handoff_threshold,
+        observer_single_active_fallback_threshold=args.observer_single_active_fallback_threshold,
+        observer_provisional_seconds=args.observer_provisional_seconds,
         log_decisions=args.log_visit_decisions,
     )
     stream_states = build_stream_states(streams=streams, args=args, camera_roles=camera_roles)

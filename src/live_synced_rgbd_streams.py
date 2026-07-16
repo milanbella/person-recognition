@@ -908,6 +908,14 @@ def build_processed_live_rgb_frame(
             visit_assignments=visit_assignments,
             depth_samples=depth_samples,
             customer_ids_by_visit=customer_ids_by_visit,
+            provisional_track_ids={
+                track_id
+                for track_id in track_visit_evidence_by_id
+                if visit_registry.is_observer_track_provisional(
+                    device_id=state.device_id,
+                    track_id=track_id,
+                )
+            },
         )
 
     overlay = rgb_frame.copy()
@@ -980,6 +988,8 @@ def main() -> None:
         observer_handoff_min_delay_seconds=args.observer_handoff_min_delay_seconds,
         observer_handoff_max_delay_seconds=args.observer_handoff_max_delay_seconds,
         observer_handoff_threshold=args.observer_handoff_threshold,
+        observer_single_active_fallback_threshold=args.observer_single_active_fallback_threshold,
+        observer_provisional_seconds=args.observer_provisional_seconds,
         log_decisions=args.log_visit_decisions,
     )
     shop_state_store = ShopStateStore(args.state_db)
