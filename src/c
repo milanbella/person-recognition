@@ -69,7 +69,7 @@ python ./live_synced_rgbd_streams.py \
   --shop-api-key 98cdde4b-0852-4866-a17f-1063795e3760 \
   --shop-id 1 \
   --state-db state/shop_state.sqlite \
-  --frame-width 1920 \
-  --frame-height 1080 \
-  --headless
+  --frame-width 3840 \
+  --frame-height 2160 \
+  --log-performance \
 

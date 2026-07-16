@@ -55,6 +55,7 @@ from pipeline.face_identity import (
 )
 from pipeline.mjpeg_stream_server import MjpegStreamServer
 from pipeline.observer_api import ObserverCameraSnapshot, build_observer_camera_snapshot
+from pipeline.performance import LivePerformanceLogger
 from pipeline.rgbd_recording import DEFAULT_PLANE_CALIBRATIONS_DIR
 from pipeline.shop_state_store import DEFAULT_SHOP_STATE_DB, ShopStateStore
 from pipeline.tracking import PersonTracker, build_person_tracker, draw_tracks
@@ -298,6 +299,17 @@ def build_argparser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--max-window-width", type=int, default=1600, help="Maximum RGB/depth window width.")
     parser.add_argument("--max-window-height", type=int, default=900, help="Maximum RGB/depth window height.")
+    parser.add_argument(
+        "--log-performance",
+        action="store_true",
+        help="Log aggregated live-pipeline stage timings for performance analysis.",
+    )
+    parser.add_argument(
+        "--performance-log-interval-seconds",
+        type=float,
+        default=5.0,
+        help="Aggregation window for --log-performance. Default: 5 seconds.",
+    )
     parser.add_argument("--output-dir", type=Path, default=None, help="Optional live artifact output directory.")
     parser.add_argument(
         "--state-db",
@@ -513,8 +525,11 @@ def process_latest_rgb_frame(
     shop_state_store: ShopStateStore,
     customer_ids_by_visit: dict[int, str],
     args: argparse.Namespace,
+    performance: LivePerformanceLogger,
 ) -> None:
+    rgb_poll_started = performance.start()
     rgb_msg = state.rgb_queue.tryGet()
+    performance.record_duration("rgb_poll", rgb_poll_started)
     if rgb_msg is None:
         return
 
@@ -522,14 +537,18 @@ def process_latest_rgb_frame(
     if state.last_processed_rgb_sequence == rgb_sequence:
         return
 
+    rgb_decode_started = performance.start()
     rgb_host_synced_seconds = float(rgb_msg.getTimestamp().total_seconds())
     best_depth = choose_best_depth_packet(state.recent_depth_packets, rgb_host_synced_seconds)
     rgb_frame = rgb_msg.getCvFrame()
+    performance.record_duration("rgb_decode", rgb_decode_started)
+    performance.record_rgb_frame()
     state.cached_rgb_raw = rgb_frame
     state.last_rgb_host_synced_seconds = rgb_host_synced_seconds
     state.last_processed_rgb_sequence = rgb_sequence
 
     if best_depth is None:
+        overlay_started = performance.start()
         overlay = rgb_frame.copy()
         cv2.putText(
             overlay,
@@ -543,6 +562,7 @@ def process_latest_rgb_frame(
         )
         state.cached_rgb_overlay = overlay
         state.cached_observer_snapshot = None
+        performance.record_duration("overlay", overlay_started)
         return
 
     processed_frame = build_processed_live_rgb_frame(
@@ -562,10 +582,13 @@ def process_latest_rgb_frame(
         shop_state_store=shop_state_store,
         customer_ids_by_visit=customer_ids_by_visit,
         args=args,
+        performance=performance,
     )
     state.cached_rgb_overlay = processed_frame.overlay
     state.cached_observer_snapshot = processed_frame.observer_snapshot
+    depth_colorize_started = performance.start()
     state.cached_depth_overlay = colorize_depth(best_depth.frame_mm)
+    performance.record_duration("depth_colorize", depth_colorize_started)
 
 
 def build_processed_live_rgb_frame(
@@ -586,11 +609,21 @@ def build_processed_live_rgb_frame(
     shop_state_store: ShopStateStore,
     customer_ids_by_visit: dict[int, str],
     args: argparse.Namespace,
+    performance: LivePerformanceLogger,
 ) -> ProcessedLiveFrame:
+    yolo_started = performance.start()
     detections = detector.detect(rgb_frame)
+    performance.record_duration("yolo", yolo_started)
+    tracking_started = performance.start()
     tracks = state.tracker.update(detections)
+    performance.record_duration("tracking", tracking_started)
+    performance.record_processed_frame(
+        detection_count=len(detections),
+        track_count=len(tracks),
+    )
     entrance_enabled = is_entrance_enabled(state.camera_role)
 
+    depth_logic_started = performance.start()
     if args.depth_trigger_mode == "plane" and entrance_enabled:
         depth_result = process_depth_plane_logic(
             tracks=tracks,
@@ -620,6 +653,7 @@ def build_processed_live_rgb_frame(
             roi_width_fraction=args.depth_roi_width_fraction,
             roi_height_fraction=args.depth_roi_height_fraction,
         )
+    performance.record_duration("depth_logic", depth_logic_started)
 
     entered_track_ids = depth_result.entered_track_ids
     exited_track_ids = depth_result.exited_track_ids
@@ -645,6 +679,7 @@ def build_processed_live_rgb_frame(
             exited_track_ids=set(exited_track_ids),
         )
 
+    face_started = performance.start()
     recognized_faces = []
     if face_matcher is not None:
         face_tracks = face_recognition_eligible_tracks(
@@ -653,8 +688,12 @@ def build_processed_live_rgb_frame(
             min_height_px=args.face_min_track_height_px,
         )
         recognized_faces = face_matcher.recognize(rgb_frame, tracks=face_tracks)
+    performance.record_duration("face", face_started)
 
+    body_started = performance.start()
     body_evidence_by_track = body_evidence_extractor.extract(rgb_frame, tracks=tracks)
+    performance.record_duration("body", body_started)
+    registry_started = performance.start()
     frame_evidence = FrameEvidence(
         device_id=state.device_id,
         host_seconds=rgb_host_synced_seconds,
@@ -917,7 +956,9 @@ def build_processed_live_rgb_frame(
                 )
             },
         )
+    performance.record_duration("registry_io", registry_started)
 
+    overlay_started = performance.start()
     overlay = rgb_frame.copy()
     draw_tracks(overlay, tracks)
     draw_visit_labels(overlay, tracks, visit_assignments, show_face_evidence=False)
@@ -931,6 +972,7 @@ def build_processed_live_rgb_frame(
     )
     if face_matcher is not None:
         draw_recognized_faces(overlay, recognized_faces, show_labels=False)
+    performance.record_duration("overlay", overlay_started)
     return ProcessedLiveFrame(overlay=overlay, observer_snapshot=observer_snapshot)
 
 
@@ -964,8 +1006,14 @@ def main() -> None:
         raise ValueError("--stream-camera-timeout-seconds must be greater than zero.")
     if args.frame_width <= 0 or args.frame_height <= 0:
         raise ValueError("--frame-width and --frame-height must be greater than zero.")
+    if args.performance_log_interval_seconds <= 0:
+        raise ValueError("--performance-log-interval-seconds must be greater than zero.")
 
     stop_requested = threading.Event()
+    performance = LivePerformanceLogger(
+        enabled=args.log_performance,
+        interval_seconds=args.performance_log_interval_seconds,
+    )
 
     def request_stop(_signum: int, _frame: object) -> None:
         stop_requested.set()
@@ -1048,10 +1096,15 @@ def main() -> None:
                     cv2.namedWindow("Live Synchronized RGBD - Depth", cv2.WINDOW_NORMAL)
 
             while not stop_requested.is_set():
+                cycle_started = performance.start()
                 for camera_index, state in enumerate(states):
+                    camera_iteration_started = performance.start()
+                    performance.record_camera_poll()
                     if state.device.isClosed() or not state.pipeline.isRunning():
                         raise RuntimeError(f"Live pipeline stopped for device {state.device_id}.")
+                    depth_drain_started = performance.start()
                     drain_depth_queue(state)
+                    performance.record_duration("depth_drain", depth_drain_started)
                     previous_rgb_sequence = state.last_processed_rgb_sequence
                     process_latest_rgb_frame(
                         camera_index=camera_index,
@@ -1065,11 +1118,13 @@ def main() -> None:
                         shop_state_store=shop_state_store,
                         customer_ids_by_visit=customer_ids_by_visit,
                         args=args,
+                        performance=performance,
                     )
                     if (
                         stream_server is not None
                         and state.last_processed_rgb_sequence != previous_rgb_sequence
                     ):
+                        stream_started = performance.start()
                         stream_frame = (
                             state.cached_rgb_overlay
                             if args.stream_annotated
@@ -1077,13 +1132,17 @@ def main() -> None:
                         )
                         if stream_frame is not None:
                             stream_server.publish(camera_index, stream_frame)
+                            performance.record_stream_frame()
                         if state.cached_observer_snapshot is not None:
                             stream_server.publish_observer_snapshot(
                                 camera_index,
                                 state.cached_observer_snapshot,
                             )
+                        performance.record_duration("stream_publish", stream_started)
+                    performance.record_duration("camera_iteration", camera_iteration_started)
 
                 if not args.headless:
+                    gui_started = performance.start()
                     rgb_frames = [
                         state.cached_rgb_overlay
                         if state.cached_rgb_overlay is not None
@@ -1126,9 +1185,11 @@ def main() -> None:
                         )
 
                     key = cv2.waitKey(1) & 0xFF
+                    performance.record_duration("gui", gui_started)
                     if key == ord("q"):
                         break
                 time.sleep(0.001)
+                performance.complete_cycle(cycle_started)
     except KeyboardInterrupt:
         print("Interrupted by user.")
     finally:

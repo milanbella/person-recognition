@@ -15,6 +15,12 @@ class LiveFrameConfigTests(unittest.TestCase):
 
         self.assertEqual(frame.shape, (1080, 1920, 3))
 
+    def test_performance_logging_is_opt_in(self) -> None:
+        args = build_argparser().parse_args([])
+
+        self.assertFalse(args.log_performance)
+        self.assertEqual(args.performance_log_interval_seconds, 5.0)
+
 
 if __name__ == "__main__":
     unittest.main()

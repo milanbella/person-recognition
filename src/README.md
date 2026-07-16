@@ -124,6 +124,7 @@ The old on-device `RVC2` experiment scripts were intentionally removed.
     - entry binds `visit_id` to the latest recent unbound `ShoppingCustomer`
     - leave marks the matching `ShoppingCustomer` as left by `visitId`
   - persists operational live visit state to `state/shop_state.sqlite` by default; override with `--state-db`
+  - supports opt-in aggregated profiling with `--log-performance`; `LIVE_PERF` reports camera polling, RGB conversion, YOLO, tracking, depth, face, body, registry/I/O, overlays, depth colorization, MJPEG publication, GUI, and total-cycle timings
   - supports `--log-plane-trace` for per-frame plane signed-distance debugging on entrance-capable cameras
   - enables plane track-split recovery by default to recover entry/leave events when a tracker split happens exactly at the entrance plane; disable it with `--disable-plane-track-split-recovery`
   - supports `--output-dir` for live artifacts: visit decisions, track visit evidence, entrance/leave plane-crossing events, live config, and final visit summaries
