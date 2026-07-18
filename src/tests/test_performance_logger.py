@@ -31,6 +31,18 @@ class LivePerformanceLoggerTests(unittest.TestCase):
             "face": 2,
             "cycle": 5,
         }
+        logger.metric_totals = {
+            "raw_rgb_capture_age_ms": 240.0,
+            "preview_age_ms": 600.0,
+        }
+        logger.metric_counts = {
+            "raw_rgb_capture_age_ms": 2,
+            "preview_age_ms": 3,
+        }
+        logger.metric_maxima = {
+            "raw_rgb_capture_age_ms": 150.0,
+            "preview_age_ms": 250.0,
+        }
         logger.cycle_count = 5
         logger.camera_poll_count = 25
         logger.rgb_frame_count = 20
@@ -50,8 +62,14 @@ class LivePerformanceLoggerTests(unittest.TestCase):
         self.assertIn("yolo_ms=30.0", line)
         self.assertIn("face_ms=40.0", line)
         self.assertIn("cycle_ms=100.0", line)
+        self.assertIn(
+            "raw_rgb_capture_age_ms=120.0 raw_rgb_capture_age_ms_max=150.0",
+            line,
+        )
+        self.assertIn("preview_age_ms=200.0 preview_age_ms_max=250.0", line)
         self.assertEqual(logger.processed_frame_count, 0)
         self.assertEqual(logger.stage_seconds, {})
+        self.assertEqual(logger.metric_totals, {})
 
     def test_non_positive_interval_is_rejected(self) -> None:
         with self.assertRaises(ValueError):

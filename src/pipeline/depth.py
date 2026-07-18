@@ -832,6 +832,49 @@ def draw_depth_samples(
             cv2.LINE_AA,
         )
 
+
+def scale_depth_samples(
+    depth_samples: Dict[int, DepthSample],
+    *,
+    source_width: int,
+    source_height: int,
+    target_width: int,
+    target_height: int,
+) -> Dict[int, DepthSample]:
+    if source_width <= 0 or source_height <= 0:
+        raise ValueError("Source depth dimensions must be greater than zero.")
+    if target_width <= 0 or target_height <= 0:
+        raise ValueError("Target depth dimensions must be greater than zero.")
+
+    scale_x = target_width / source_width
+    scale_y = target_height / source_height
+
+    def scale_x_coordinate(value: int) -> int:
+        return max(0, min(target_width - 1, int(round(value * scale_x))))
+
+    def scale_y_coordinate(value: int) -> int:
+        return max(0, min(target_height - 1, int(round(value * scale_y))))
+
+    return {
+        track_id: DepthSample(
+            depth_mm=sample.depth_mm,
+            valid_pixel_count=sample.valid_pixel_count,
+            roi=(
+                scale_x_coordinate(sample.roi[0]),
+                scale_y_coordinate(sample.roi[1]),
+                scale_x_coordinate(sample.roi[2]),
+                scale_y_coordinate(sample.roi[3]),
+            ),
+            anchor_px=(
+                scale_x_coordinate(sample.anchor_px[0]),
+                scale_y_coordinate(sample.anchor_px[1]),
+            ),
+            point_3d_mm=sample.point_3d_mm,
+        )
+        for track_id, sample in depth_samples.items()
+    }
+
+
 def draw_depth_event_banner(frame: np.ndarray, text: str) -> None:
     if not text:
         return

@@ -112,13 +112,19 @@ The old on-device `RVC2` experiment scripts were intentionally removed.
 
 - `live_synced_rgbd_streams.py`
   - live multi-OAK RGBD pipeline equivalent to synchronized replay
-  - opens all `--device-id` cameras at once and uses host-synced DepthAI timestamps to pair RGB frames with nearest aligned depth frames
-  - `--frame-width` and `--frame-height` jointly configure RGB capture, aligned depth, raw MJPEG streaming, and frame metadata; defaults are `3840x2160`
-  - YOLO inference remains independently configured at `640x384` and maps detections back to the configured source-frame coordinates
+  - opens all `--device-id` cameras at once and pairs current raw and processing RGB outputs by exact sequence number
+  - `--frame-width` and `--frame-height` configure current raw RGB capture, MJPEG streaming, GUI output, and observer API coordinates; defaults are `1920x1080`
+  - `--processing-width` and `--processing-height` configure a separate current RGB output plus aligned stereo depth; defaults are `1280x720`
+  - enables StereoDepth's `7x7` on-device median filter by default; use `--depth-median-filter off`, `3x3`, or `5x5` to change spatial smoothing, while host track-ROI depth sampling continues to reject spatial outliers
+  - runs YOLO/tracking on current `1280x720` RGB, maps tracks to the matching full-resolution frame, and runs InsightFace only on the full-resolution person crops
+  - never puts full-resolution frames in the depth-delay buffer; it retains only the latest frame for raw GUI/MJPEG output, while `--processing-buffer-seconds` retains processing frames plus track, face, and body evidence snapshots
+  - attaches delayed depth to cached evidence by exact sequence when counters are shared, otherwise by nearest host-synchronized capture timestamp; differences above `--max-rgb-depth-delta-ms` (default `250`) are rejected
+  - GUI preview shows the delayed synchronized tracking overlay by default; use `--show-raw-preview` for the current raw RGB view
+  - YOLO inference remains independently configured at `640x384`, maps detections to the `1280x720` processing frame, and then scales tracks to the configured RGB resolution
   - uses one shared `VisitRegistry` across all live streams
   - supports the same `--camera-role entrance`, `entrance_observer`, and `observer` behavior as synced replay
   - observer-only streams do not require plane calibration and never emit entrance/leave events
-  - runs face recognition and body evidence for live visit matching by default; disable face recognition with `--disable-face-recognition`
+  - runs face recognition on every eligible processed track frame and accumulates recognized face identity IDs as visit evidence; disable it with `--disable-face-recognition`
   - supports `--observer-single-active-fallback-threshold` and `--observer-provisional-seconds` for conservative delayed observer-only visit creation
   - supports optional shop API integration:
     - entry binds `visit_id` to the latest recent unbound `ShoppingCustomer`
@@ -179,7 +185,7 @@ The old on-device `RVC2` experiment scripts were intentionally removed.
 - ONNX metadata:
   - input `[1, 3, 384, 640]`
   - output `[1, 84, 5040]`
-  - RGB camera, streaming, and evidence crops remain `3840x2160`; only detector inference is resized to `640x384`
+  - live RGB camera, streaming, and evidence crops default to `1920x1080`; detector inference is independently resized to `640x384`
 - production caveat:
   - verify Ultralytics licensing for commercial production deployment
 

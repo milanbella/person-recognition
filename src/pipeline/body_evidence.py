@@ -63,3 +63,31 @@ def build_body_evidence_extractor(args: argparse.Namespace) -> BodyEvidenceExtra
     if backend != "hsv":
         raise ValueError(f"Unsupported body evidence backend: {backend}")
     return HsvBodyEvidenceExtractor()
+
+
+def scale_body_evidence_heights(
+    evidence_by_track: dict[int, BodyEvidence],
+    *,
+    scale_y: float,
+) -> dict[int, BodyEvidence]:
+    if scale_y <= 0.0:
+        raise ValueError("Body evidence height scale must be greater than zero.")
+
+    scaled: dict[int, BodyEvidence] = {}
+    for track_id, evidence in evidence_by_track.items():
+        appearance = evidence.appearance
+        scaled_appearance = None
+        if appearance is not None:
+            scaled_appearance = BodyAppearance(
+                histogram=appearance.histogram,
+                aspect_ratio=appearance.aspect_ratio,
+                height_px=int(round(appearance.height_px * scale_y)),
+            )
+        scaled[track_id] = BodyEvidence(
+            track_id=evidence.track_id,
+            appearance=scaled_appearance,
+            embedding=evidence.embedding,
+            quality=evidence.quality,
+            backend=evidence.backend,
+        )
+    return scaled

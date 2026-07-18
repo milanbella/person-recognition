@@ -16,7 +16,13 @@ import cv2
 import depthai as dai
 import numpy as np
 
-from pipeline.body_evidence import BodyEvidenceExtractor, add_body_evidence_args, build_body_evidence_extractor
+from pipeline.body_evidence import (
+    BodyEvidence,
+    BodyEvidenceExtractor,
+    add_body_evidence_args,
+    build_body_evidence_extractor,
+    scale_body_evidence_heights,
+)
 from pipeline.camera import configure_live_device, device_identifier, list_available_devices, print_available_devices
 from pipeline.config import (
     DEFAULT_CAMERA_FPS,
@@ -27,10 +33,9 @@ from pipeline.config import (
     DEFAULT_PERSON_DETECTOR_BACKEND,
     DEFAULT_PERSON_DETECTOR_MODEL,
     DEFAULT_PERSON_TRACKER_BACKEND,
+    DEFAULT_MAX_RGB_DEPTH_DELTA_MS,
     DEFAULT_TRACKING_IOU_THRESHOLD,
     DEFAULT_TRACKING_MAX_MISSED,
-    PREVIEW_HEIGHT,
-    PREVIEW_WIDTH,
 )
 from pipeline.depth import (
     CameraIntrinsics,
@@ -44,21 +49,24 @@ from pipeline.depth import (
     process_depth_plane_logic,
     resolve_plane_json_path,
     add_plane_track_split_recovery_args,
+    scale_depth_samples,
 )
 from pipeline.detection import DETECTOR_BACKEND_CHOICES, PersonDetector, build_person_detector
 from pipeline.face_identity import (
     FaceRecognizer,
+    RecognizedFace,
     add_face_identity_args,
     build_face_recognizer,
     draw_recognized_faces,
     face_recognition_eligible_tracks,
+    scale_recognized_faces,
 )
 from pipeline.mjpeg_stream_server import MjpegStreamServer
 from pipeline.observer_api import ObserverCameraSnapshot, build_observer_camera_snapshot
 from pipeline.performance import LivePerformanceLogger
 from pipeline.rgbd_recording import DEFAULT_PLANE_CALIBRATIONS_DIR
 from pipeline.shop_state_store import DEFAULT_SHOP_STATE_DB, ShopStateStore
-from pipeline.tracking import PersonTracker, build_person_tracker, draw_tracks
+from pipeline.tracking import PersonTracker, Track, build_person_tracker, draw_tracks, scale_tracks
 from pipeline.visit_identity import add_visit_identity_args, draw_visit_labels
 from pipeline.visit_registry import (
     CAMERA_ROLE_ENTRANCE,
@@ -82,6 +90,12 @@ from replay_synced_rgbd_streams import (
 )
 
 
+DEFAULT_LIVE_FRAME_WIDTH = 1920
+DEFAULT_LIVE_FRAME_HEIGHT = 1080
+DEFAULT_LIVE_PROCESSING_WIDTH = 1280
+DEFAULT_LIVE_PROCESSING_HEIGHT = 720
+
+
 @dataclass
 class LiveDepthPacket:
     sequence_num: int
@@ -96,6 +110,17 @@ class ProcessedLiveFrame:
     observer_snapshot: ObserverCameraSnapshot | None
 
 
+@dataclass(frozen=True)
+class LiveRgbTrackSnapshot:
+    sequence_num: int
+    host_synced_seconds: float
+    processing_frame: np.ndarray
+    processing_tracks: tuple[Track, ...]
+    display_tracks: tuple[Track, ...]
+    recognized_faces: tuple[RecognizedFace, ...]
+    body_evidence_by_track: dict[int, BodyEvidence]
+
+
 @dataclass
 class LiveSyncedStreamState:
     device_id: str
@@ -103,21 +128,27 @@ class LiveSyncedStreamState:
     device: dai.Device
     pipeline: dai.Pipeline
     rgb_queue: dai.MessageQueue
+    processing_rgb_queue: dai.MessageQueue
     depth_queue: dai.MessageQueue
     intrinsics: CameraIntrinsics
     tracker: PersonTracker
     depth_states: dict[int, DepthEntranceState] = field(default_factory=dict)
     visit_plane_states: dict[int, VisitPlaneState] = field(default_factory=dict)
-    recent_depth_packets: deque[LiveDepthPacket] = field(default_factory=lambda: deque(maxlen=32))
+    recent_raw_rgb_messages: deque[Any] = field(default_factory=deque)
+    recent_processing_rgb_messages: deque[Any] = field(default_factory=deque)
+    recent_rgb_track_snapshots: deque[LiveRgbTrackSnapshot] = field(default_factory=deque)
     plane: object | None = None
     plane_enter_direction: str | None = None
-    latest_depth_visual: np.ndarray | None = None
     cached_rgb_raw: np.ndarray | None = None
     cached_rgb_overlay: np.ndarray | None = None
     cached_observer_snapshot: ObserverCameraSnapshot | None = None
     cached_depth_overlay: np.ndarray | None = None
+    last_raw_rgb_sequence: int | None = None
+    last_rgb_evidence_sequence: int | None = None
     last_processed_rgb_sequence: int | None = None
+    last_raw_rgb_host_synced_seconds: float | None = None
     last_rgb_host_synced_seconds: float | None = None
+    last_depth_sync_warning_seconds: float | None = None
 
 
 class NoRedirectHandler(urllib.request.HTTPRedirectHandler):
@@ -255,16 +286,67 @@ def build_argparser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--frame-width",
         type=int,
-        default=PREVIEW_WIDTH,
-        help="RGB camera and raw MJPEG stream width. Default: 3840.",
+        default=DEFAULT_LIVE_FRAME_WIDTH,
+        help="RGB camera and raw MJPEG stream width. Default: 1920.",
     )
     parser.add_argument(
         "--frame-height",
         type=int,
-        default=PREVIEW_HEIGHT,
-        help="RGB camera and raw MJPEG stream height. Default: 2160.",
+        default=DEFAULT_LIVE_FRAME_HEIGHT,
+        help="RGB camera and raw MJPEG stream height. Default: 1080.",
+    )
+    parser.add_argument(
+        "--processing-width",
+        type=int,
+        default=DEFAULT_LIVE_PROCESSING_WIDTH,
+        help="Width used for detection, tracking, and aligned depth. Default: 1280.",
+    )
+    parser.add_argument(
+        "--processing-height",
+        type=int,
+        default=DEFAULT_LIVE_PROCESSING_HEIGHT,
+        help="Height used for detection, tracking, and aligned depth. Default: 720.",
+    )
+    parser.add_argument(
+        "--depth-median-filter",
+        choices=("off", "3x3", "5x5", "7x7"),
+        default="7x7",
+        help=(
+            "StereoDepth on-device median filter kernel. Default: 7x7. "
+            "Use off to disable spatial smoothing."
+        ),
+    )
+    parser.add_argument(
+        "--max-rgb-depth-delta-ms",
+        type=float,
+        default=DEFAULT_MAX_RGB_DEPTH_DELTA_MS,
+        help=(
+            "Reject RGB/depth pairs farther apart than this before running depth or visit logic. "
+            "Default: 250 ms."
+        ),
+    )
+    parser.add_argument(
+        "--processing-buffer-seconds",
+        type=float,
+        default=6.0,
+        help=(
+            "Seconds of low-resolution track/evidence snapshots retained while waiting for delayed aligned depth. "
+            "Default: 6."
+        ),
     )
     parser.add_argument("--columns", type=int, default=2, help="Columns for tiled live view.")
+    parser.add_argument(
+        "--show-annotated-preview",
+        action="store_true",
+        default=True,
+        help="Show the delayed synchronized processing overlay in the GUI. This is the default.",
+    )
+    parser.add_argument(
+        "--show-raw-preview",
+        action="store_false",
+        dest="show_annotated_preview",
+        help="Show current raw RGB in the GUI instead of the delayed annotated overlay.",
+    )
     parser.add_argument(
         "--headless",
         action="store_true",
@@ -391,13 +473,16 @@ def resolve_live_device(device_id: str) -> dai.Device:
     return device
 
 
-def choose_best_depth_packet(
-    packets: deque[LiveDepthPacket],
-    rgb_host_synced_seconds: float,
-) -> LiveDepthPacket | None:
-    if not packets:
+def drain_latest_message(queue: dai.MessageQueue) -> Any | None:
+    latest_message = queue.tryGet()
+    if latest_message is None:
         return None
-    return min(packets, key=lambda packet: abs(packet.host_synced_seconds - rgb_host_synced_seconds))
+
+    next_message = queue.tryGet()
+    while next_message is not None:
+        latest_message = next_message
+        next_message = queue.tryGet()
+    return latest_message
 
 
 def create_live_stream_state(
@@ -410,7 +495,10 @@ def create_live_stream_state(
     device = resolve_live_device(device_id)
     calibration = device.readCalibration()
     intrinsics = intrinsics_from_matrix(
-        calibration.getCameraIntrinsics(dai.CameraBoardSocket.CAM_A, (args.frame_width, args.frame_height))
+        calibration.getCameraIntrinsics(
+            dai.CameraBoardSocket.CAM_A,
+            (args.processing_width, args.processing_height),
+        )
     )
 
     pipeline = stack.enter_context(dai.Pipeline(device))
@@ -420,19 +508,39 @@ def create_live_stream_state(
         type=dai.ImgFrame.Type.BGR888p,
         fps=args.fps,
     )
+    processing_rgb_output = cam_rgb.requestOutput(
+        size=(args.processing_width, args.processing_height),
+        type=dai.ImgFrame.Type.BGR888p,
+        fps=args.fps,
+    )
 
     mono_left = pipeline.create(dai.node.Camera).build(dai.CameraBoardSocket.CAM_B)
     mono_right = pipeline.create(dai.node.Camera).build(dai.CameraBoardSocket.CAM_C)
     stereo = pipeline.create(dai.node.StereoDepth)
     stereo.setDefaultProfilePreset(dai.node.StereoDepth.PresetMode.DEFAULT)
+    median_filter = {
+        "off": dai.MedianFilter.MEDIAN_OFF,
+        "3x3": dai.MedianFilter.KERNEL_3x3,
+        "5x5": dai.MedianFilter.KERNEL_5x5,
+        "7x7": dai.MedianFilter.KERNEL_7x7,
+    }[args.depth_median_filter]
+    stereo.initialConfig.setMedianFilter(median_filter)
     stereo.setLeftRightCheck(True)
     stereo.setDepthAlign(dai.CameraBoardSocket.CAM_A)
-    stereo.setOutputSize(args.frame_width, args.frame_height)
+    stereo.setOutputSize(args.processing_width, args.processing_height)
     mono_left.requestFullResolutionOutput(fps=args.fps).link(stereo.left)
     mono_right.requestFullResolutionOutput(fps=args.fps).link(stereo.right)
 
-    rgb_queue = rgb_output.createOutputQueue(maxSize=4, blocking=False)
-    depth_queue = stereo.depth.createOutputQueue(maxSize=8, blocking=False)
+    processing_buffer_frames = max(8, int(math.ceil(args.fps * args.processing_buffer_seconds)))
+    rgb_queue = rgb_output.createOutputQueue(maxSize=8, blocking=False)
+    processing_rgb_queue = processing_rgb_output.createOutputQueue(
+        maxSize=8,
+        blocking=False,
+    )
+    depth_queue = stereo.depth.createOutputQueue(
+        maxSize=processing_buffer_frames,
+        blocking=False,
+    )
     tracker = build_person_tracker(args)
     state = LiveSyncedStreamState(
         device_id=device_id,
@@ -440,9 +548,13 @@ def create_live_stream_state(
         device=device,
         pipeline=pipeline,
         rgb_queue=rgb_queue,
+        processing_rgb_queue=processing_rgb_queue,
         depth_queue=depth_queue,
         intrinsics=intrinsics,
         tracker=tracker,
+        recent_raw_rgb_messages=deque(maxlen=8),
+        recent_processing_rgb_messages=deque(maxlen=8),
+        recent_rgb_track_snapshots=deque(maxlen=processing_buffer_frames),
     )
 
     if args.depth_trigger_mode == "plane" and is_entrance_enabled(camera_role):
@@ -483,6 +595,8 @@ def write_live_config(
         "camera_roles": camera_roles,
         "width": args.frame_width,
         "height": args.frame_height,
+        "processing_width": args.processing_width,
+        "processing_height": args.processing_height,
         "fps": args.fps,
         "args": {
             key: str(value) if isinstance(value, Path) else value
@@ -496,29 +610,319 @@ def write_live_config(
     )
 
 
-def drain_depth_queue(state: LiveSyncedStreamState) -> None:
-    depth_msg = state.depth_queue.tryGet()
-    while depth_msg is not None:
-        frame_mm = depth_msg.getFrame().copy()
-        state.recent_depth_packets.append(
-            LiveDepthPacket(
-                sequence_num=int(depth_msg.getSequenceNum()),
-                host_synced_seconds=float(depth_msg.getTimestamp().total_seconds()),
-                device_monotonic_seconds=float(depth_msg.getTimestampDevice().total_seconds()),
-                frame_mm=frame_mm,
-            )
-        )
-        state.latest_depth_visual = colorize_depth(frame_mm)
-        depth_msg = state.depth_queue.tryGet()
+def drain_messages_into_buffer(queue: dai.MessageQueue, messages: deque[Any]) -> int:
+    drained = 0
+    message = queue.tryGet()
+    while message is not None:
+        messages.append(message)
+        drained += 1
+        message = queue.tryGet()
+    return drained
 
 
-def process_latest_rgb_frame(
+def pop_latest_matching_rgb_pair(
+    raw_messages: deque[Any],
+    processing_messages: deque[Any],
+) -> tuple[Any, Any] | None:
+    if not raw_messages or not processing_messages:
+        return None
+
+    processing_indices_by_sequence = {
+        int(message.getSequenceNum()): index
+        for index, message in enumerate(processing_messages)
+    }
+    matching_pairs = [
+        (raw_index, processing_indices_by_sequence[int(raw_message.getSequenceNum())])
+        for raw_index, raw_message in enumerate(raw_messages)
+        if int(raw_message.getSequenceNum()) in processing_indices_by_sequence
+    ]
+    if not matching_pairs:
+        return None
+
+    raw_index, processing_index = max(
+        matching_pairs,
+        key=lambda pair: float(raw_messages[pair[0]].getTimestamp().total_seconds()),
+    )
+    for _index in range(raw_index):
+        raw_messages.popleft()
+    raw_message = raw_messages.popleft()
+    for _index in range(processing_index):
+        processing_messages.popleft()
+    processing_message = processing_messages.popleft()
+    return raw_message, processing_message
+
+
+def pop_matching_rgb_track_snapshot(
+    snapshots: deque[LiveRgbTrackSnapshot],
     *,
-    camera_index: int,
+    depth_sequence_num: int,
+    depth_host_synced_seconds: float,
+    max_delta_ms: float,
+) -> tuple[LiveRgbTrackSnapshot | None, float | None]:
+    if not snapshots:
+        return None, None
+
+    exact_index = next(
+        (
+            index
+            for index, snapshot in enumerate(snapshots)
+            if snapshot.sequence_num == depth_sequence_num
+        ),
+        None,
+    )
+    selected_index = exact_index
+    if exact_index is not None:
+        exact_delta_ms = (
+            depth_host_synced_seconds - snapshots[exact_index].host_synced_seconds
+        ) * 1000.0
+        if abs(exact_delta_ms) > max_delta_ms:
+            selected_index = None
+    if selected_index is None:
+        selected_index = min(
+            range(len(snapshots)),
+            key=lambda index: abs(
+                snapshots[index].host_synced_seconds - depth_host_synced_seconds
+            ),
+        )
+
+    selected_snapshot = snapshots[selected_index]
+    delta_ms = (
+        depth_host_synced_seconds - selected_snapshot.host_synced_seconds
+    ) * 1000.0
+    if abs(delta_ms) > max_delta_ms:
+        return None, delta_ms
+
+    for _index in range(selected_index):
+        snapshots.popleft()
+    return snapshots.popleft(), delta_ms
+
+
+def drain_latest_depth_message_for_snapshots(
+    queue: dai.MessageQueue,
+    snapshots: deque[LiveRgbTrackSnapshot],
+    *,
+    max_delta_ms: float,
+) -> tuple[Any | None, Any | None]:
+    latest_message = None
+    latest_matching_message = None
+    latest_matching_key: tuple[float, float] | None = None
+    message = queue.tryGet()
+    while message is not None:
+        latest_message = message
+        if snapshots:
+            depth_sequence = int(message.getSequenceNum())
+            depth_host_seconds = float(message.getTimestamp().total_seconds())
+            exact_snapshot = next(
+                (
+                    snapshot
+                    for snapshot in snapshots
+                    if snapshot.sequence_num == depth_sequence
+                ),
+                None,
+            )
+            if exact_snapshot is not None:
+                exact_delta_ms = (
+                    depth_host_seconds - exact_snapshot.host_synced_seconds
+                ) * 1000.0
+                if abs(exact_delta_ms) > max_delta_ms:
+                    exact_snapshot = None
+            matched_snapshot = exact_snapshot or min(
+                snapshots,
+                key=lambda snapshot: abs(
+                    snapshot.host_synced_seconds - depth_host_seconds
+                ),
+            )
+            delta_ms = (
+                depth_host_seconds - matched_snapshot.host_synced_seconds
+            ) * 1000.0
+            if abs(delta_ms) <= max_delta_ms:
+                candidate_key = (
+                    matched_snapshot.host_synced_seconds,
+                    -abs(delta_ms),
+                )
+                if latest_matching_key is None or candidate_key > latest_matching_key:
+                    latest_matching_message = message
+                    latest_matching_key = candidate_key
+        message = queue.tryGet()
+    return latest_matching_message, latest_message
+
+
+def update_cached_depth_overlay(
+    *,
+    state: LiveSyncedStreamState,
+    depth_frame_mm: np.ndarray,
+    hide_depth_window: bool,
+    performance: LivePerformanceLogger,
+) -> None:
+    if hide_depth_window:
+        state.cached_depth_overlay = None
+        return
+
+    depth_colorize_started = performance.start()
+    state.cached_depth_overlay = colorize_depth(depth_frame_mm)
+    performance.record_duration("depth_colorize", depth_colorize_started)
+
+
+def rgb_depth_delta_ms(
+    depth_packet: LiveDepthPacket,
+    rgb_host_synced_seconds: float,
+) -> float:
+    return (depth_packet.host_synced_seconds - rgb_host_synced_seconds) * 1000.0
+
+
+def rgb_depth_pair_is_synchronized(
+    depth_packet: LiveDepthPacket,
+    rgb_host_synced_seconds: float,
+    *,
+    max_delta_ms: float,
+) -> bool:
+    return abs(rgb_depth_delta_ms(depth_packet, rgb_host_synced_seconds)) <= max_delta_ms
+
+
+def process_latest_rgb_pair(
+    *,
     state: LiveSyncedStreamState,
     detector: PersonDetector,
     face_matcher: FaceRecognizer | None,
     body_evidence_extractor: BodyEvidenceExtractor,
+    args: argparse.Namespace,
+    performance: LivePerformanceLogger,
+) -> bool:
+    rgb_poll_started = performance.start()
+    raw_drained = drain_messages_into_buffer(
+        state.rgb_queue,
+        state.recent_raw_rgb_messages,
+    )
+    processing_drained = drain_messages_into_buffer(
+        state.processing_rgb_queue,
+        state.recent_processing_rgb_messages,
+    )
+    performance.record_metric("raw_rgb_queue_drained", float(raw_drained))
+    performance.record_metric(
+        "processing_rgb_queue_drained",
+        float(processing_drained),
+    )
+    matched_pair = pop_latest_matching_rgb_pair(
+        state.recent_raw_rgb_messages,
+        state.recent_processing_rgb_messages,
+    )
+    performance.record_duration("rgb_poll", rgb_poll_started)
+    if matched_pair is None:
+        return False
+
+    raw_rgb_msg, processing_rgb_msg = matched_pair
+    raw_rgb_host_synced_seconds = float(raw_rgb_msg.getTimestamp().total_seconds())
+    processing_rgb_host_synced_seconds = float(
+        processing_rgb_msg.getTimestamp().total_seconds()
+    )
+    captured_age_reference = time.monotonic()
+    performance.record_metric(
+        "raw_rgb_capture_age_ms",
+        max(0.0, captured_age_reference - raw_rgb_host_synced_seconds) * 1000.0,
+    )
+    performance.record_metric(
+        "processing_rgb_capture_age_ms",
+        max(0.0, captured_age_reference - processing_rgb_host_synced_seconds) * 1000.0,
+    )
+    performance.record_metric(
+        "rgb_pair_delta_ms",
+        abs(raw_rgb_host_synced_seconds - processing_rgb_host_synced_seconds) * 1000.0,
+    )
+    rgb_sequence = int(processing_rgb_msg.getSequenceNum())
+    if state.last_rgb_evidence_sequence == rgb_sequence:
+        return False
+
+    rgb_decode_started = performance.start()
+    raw_rgb_frame = raw_rgb_msg.getCvFrame()
+    processing_rgb_frame = processing_rgb_msg.getCvFrame()
+    performance.record_duration("rgb_decode", rgb_decode_started)
+    state.cached_rgb_raw = raw_rgb_frame
+    state.last_raw_rgb_sequence = int(raw_rgb_msg.getSequenceNum())
+    if state.cached_rgb_overlay is None:
+        state.cached_rgb_overlay = raw_rgb_frame
+
+    yolo_started = performance.start()
+    detections = detector.detect(processing_rgb_frame)
+    performance.record_duration("yolo", yolo_started)
+    tracking_started = performance.start()
+    current_processing_tracks = state.tracker.update(detections)
+    processing_height, processing_width = processing_rgb_frame.shape[:2]
+    processing_tracks = scale_tracks(
+        current_processing_tracks,
+        source_width=processing_width,
+        source_height=processing_height,
+        target_width=processing_width,
+        target_height=processing_height,
+    )
+    display_tracks = scale_tracks(
+        processing_tracks,
+        source_width=processing_width,
+        source_height=processing_height,
+        target_width=raw_rgb_frame.shape[1],
+        target_height=raw_rgb_frame.shape[0],
+    )
+    performance.record_duration("tracking", tracking_started)
+    performance.record_processed_frame(
+        detection_count=len(detections),
+        track_count=len(processing_tracks),
+    )
+
+    face_started = performance.start()
+    recognized_faces: list[RecognizedFace] = []
+    if face_matcher is not None:
+        eligible_processing_tracks = face_recognition_eligible_tracks(
+            processing_tracks,
+            min_width_px=args.face_min_track_width_px,
+            min_height_px=args.face_min_track_height_px,
+        )
+        eligible_track_ids = {
+            track.track_id for track in eligible_processing_tracks
+        }
+        eligible_display_tracks = [
+            track
+            for track in display_tracks
+            if track.track_id in eligible_track_ids
+        ]
+        recognized_faces = face_matcher.recognize_crops(
+            raw_rgb_frame,
+            tracks=eligible_display_tracks,
+        )
+    performance.record_duration("face", face_started)
+
+    body_started = performance.start()
+    processing_body_evidence_by_track = body_evidence_extractor.extract(
+        processing_rgb_frame,
+        tracks=processing_tracks,
+    )
+    body_evidence_by_track = scale_body_evidence_heights(
+        processing_body_evidence_by_track,
+        scale_y=raw_rgb_frame.shape[0] / processing_height,
+    )
+    performance.record_duration("body", body_started)
+
+    rgb_host_synced_seconds = processing_rgb_host_synced_seconds
+    state.recent_rgb_track_snapshots.append(
+        LiveRgbTrackSnapshot(
+            sequence_num=rgb_sequence,
+            host_synced_seconds=rgb_host_synced_seconds,
+            processing_frame=processing_rgb_frame,
+            processing_tracks=tuple(processing_tracks),
+            display_tracks=tuple(display_tracks),
+            recognized_faces=tuple(recognized_faces),
+            body_evidence_by_track=body_evidence_by_track,
+        )
+    )
+    performance.record_rgb_frame()
+    state.last_raw_rgb_host_synced_seconds = raw_rgb_host_synced_seconds
+    state.last_rgb_host_synced_seconds = rgb_host_synced_seconds
+    state.last_rgb_evidence_sequence = rgb_sequence
+    return True
+
+
+def process_latest_depth_frame(
+    *,
+    camera_index: int,
+    state: LiveSyncedStreamState,
     visit_registry: VisitRegistry,
     artifact_writer: ReplayArtifactWriter,
     shop_api_client: ShopApiClient,
@@ -526,56 +930,79 @@ def process_latest_rgb_frame(
     customer_ids_by_visit: dict[int, str],
     args: argparse.Namespace,
     performance: LivePerformanceLogger,
-) -> None:
-    rgb_poll_started = performance.start()
-    rgb_msg = state.rgb_queue.tryGet()
-    performance.record_duration("rgb_poll", rgb_poll_started)
-    if rgb_msg is None:
-        return
+) -> bool:
+    depth_msg, latest_depth_msg = drain_latest_depth_message_for_snapshots(
+        state.depth_queue,
+        state.recent_rgb_track_snapshots,
+        max_delta_ms=args.max_rgb_depth_delta_ms,
+    )
+    if depth_msg is None:
+        if latest_depth_msg is not None:
+            latest_depth_seconds = float(
+                latest_depth_msg.getTimestamp().total_seconds()
+            )
+            if (
+                state.last_depth_sync_warning_seconds is None
+                or latest_depth_seconds - state.last_depth_sync_warning_seconds >= 5.0
+            ):
+                print(
+                    f"LIVE_RGB_DEPTH_MATCH_PENDING device_id={state.device_id} "
+                    f"latest_depth_sequence_num={int(latest_depth_msg.getSequenceNum())} "
+                    f"buffered_rgb_snapshots={len(state.recent_rgb_track_snapshots)}"
+                )
+                state.last_depth_sync_warning_seconds = latest_depth_seconds
+        return False
 
-    rgb_sequence = int(rgb_msg.getSequenceNum())
+    depth_sequence = int(depth_msg.getSequenceNum())
+    depth_host_synced_seconds = float(depth_msg.getTimestamp().total_seconds())
+    rgb_snapshot, matched_delta_ms = pop_matching_rgb_track_snapshot(
+        state.recent_rgb_track_snapshots,
+        depth_sequence_num=depth_sequence,
+        depth_host_synced_seconds=depth_host_synced_seconds,
+        max_delta_ms=args.max_rgb_depth_delta_ms,
+    )
+    if rgb_snapshot is None:
+        if (
+            state.last_depth_sync_warning_seconds is None
+            or depth_host_synced_seconds - state.last_depth_sync_warning_seconds >= 5.0
+        ):
+            delta_text = "none" if matched_delta_ms is None else f"{matched_delta_ms:.1f}"
+            print(
+                f"LIVE_RGB_DEPTH_SYNC_REJECTED device_id={state.device_id} "
+                f"depth_sequence_num={depth_sequence} delta_ms={delta_text} "
+                f"max_delta_ms={args.max_rgb_depth_delta_ms:.1f} "
+                f"buffered_rgb_snapshots={len(state.recent_rgb_track_snapshots)}"
+            )
+            state.last_depth_sync_warning_seconds = depth_host_synced_seconds
+        return False
+
+    rgb_sequence = rgb_snapshot.sequence_num
     if state.last_processed_rgb_sequence == rgb_sequence:
-        return
+        return False
 
-    rgb_decode_started = performance.start()
-    rgb_host_synced_seconds = float(rgb_msg.getTimestamp().total_seconds())
-    best_depth = choose_best_depth_packet(state.recent_depth_packets, rgb_host_synced_seconds)
-    rgb_frame = rgb_msg.getCvFrame()
-    performance.record_duration("rgb_decode", rgb_decode_started)
-    performance.record_rgb_frame()
-    state.cached_rgb_raw = rgb_frame
-    state.last_rgb_host_synced_seconds = rgb_host_synced_seconds
+    depth_drain_started = performance.start()
+    best_depth = LiveDepthPacket(
+        sequence_num=depth_sequence,
+        host_synced_seconds=depth_host_synced_seconds,
+        device_monotonic_seconds=float(depth_msg.getTimestampDevice().total_seconds()),
+        frame_mm=depth_msg.getFrame().copy(),
+    )
+    performance.record_duration("depth_drain", depth_drain_started)
     state.last_processed_rgb_sequence = rgb_sequence
 
-    if best_depth is None:
-        overlay_started = performance.start()
-        overlay = rgb_frame.copy()
-        cv2.putText(
-            overlay,
-            "Waiting for aligned depth...",
-            (20, 40),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.8,
-            (0, 0, 255),
-            2,
-            cv2.LINE_AA,
-        )
-        state.cached_rgb_overlay = overlay
-        state.cached_observer_snapshot = None
-        performance.record_duration("overlay", overlay_started)
-        return
+    if not rgb_depth_pair_is_synchronized(
+        best_depth,
+        rgb_snapshot.host_synced_seconds,
+        max_delta_ms=args.max_rgb_depth_delta_ms,
+    ):
+        return False
 
     processed_frame = build_processed_live_rgb_frame(
         camera_index=camera_index,
         state=state,
-        rgb_frame=rgb_frame,
+        rgb_snapshot=rgb_snapshot,
         depth_frame_mm=best_depth.frame_mm,
-        rgb_host_synced_seconds=rgb_host_synced_seconds,
-        rgb_sequence_num=rgb_sequence,
         depth_packet=best_depth,
-        detector=detector,
-        face_matcher=face_matcher,
-        body_evidence_extractor=body_evidence_extractor,
         visit_registry=visit_registry,
         artifact_writer=artifact_writer,
         shop_api_client=shop_api_client,
@@ -586,23 +1013,22 @@ def process_latest_rgb_frame(
     )
     state.cached_rgb_overlay = processed_frame.overlay
     state.cached_observer_snapshot = processed_frame.observer_snapshot
-    depth_colorize_started = performance.start()
-    state.cached_depth_overlay = colorize_depth(best_depth.frame_mm)
-    performance.record_duration("depth_colorize", depth_colorize_started)
+    update_cached_depth_overlay(
+        state=state,
+        depth_frame_mm=best_depth.frame_mm,
+        hide_depth_window=args.hide_depth_window,
+        performance=performance,
+    )
+    return True
 
 
 def build_processed_live_rgb_frame(
     *,
     camera_index: int,
     state: LiveSyncedStreamState,
-    rgb_frame: np.ndarray,
+    rgb_snapshot: LiveRgbTrackSnapshot,
     depth_frame_mm: np.ndarray,
-    rgb_host_synced_seconds: float,
-    rgb_sequence_num: int,
     depth_packet: LiveDepthPacket,
-    detector: PersonDetector,
-    face_matcher: FaceRecognizer | None,
-    body_evidence_extractor: BodyEvidenceExtractor,
     visit_registry: VisitRegistry,
     artifact_writer: ReplayArtifactWriter,
     shop_api_client: ShopApiClient,
@@ -611,22 +1037,26 @@ def build_processed_live_rgb_frame(
     args: argparse.Namespace,
     performance: LivePerformanceLogger,
 ) -> ProcessedLiveFrame:
-    yolo_started = performance.start()
-    detections = detector.detect(rgb_frame)
-    performance.record_duration("yolo", yolo_started)
-    tracking_started = performance.start()
-    tracks = state.tracker.update(detections)
-    performance.record_duration("tracking", tracking_started)
-    performance.record_processed_frame(
-        detection_count=len(detections),
-        track_count=len(tracks),
+    processing_rgb_frame = rgb_snapshot.processing_frame
+    processing_tracks = list(rgb_snapshot.processing_tracks)
+    tracks = list(rgb_snapshot.display_tracks)
+    recognized_faces = list(rgb_snapshot.recognized_faces)
+    body_evidence_by_track = rgb_snapshot.body_evidence_by_track
+    rgb_host_synced_seconds = rgb_snapshot.host_synced_seconds
+    rgb_sequence_num = rgb_snapshot.sequence_num
+    processing_height, processing_width = processing_rgb_frame.shape[:2]
+    display_width = args.frame_width
+    display_height = args.frame_height
+    processing_coordinate_scale = min(
+        processing_width / display_width,
+        processing_height / display_height,
     )
     entrance_enabled = is_entrance_enabled(state.camera_role)
 
     depth_logic_started = performance.start()
     if args.depth_trigger_mode == "plane" and entrance_enabled:
         depth_result = process_depth_plane_logic(
-            tracks=tracks,
+            tracks=processing_tracks,
             depth_frame_mm=depth_frame_mm,
             intrinsics=state.intrinsics,
             states=state.depth_states,
@@ -639,11 +1069,14 @@ def build_processed_live_rgb_frame(
             host_seconds=rgb_host_synced_seconds,
             track_split_recovery=args.plane_track_split_recovery,
             track_split_recovery_max_age_seconds=args.plane_track_split_recovery_max_age_seconds,
-            track_split_recovery_max_centroid_distance_px=args.plane_track_split_recovery_max_centroid_distance_px,
+            track_split_recovery_max_centroid_distance_px=(
+                args.plane_track_split_recovery_max_centroid_distance_px
+                * processing_coordinate_scale
+            ),
         )
     else:
         depth_result = process_depth_entrance_logic(
-            tracks=tracks,
+            tracks=processing_tracks,
             depth_frame_mm=depth_frame_mm,
             intrinsics=state.intrinsics,
             states=state.depth_states,
@@ -671,7 +1104,7 @@ def build_processed_live_rgb_frame(
             prefix="LIVE_PLANE_TRACE",
             device_id=state.device_id,
             host_seconds=rgb_host_synced_seconds,
-            tracks=tracks,
+            tracks=processing_tracks,
             depth_samples=depth_samples,
             signed_distances_mm=signed_distances_mm,
             depth_states=state.depth_states,
@@ -679,20 +1112,6 @@ def build_processed_live_rgb_frame(
             exited_track_ids=set(exited_track_ids),
         )
 
-    face_started = performance.start()
-    recognized_faces = []
-    if face_matcher is not None:
-        face_tracks = face_recognition_eligible_tracks(
-            tracks,
-            min_width_px=args.face_min_track_width_px,
-            min_height_px=args.face_min_track_height_px,
-        )
-        recognized_faces = face_matcher.recognize(rgb_frame, tracks=face_tracks)
-    performance.record_duration("face", face_started)
-
-    body_started = performance.start()
-    body_evidence_by_track = body_evidence_extractor.extract(rgb_frame, tracks=tracks)
-    performance.record_duration("body", body_started)
     registry_started = performance.start()
     frame_evidence = FrameEvidence(
         device_id=state.device_id,
@@ -934,19 +1353,28 @@ def build_processed_live_rgb_frame(
             print(f"SHOP_API_MARK_LEFT_ERROR visit_id={visit_id} error={exc}")
 
     observer_snapshot = None
+    display_depth_samples = scale_depth_samples(
+        depth_samples,
+        source_width=processing_width,
+        source_height=processing_height,
+        target_width=display_width,
+        target_height=display_height,
+    )
     if observer_enabled:
         observer_snapshot = build_observer_camera_snapshot(
             camera_index=camera_index,
             device_id=state.device_id,
             camera_role=state.camera_role,
-            rgb_frame=rgb_frame,
+            rgb_frame=processing_rgb_frame,
             rgb_sequence_number=rgb_sequence_num,
             host_synced_seconds=rgb_host_synced_seconds,
             tracks=tracks,
             track_visit_evidence_by_id=track_visit_evidence_by_id,
             visit_assignments=visit_assignments,
-            depth_samples=depth_samples,
+            depth_samples=display_depth_samples,
             customer_ids_by_visit=customer_ids_by_visit,
+            frame_width=display_width,
+            frame_height=display_height,
             provisional_track_ids={
                 track_id
                 for track_id in track_visit_evidence_by_id
@@ -959,19 +1387,39 @@ def build_processed_live_rgb_frame(
     performance.record_duration("registry_io", registry_started)
 
     overlay_started = performance.start()
-    overlay = rgb_frame.copy()
-    draw_tracks(overlay, tracks)
-    draw_visit_labels(overlay, tracks, visit_assignments, show_face_evidence=False)
+    processing_overlay = processing_rgb_frame.copy()
+    draw_tracks(processing_overlay, processing_tracks)
+    draw_visit_labels(
+        processing_overlay,
+        processing_tracks,
+        visit_assignments,
+        show_face_evidence=False,
+    )
     draw_depth_samples(
-        overlay,
-        tracks=tracks,
+        processing_overlay,
+        tracks=processing_tracks,
         depth_samples=depth_samples,
         depth_threshold_mm=float(args.depth_threshold_mm),
         signed_distances_mm=signed_distances_mm,
         plane_mode=args.depth_trigger_mode == "plane",
     )
-    if face_matcher is not None:
-        draw_recognized_faces(overlay, recognized_faces, show_labels=False)
+    if recognized_faces:
+        processing_faces = scale_recognized_faces(
+            recognized_faces,
+            source_width=display_width,
+            source_height=display_height,
+            target_width=processing_width,
+            target_height=processing_height,
+        )
+        draw_recognized_faces(processing_overlay, processing_faces, show_labels=False)
+    if args.stream_annotated or args.show_annotated_preview:
+        overlay = cv2.resize(
+            processing_overlay,
+            (display_width, display_height),
+            interpolation=cv2.INTER_LINEAR,
+        )
+    else:
+        overlay = processing_overlay
     performance.record_duration("overlay", overlay_started)
     return ProcessedLiveFrame(overlay=overlay, observer_snapshot=observer_snapshot)
 
@@ -991,8 +1439,45 @@ def placeholder_frame(label: str, *, width: int, height: int) -> np.ndarray:
     return frame
 
 
+def select_preview_frame(
+    state: LiveSyncedStreamState,
+    *,
+    show_annotated_preview: bool,
+) -> np.ndarray | None:
+    if show_annotated_preview and state.cached_rgb_overlay is not None:
+        return state.cached_rgb_overlay
+    if state.cached_rgb_raw is not None:
+        return state.cached_rgb_raw
+    return state.cached_rgb_overlay
+
+
+def preview_frame_or_placeholder(
+    state: LiveSyncedStreamState,
+    *,
+    label: str,
+    width: int,
+    height: int,
+    show_annotated_preview: bool,
+) -> np.ndarray:
+    selected = select_preview_frame(
+        state,
+        show_annotated_preview=show_annotated_preview,
+    )
+    if selected is not None:
+        return selected
+    return placeholder_frame(label, width=width, height=height)
+
+
 def main() -> None:
     args = build_argparser().parse_args()
+    if args.frame_width <= 0 or args.frame_height <= 0:
+        raise ValueError("--frame-width and --frame-height must be greater than zero.")
+    if args.processing_width <= 0 or args.processing_height <= 0:
+        raise ValueError("--processing-width and --processing-height must be greater than zero.")
+    if args.max_rgb_depth_delta_ms < 0.0:
+        raise ValueError("--max-rgb-depth-delta-ms must be zero or greater.")
+    if args.processing_buffer_seconds <= 0.0:
+        raise ValueError("--processing-buffer-seconds must be greater than zero.")
     if args.list_devices:
         print_available_devices()
         return
@@ -1102,16 +1587,19 @@ def main() -> None:
                     performance.record_camera_poll()
                     if state.device.isClosed() or not state.pipeline.isRunning():
                         raise RuntimeError(f"Live pipeline stopped for device {state.device_id}.")
-                    depth_drain_started = performance.start()
-                    drain_depth_queue(state)
-                    performance.record_duration("depth_drain", depth_drain_started)
-                    previous_rgb_sequence = state.last_processed_rgb_sequence
-                    process_latest_rgb_frame(
-                        camera_index=camera_index,
+                    previous_raw_rgb_sequence = state.last_raw_rgb_sequence
+                    previous_processed_rgb_sequence = state.last_processed_rgb_sequence
+                    process_latest_rgb_pair(
                         state=state,
                         detector=detector,
                         face_matcher=face_matcher,
                         body_evidence_extractor=body_evidence_extractor,
+                        args=args,
+                        performance=performance,
+                    )
+                    process_latest_depth_frame(
+                        camera_index=camera_index,
+                        state=state,
                         visit_registry=visit_registry,
                         artifact_writer=artifact_writer,
                         shop_api_client=shop_api_client,
@@ -1120,9 +1608,14 @@ def main() -> None:
                         args=args,
                         performance=performance,
                     )
-                    if (
-                        stream_server is not None
-                        and state.last_processed_rgb_sequence != previous_rgb_sequence
+                    raw_rgb_changed = state.last_raw_rgb_sequence != previous_raw_rgb_sequence
+                    processed_rgb_changed = (
+                        state.last_processed_rgb_sequence != previous_processed_rgb_sequence
+                    )
+                    if stream_server is not None and (
+                        (args.stream_annotated and processed_rgb_changed)
+                        or (not args.stream_annotated and raw_rgb_changed)
+                        or processed_rgb_changed
                     ):
                         stream_started = performance.start()
                         stream_frame = (
@@ -1130,10 +1623,13 @@ def main() -> None:
                             if args.stream_annotated
                             else state.cached_rgb_raw
                         )
-                        if stream_frame is not None:
+                        if stream_frame is not None and (
+                            (args.stream_annotated and processed_rgb_changed)
+                            or (not args.stream_annotated and raw_rgb_changed)
+                        ):
                             stream_server.publish(camera_index, stream_frame)
                             performance.record_stream_frame()
-                        if state.cached_observer_snapshot is not None:
+                        if processed_rgb_changed and state.cached_observer_snapshot is not None:
                             stream_server.publish_observer_snapshot(
                                 camera_index,
                                 state.cached_observer_snapshot,
@@ -1143,13 +1639,24 @@ def main() -> None:
 
                 if not args.headless:
                     gui_started = performance.start()
+                    preview_time = time.monotonic()
+                    for state in states:
+                        if state.last_raw_rgb_host_synced_seconds is not None:
+                            performance.record_metric(
+                                "preview_age_ms",
+                                max(
+                                    0.0,
+                                    preview_time - state.last_raw_rgb_host_synced_seconds,
+                                )
+                                * 1000.0,
+                            )
                     rgb_frames = [
-                        state.cached_rgb_overlay
-                        if state.cached_rgb_overlay is not None
-                        else placeholder_frame(
-                            f"Camera {index + 1}: waiting",
+                        preview_frame_or_placeholder(
+                            state,
+                            label=f"Camera {index + 1}: waiting",
                             width=args.frame_width,
                             height=args.frame_height,
+                            show_annotated_preview=args.show_annotated_preview,
                         )
                         for index, state in enumerate(states)
                     ]
@@ -1169,8 +1676,8 @@ def main() -> None:
                             if state.cached_depth_overlay is not None
                             else placeholder_frame(
                                 f"Camera {index + 1}: no depth",
-                                width=args.frame_width,
-                                height=args.frame_height,
+                                width=args.processing_width,
+                                height=args.processing_height,
                             )
                             for index, state in enumerate(states)
                         ]

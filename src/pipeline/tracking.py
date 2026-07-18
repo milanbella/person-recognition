@@ -221,3 +221,40 @@ def draw_tracks(frame: np.ndarray, tracks: Sequence[Track]) -> None:
             pt1 = (int(track.history[idx - 1][0]), int(track.history[idx - 1][1]))
             pt2 = (int(track.history[idx][0]), int(track.history[idx][1]))
             cv2.line(frame, pt1, pt2, color, 2, cv2.LINE_AA)
+
+
+def scale_tracks(
+    tracks: Sequence[Track],
+    *,
+    source_width: int,
+    source_height: int,
+    target_width: int,
+    target_height: int,
+) -> list[Track]:
+    if source_width <= 0 or source_height <= 0:
+        raise ValueError("Source track dimensions must be greater than zero.")
+    if target_width <= 0 or target_height <= 0:
+        raise ValueError("Target track dimensions must be greater than zero.")
+
+    scale_x = target_width / source_width
+    scale_y = target_height / source_height
+    scaled_tracks: list[Track] = []
+    for track in tracks:
+        scaled_tracks.append(
+            Track(
+                track_id=track.track_id,
+                x1=max(0, min(target_width - 1, int(round(track.x1 * scale_x)))),
+                y1=max(0, min(target_height - 1, int(round(track.y1 * scale_y)))),
+                x2=max(0, min(target_width - 1, int(round(track.x2 * scale_x)))),
+                y2=max(0, min(target_height - 1, int(round(track.y2 * scale_y)))),
+                score=track.score,
+                hits=track.hits,
+                missed_frames=track.missed_frames,
+                status=track.status,
+                history=[
+                    (point_x * scale_x, point_y * scale_y)
+                    for point_x, point_y in track.history
+                ],
+            )
+        )
+    return scaled_tracks

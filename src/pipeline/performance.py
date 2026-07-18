@@ -22,6 +22,15 @@ PROFILE_STAGE_ORDER = (
     "cycle",
 )
 
+PROFILE_METRIC_ORDER = (
+    "raw_rgb_capture_age_ms",
+    "processing_rgb_capture_age_ms",
+    "rgb_pair_delta_ms",
+    "preview_age_ms",
+    "raw_rgb_queue_drained",
+    "processing_rgb_queue_drained",
+)
+
 
 @dataclass
 class LivePerformanceLogger:
@@ -30,6 +39,9 @@ class LivePerformanceLogger:
     window_started: float = field(default_factory=time.perf_counter)
     stage_seconds: dict[str, float] = field(default_factory=dict)
     stage_counts: dict[str, int] = field(default_factory=dict)
+    metric_totals: dict[str, float] = field(default_factory=dict)
+    metric_counts: dict[str, int] = field(default_factory=dict)
+    metric_maxima: dict[str, float] = field(default_factory=dict)
     cycle_count: int = 0
     camera_poll_count: int = 0
     rgb_frame_count: int = 0
@@ -52,6 +64,16 @@ class LivePerformanceLogger:
             time.perf_counter() - started
         )
         self.stage_counts[stage] = self.stage_counts.get(stage, 0) + 1
+
+    def record_metric(self, metric: str, value: float) -> None:
+        if not self.enabled:
+            return
+        self.metric_totals[metric] = self.metric_totals.get(metric, 0.0) + value
+        self.metric_counts[metric] = self.metric_counts.get(metric, 0) + 1
+        self.metric_maxima[metric] = max(
+            value,
+            self.metric_maxima.get(metric, value),
+        )
 
     def record_camera_poll(self) -> None:
         if self.enabled:
@@ -93,6 +115,11 @@ class LivePerformanceLogger:
             f"{stage}_ms={self._average_stage_ms(stage):.1f}"
             for stage in PROFILE_STAGE_ORDER
         )
+        metric_text = " ".join(
+            f"{metric}={self._average_metric(metric):.1f} "
+            f"{metric}_max={self.metric_maxima.get(metric, 0.0):.1f}"
+            for metric in PROFILE_METRIC_ORDER
+        )
         print(
             f"LIVE_PERF window_s={elapsed:.1f} cycles={self.cycle_count} "
             f"camera_polls={self.camera_poll_count} rgb_frames={self.rgb_frame_count} "
@@ -100,12 +127,15 @@ class LivePerformanceLogger:
             f"processed_fps={self.processed_frame_count / elapsed:.1f} "
             f"stream_frames={self.stream_frame_count} "
             f"avg_detections={average_detections:.2f} avg_tracks={average_tracks:.2f} "
-            f"{stage_text}",
+            f"{stage_text} {metric_text}",
             flush=True,
         )
         self.window_started = report_time
         self.stage_seconds.clear()
         self.stage_counts.clear()
+        self.metric_totals.clear()
+        self.metric_counts.clear()
+        self.metric_maxima.clear()
         self.cycle_count = 0
         self.camera_poll_count = 0
         self.rgb_frame_count = 0
@@ -119,3 +149,9 @@ class LivePerformanceLogger:
         if count == 0:
             return 0.0
         return self.stage_seconds.get(stage, 0.0) * 1000.0 / count
+
+    def _average_metric(self, metric: str) -> float:
+        count = self.metric_counts.get(metric, 0)
+        if count == 0:
+            return 0.0
+        return self.metric_totals.get(metric, 0.0) / count

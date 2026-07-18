@@ -60,16 +60,16 @@ set -xe
 #	--frame-width 1920 \
 #    --frame-height 1080
 
+
 python ./live_synced_rgbd_streams.py \
   --device-id 194430107110B32F00 194430103142B32F00 1944301051851C1300 1944301061B0B32F00 194430105114AF2F00 \
   --camera-role entrance_observer entrance_observer observer observer observer \
   --output-dir ./live_runs/shop_live_001 \
   --log-visit-decisions \
+  --log-plane-trace \
   --shop-api-base-url https://ovie.sk \
   --shop-api-key 98cdde4b-0852-4866-a17f-1063795e3760 \
   --shop-id 1 \
   --state-db state/shop_state.sqlite \
-  --frame-width 3840 \
-  --frame-height 2160 \
-  --log-performance \
+  --headless
 

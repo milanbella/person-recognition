@@ -100,8 +100,12 @@ def build_observer_camera_snapshot(
     depth_samples: Mapping[int, DepthSample],
     customer_ids_by_visit: Mapping[int, str],
     provisional_track_ids: Collection[int] = (),
+    frame_width: int | None = None,
+    frame_height: int | None = None,
 ) -> ObserverCameraSnapshot:
-    frame_height, frame_width = rgb_frame.shape[:2]
+    source_frame_height, source_frame_width = rgb_frame.shape[:2]
+    snapshot_frame_width = source_frame_width if frame_width is None else frame_width
+    snapshot_frame_height = source_frame_height if frame_height is None else frame_height
     observations: list[ObservedPerson] = []
     for track in tracks:
         if track.status not in VISIBLE_TRACK_STATUSES:
@@ -147,8 +151,8 @@ def build_observer_camera_snapshot(
         rgb_sequence_number=int(rgb_sequence_number),
         host_synced_seconds=float(host_synced_seconds),
         published_at_unix_milliseconds=time.time_ns() // 1_000_000,
-        frame_width=int(frame_width),
-        frame_height=int(frame_height),
+        frame_width=int(snapshot_frame_width),
+        frame_height=int(snapshot_frame_height),
         observations=tuple(observations),
     )
 

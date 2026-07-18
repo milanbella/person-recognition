@@ -52,6 +52,14 @@ class FaceRecognizer(Protocol):
     ) -> list[RecognizedFace]:
         ...
 
+    def recognize_crops(
+        self,
+        frame: np.ndarray,
+        *,
+        tracks: Sequence[Track],
+    ) -> list[RecognizedFace]:
+        ...
+
 
 def add_face_identity_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
     parser.add_argument(
@@ -242,6 +250,54 @@ class InsightFaceFaceRecognizer:
             )
         return results
 
+    def recognize_crops(
+        self,
+        frame: np.ndarray,
+        *,
+        tracks: Sequence[Track],
+    ) -> list[RecognizedFace]:
+        frame_height, frame_width = frame.shape[:2]
+        results: list[RecognizedFace] = []
+        for track in tracks:
+            x1 = max(0, min(frame_width - 1, int(track.x1)))
+            y1 = max(0, min(frame_height - 1, int(track.y1)))
+            x2 = max(x1 + 1, min(frame_width, int(track.x2)))
+            y2 = max(y1 + 1, min(frame_height, int(track.y2)))
+            crop = frame[y1:y2, x1:x2]
+            if crop.size == 0:
+                continue
+
+            accepted_faces = [
+                face
+                for face in self.analyzer.get(crop)
+                if float(face.det_score) >= self.min_det_score
+                and np.asarray(face.embedding, dtype=np.float32).size > 0
+            ]
+            if not accepted_faces:
+                continue
+
+            # A person track should contribute at most one identity per frame.
+            face = max(accepted_faces, key=lambda candidate: float(candidate.det_score))
+            crop_bbox = self._bbox_from_face(face, crop.shape)
+            bbox = (
+                crop_bbox[0] + x1,
+                crop_bbox[1] + y1,
+                crop_bbox[2] + x1,
+                crop_bbox[3] + y1,
+            )
+            normalized = l2_normalize(np.asarray(face.embedding, dtype=np.float32))
+            identity, score = self._match_or_create(normalized)
+            results.append(
+                RecognizedFace(
+                    bbox=bbox,
+                    det_score=float(face.det_score),
+                    identity_id=identity.identity_id,
+                    best_score=score,
+                    track_id=track.track_id,
+                )
+            )
+        return results
+
     def _match_or_create(self, embedding: np.ndarray) -> tuple[FaceIdentity, float | None]:
         best_identity: FaceIdentity | None = None
         best_score = -1.0
@@ -281,6 +337,38 @@ class InsightFaceFaceRecognizer:
 
 
 LocalFaceIdentityMatcher = InsightFaceFaceRecognizer
+
+
+def scale_recognized_faces(
+    faces: Sequence[RecognizedFace],
+    *,
+    source_width: int,
+    source_height: int,
+    target_width: int,
+    target_height: int,
+) -> list[RecognizedFace]:
+    if source_width <= 0 or source_height <= 0:
+        raise ValueError("Source face dimensions must be greater than zero.")
+    if target_width <= 0 or target_height <= 0:
+        raise ValueError("Target face dimensions must be greater than zero.")
+
+    scale_x = target_width / source_width
+    scale_y = target_height / source_height
+    return [
+        RecognizedFace(
+            bbox=(
+                max(0, min(target_width - 1, int(round(face.bbox[0] * scale_x)))),
+                max(0, min(target_height - 1, int(round(face.bbox[1] * scale_y)))),
+                max(0, min(target_width - 1, int(round(face.bbox[2] * scale_x)))),
+                max(0, min(target_height - 1, int(round(face.bbox[3] * scale_y)))),
+            ),
+            det_score=face.det_score,
+            identity_id=face.identity_id,
+            best_score=face.best_score,
+            track_id=face.track_id,
+        )
+        for face in faces
+    ]
 
 
 def draw_recognized_faces(
