@@ -7,6 +7,15 @@ from typing import List
 import depthai as dai
 
 
+_USB_SPEED_DETAILS = {
+    "LOW": ("USB1", 1.5),
+    "FULL": ("USB1", 12),
+    "HIGH": ("USB2", 480),
+    "SUPER": ("USB3", 5000),
+    "SUPER_PLUS": ("USB3", 10000),
+}
+
+
 def add_device_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
     parser.add_argument(
         "--device-id",
@@ -83,7 +92,35 @@ def open_or_list_devices(args: argparse.Namespace) -> dai.Device | None:
 
 def print_connected_device(device: dai.Device) -> None:
     platform = device.getPlatform().name
-    print(f"Device: {device.getDeviceId()} Platform: {platform}")
+    print(
+        f"Device: {device.getDeviceId()} Platform: {platform} "
+        f"{format_usb_connection(device)}"
+    )
+
+
+def format_usb_connection(device: dai.Device) -> str:
+    try:
+        speed = device.getUsbSpeed()
+        speed_name = getattr(speed, "name", str(speed).rsplit(".", 1)[-1])
+    except (AttributeError, RuntimeError):
+        speed_name = "UNKNOWN"
+    usb_mode, nominal_mbps = _USB_SPEED_DETAILS.get(
+        speed_name,
+        ("UNKNOWN", 0),
+    )
+    try:
+        xlink_path = str(device.getDeviceInfo().name)
+    except (AttributeError, RuntimeError):
+        xlink_path = "unknown"
+    nominal_value = (
+        str(int(nominal_mbps))
+        if float(nominal_mbps).is_integer()
+        else str(nominal_mbps)
+    )
+    return (
+        f"usb_speed={speed_name} usb_mode={usb_mode} "
+        f"nominal_mbps={nominal_value} xlink_path={xlink_path}"
+    )
 
 
 def configure_live_device(device: dai.Device) -> None:

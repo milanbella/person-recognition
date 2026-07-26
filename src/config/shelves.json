@@ -1,0 +1,10 @@
+  {
+    "schemaVersion": 2,
+    "arucoDictionary": "DICT_6X6_250",
+    "shelves": [
+      {"shelfId": 1, "markerId": 10},
+      {"shelfId": 2, "markerId": 11},
+      {"shelfId": 3, "markerId": 12},
+      {"shelfId": 4, "markerId": 13}
+    ]
+  }

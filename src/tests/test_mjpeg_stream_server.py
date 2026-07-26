@@ -7,6 +7,8 @@ from fastapi import HTTPException
 
 from pipeline.mjpeg_stream_server import MjpegStreamServer
 from pipeline.observer_api import ObserverCameraSnapshot
+from pipeline.shelf_api import ShelfCameraSnapshot
+from pipeline.shelf_config import ShelfDefinition
 
 
 class MjpegStreamServerTests(unittest.TestCase):
@@ -103,6 +105,51 @@ class MjpegStreamServerTests(unittest.TestCase):
             self.assertEqual(wrong_role.exception.status_code, 409)
         finally:
             server.stop()
+
+    def test_shelf_snapshot_and_event_feed(self) -> None:
+        shelf = ShelfDefinition(
+            shelf_id=1,
+            label="Drinks",
+            marker_id=10,
+            approach_distance_mm=900,
+            departure_distance_mm=1100,
+            approach_dwell_milliseconds=500,
+            departure_dwell_milliseconds=500,
+            lost_visit_grace_milliseconds=1000,
+            owner_switch_margin_mm=100,
+            owner_switch_dwell_milliseconds=300,
+        )
+        snapshot = ShelfCameraSnapshot(
+            camera_index=0,
+            device_id="camera-a",
+            camera_role="observer",
+            rgb_sequence_number=1,
+            depth_sequence_number=1,
+            host_synced_seconds=2.0,
+            published_at_unix_milliseconds=3,
+            shelves=(shelf,),
+            anchors_by_shelf={},
+            observations=(),
+            states_by_shelf={1: "far"},
+        )
+        self.server.publish_shelf_snapshot(0, snapshot)
+        payload = self.server.shelf_snapshot_payload(0)
+        self.assertEqual(payload["camera"]["status"], "active")
+        self.assertEqual(payload["shelves"][0]["shelfId"], 1)
+
+        self.server.publish_shelf_event_payloads(
+            [
+                {"eventId": 2, "eventType": "shelf_approach"},
+                {"eventId": 3, "eventType": "shelf_departure"},
+            ]
+        )
+        route = next(
+            route
+            for route in self.server.app.routes
+            if getattr(route, "path", None) == "/shelf-events"
+        )
+        events = route.endpoint(afterEventId=2, limit=100)
+        self.assertEqual([event["eventId"] for event in events["events"]], [3])
 
 
 if __name__ == "__main__":

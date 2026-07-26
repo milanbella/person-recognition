@@ -68,6 +68,27 @@ from pipeline.visit_registry import (
 )
 
 
+FINAL_VISIT_CSV_FIELDS = (
+    "visit_id",
+    "origin",
+    "status",
+    "closed_host_seconds",
+    "created_host_seconds",
+    "last_seen_host_seconds",
+    "last_device_id",
+    "last_track_id",
+    "observation_count",
+    "observer_observation_count",
+    "depth_mm",
+    "face_identity_ids",
+    "entrance_observation_times",
+    "merged_visit_ids",
+    "has_body_appearance",
+    "body_aspect_ratio",
+    "body_height_px",
+)
+
+
 @dataclass
 class SyncedStreamState:
     stream: RGBDReplayStream
@@ -97,6 +118,7 @@ class ReplayArtifactWriter:
         self.track_evidence_file = None
         self.visit_decisions_file = None
         self.entrance_events_file = None
+        self.shelf_events_file = None
         if output_dir is None:
             return
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -163,6 +185,16 @@ class ReplayArtifactWriter:
             return
         self.entrance_events_file.write(json.dumps(payload) + "\n")
 
+    def write_shelf_event(self, payload: dict[str, Any]) -> None:
+        if self.output_dir is None:
+            return
+        if self.shelf_events_file is None:
+            self.shelf_events_file = (self.output_dir / "shelf_events.jsonl").open(
+                "w",
+                encoding="utf-8",
+            )
+        self.shelf_events_file.write(json.dumps(payload) + "\n")
+
     def write_final_visits(self, visit_registry: VisitRegistry) -> None:
         if self.output_dir is None:
             return
@@ -172,30 +204,18 @@ class ReplayArtifactWriter:
             encoding="utf-8",
         )
         with (self.output_dir / "final_visits.csv").open("w", encoding="utf-8", newline="") as csv_file:
-            fieldnames = [
-                "visit_id",
-                "origin",
-                "created_host_seconds",
-                "last_seen_host_seconds",
-                "last_device_id",
-                "last_track_id",
-                "observation_count",
-                "observer_observation_count",
-                "depth_mm",
-                "face_identity_ids",
-                "entrance_observation_times",
-                "merged_visit_ids",
-                "has_body_appearance",
-                "body_aspect_ratio",
-                "body_height_px",
-            ]
-            writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+            writer = csv.DictWriter(csv_file, fieldnames=FINAL_VISIT_CSV_FIELDS)
             writer.writeheader()
             for visit in visits:
                 writer.writerow(_shop_visit_csv_row(visit))
 
     def close(self) -> None:
-        for handle in [self.track_evidence_file, self.visit_decisions_file, self.entrance_events_file]:
+        for handle in [
+            self.track_evidence_file,
+            self.visit_decisions_file,
+            self.entrance_events_file,
+            self.shelf_events_file,
+        ]:
             if handle is not None:
                 handle.close()
 

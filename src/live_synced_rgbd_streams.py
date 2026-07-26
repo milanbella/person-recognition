@@ -23,7 +23,13 @@ from pipeline.body_evidence import (
     build_body_evidence_extractor,
     scale_body_evidence_heights,
 )
-from pipeline.camera import configure_live_device, device_identifier, list_available_devices, print_available_devices
+from pipeline.camera import (
+    configure_live_device,
+    device_identifier,
+    format_usb_connection,
+    list_available_devices,
+    print_available_devices,
+)
 from pipeline.config import (
     DEFAULT_CAMERA_FPS,
     DEFAULT_DETECTION_INPUT_HEIGHT,
@@ -39,6 +45,7 @@ from pipeline.config import (
 )
 from pipeline.depth import (
     CameraIntrinsics,
+    DepthSample,
     DepthEntranceState,
     colorize_depth,
     draw_depth_samples,
@@ -65,9 +72,32 @@ from pipeline.mjpeg_stream_server import MjpegStreamServer
 from pipeline.observer_api import ObserverCameraSnapshot, build_observer_camera_snapshot
 from pipeline.performance import LivePerformanceLogger
 from pipeline.rgbd_recording import DEFAULT_PLANE_CALIBRATIONS_DIR
+from pipeline.shelf_anchors import (
+    ShelfAnchor,
+    ShelfAnchorManager,
+)
+from pipeline.shelf_api import (
+    ShelfCameraSnapshot,
+    build_shelf_camera_snapshot,
+    shelf_event_payload,
+)
+from pipeline.shelf_config import (
+    DEFAULT_SHELF_CALIBRATIONS_DIR,
+    DEFAULT_SHELF_CONFIG_PATH,
+    ShelfWatchingConfig,
+    load_shelf_config,
+    validate_shelf_config_for_live_cameras,
+)
+from pipeline.shelf_person_depth import sample_shelf_person_depth
+from pipeline.shelf_proximity import (
+    ShelfCameraObservation,
+    ShelfProximityCoordinator,
+    ShelfProximityEvent,
+    person_to_shelf_distance_mm,
+)
 from pipeline.shop_state_store import DEFAULT_SHOP_STATE_DB, ShopStateStore
 from pipeline.tracking import PersonTracker, Track, build_person_tracker, draw_tracks, scale_tracks
-from pipeline.visit_identity import add_visit_identity_args, draw_visit_labels
+from pipeline.visit_identity import VisitAssignment, add_visit_identity_args, draw_visit_labels
 from pipeline.visit_registry import (
     CAMERA_ROLE_ENTRANCE,
     FrameEvidence,
@@ -108,6 +138,8 @@ class LiveDepthPacket:
 class ProcessedLiveFrame:
     overlay: np.ndarray
     observer_snapshot: ObserverCameraSnapshot | None
+    shelf_snapshot: ShelfCameraSnapshot | None
+    shelf_events: tuple[ShelfProximityEvent, ...]
 
 
 @dataclass(frozen=True)
@@ -142,6 +174,8 @@ class LiveSyncedStreamState:
     cached_rgb_raw: np.ndarray | None = None
     cached_rgb_overlay: np.ndarray | None = None
     cached_observer_snapshot: ObserverCameraSnapshot | None = None
+    cached_shelf_snapshot: ShelfCameraSnapshot | None = None
+    pending_shelf_events: list[ShelfProximityEvent] = field(default_factory=list)
     cached_depth_overlay: np.ndarray | None = None
     last_raw_rgb_sequence: int | None = None
     last_rgb_evidence_sequence: int | None = None
@@ -149,6 +183,7 @@ class LiveSyncedStreamState:
     last_raw_rgb_host_synced_seconds: float | None = None
     last_rgb_host_synced_seconds: float | None = None
     last_depth_sync_warning_seconds: float | None = None
+    shelf_anchor_manager: ShelfAnchorManager | None = None
 
 
 class NoRedirectHandler(urllib.request.HTTPRedirectHandler):
@@ -399,6 +434,28 @@ def build_argparser() -> argparse.ArgumentParser:
         default=DEFAULT_SHOP_STATE_DB,
         help="SQLite database for operational live visit state. Default: state/shop_state.sqlite.",
     )
+    parser.add_argument(
+        "--enable-shelf-watching",
+        action="store_true",
+        help="Enable shelf distance watching for cameras with saved shelf anchors.",
+    )
+    parser.add_argument(
+        "--shelf-config",
+        type=Path,
+        default=DEFAULT_SHELF_CONFIG_PATH,
+        help="Shelf catalog and proximity thresholds. Default: config/shelves.json.",
+    )
+    parser.add_argument(
+        "--shelf-calibrations-root",
+        type=Path,
+        default=DEFAULT_SHELF_CALIBRATIONS_DIR,
+        help="Directory containing per-camera shelf anchor calibrations.",
+    )
+    parser.add_argument(
+        "--log-shelf-distance",
+        action="store_true",
+        help="Log detailed shelf person-distance diagnostics.",
+    )
     parser.add_argument("--detector-backend", choices=DETECTOR_BACKEND_CHOICES, default=DEFAULT_PERSON_DETECTOR_BACKEND)
     parser.add_argument("--model", type=Path, default=DEFAULT_PERSON_DETECTOR_MODEL)
     parser.add_argument("--input-width", type=int, default=DEFAULT_DETECTION_INPUT_WIDTH)
@@ -491,6 +548,7 @@ def create_live_stream_state(
     camera_role: str,
     args: argparse.Namespace,
     stack: ExitStack,
+    shelf_config: ShelfWatchingConfig | None = None,
 ) -> LiveSyncedStreamState:
     device = resolve_live_device(device_id)
     calibration = device.readCalibration()
@@ -556,6 +614,28 @@ def create_live_stream_state(
         recent_processing_rgb_messages=deque(maxlen=8),
         recent_rgb_track_snapshots=deque(maxlen=processing_buffer_frames),
     )
+    if shelf_config is not None and is_observer_enabled(camera_role):
+        shelf_anchor_manager = load_saved_shelf_anchor_manager(
+            device_id=device_id,
+            config=shelf_config,
+            calibration_root=args.shelf_calibrations_root,
+        )
+        if shelf_anchor_manager is not None:
+            state.shelf_anchor_manager = shelf_anchor_manager
+            print(
+                f"Configured shelf watching device_id={device_id} "
+                f"catalog_shelves={len(shelf_anchor_manager.shelves)} "
+                f"anchors={len(shelf_anchor_manager.anchors)} mode=saved_anchors"
+            )
+        else:
+            calibration_path = (
+                args.shelf_calibrations_root
+                / f"shelf_anchors_{device_id}.json"
+            )
+            print(
+                f"Skipping shelf watching device_id={device_id} "
+                f"reason=no_saved_anchors calibration={calibration_path}"
+            )
 
     if args.depth_trigger_mode == "plane" and is_entrance_enabled(camera_role):
         args_for_stream = argparse.Namespace(**vars(args))
@@ -577,8 +657,26 @@ def create_live_stream_state(
         print(f"Skipping plane load for observer-only device {device_id}.")
 
     pipeline.start()
-    print(f"Started live RGBD stream device_id={device_id} role={camera_role}")
+    print(
+        f"Started live RGBD stream device_id={device_id} role={camera_role} "
+        f"{format_usb_connection(device)}"
+    )
     return state
+
+
+def load_saved_shelf_anchor_manager(
+    *,
+    device_id: str,
+    config: ShelfWatchingConfig,
+    calibration_root: Path,
+) -> ShelfAnchorManager | None:
+    manager = ShelfAnchorManager(
+        device_id=device_id,
+        config=config,
+        calibration_root=calibration_root,
+        auto_save=False,
+    )
+    return manager if manager.anchors else None
 
 
 def write_live_config(
@@ -928,6 +1026,7 @@ def process_latest_depth_frame(
     shop_api_client: ShopApiClient,
     shop_state_store: ShopStateStore,
     customer_ids_by_visit: dict[int, str],
+    shelf_coordinator: ShelfProximityCoordinator | None,
     args: argparse.Namespace,
     performance: LivePerformanceLogger,
 ) -> bool:
@@ -1008,11 +1107,14 @@ def process_latest_depth_frame(
         shop_api_client=shop_api_client,
         shop_state_store=shop_state_store,
         customer_ids_by_visit=customer_ids_by_visit,
+        shelf_coordinator=shelf_coordinator,
         args=args,
         performance=performance,
     )
     state.cached_rgb_overlay = processed_frame.overlay
     state.cached_observer_snapshot = processed_frame.observer_snapshot
+    state.cached_shelf_snapshot = processed_frame.shelf_snapshot
+    state.pending_shelf_events.extend(processed_frame.shelf_events)
     update_cached_depth_overlay(
         state=state,
         depth_frame_mm=best_depth.frame_mm,
@@ -1020,6 +1122,92 @@ def process_latest_depth_frame(
         performance=performance,
     )
     return True
+
+
+def build_shelf_camera_observations(
+    *,
+    camera_index: int,
+    state: LiveSyncedStreamState,
+    processing_tracks: list[Track],
+    shelf_person_depth_samples: dict[int, DepthSample],
+    visit_assignments: dict[int, VisitAssignment],
+    customer_ids_by_visit: dict[int, str],
+    host_synced_seconds: float,
+    observed_at_unix_milliseconds: int,
+    rgb_sequence_number: int,
+    depth_sequence_number: int,
+) -> tuple[ShelfCameraObservation, ...]:
+    manager = state.shelf_anchor_manager
+    if manager is None:
+        return ()
+    observations: list[ShelfCameraObservation] = []
+    for shelf in manager.shelves:
+        anchor = manager.anchor_for_shelf(shelf.shelf_id)
+        if anchor is None:
+            continue
+        for track in processing_tracks:
+            if track.status not in {"NEW", "TRACKED"}:
+                continue
+            sample = shelf_person_depth_samples.get(track.track_id)
+            if sample is None:
+                continue
+            assignment = visit_assignments.get(track.track_id)
+            visit_id = None if assignment is None else assignment.visit_id
+            observations.append(
+                ShelfCameraObservation(
+                    shelf_id=shelf.shelf_id,
+                    shelf_label=shelf.label,
+                    marker_id=shelf.marker_id,
+                    camera_index=camera_index,
+                    device_id=state.device_id,
+                    track_id=track.track_id,
+                    visit_id=visit_id,
+                    visit_origin=None if assignment is None else assignment.origin,
+                    customer_id=(
+                        None
+                        if visit_id is None
+                        else customer_ids_by_visit.get(visit_id)
+                    ),
+                    distance_mm=person_to_shelf_distance_mm(
+                        sample.point_3d_mm,
+                        anchor.point_3d_mm,
+                    ),
+                    person_point_3d_mm=sample.point_3d_mm,
+                    anchor=anchor,
+                    host_synced_seconds=host_synced_seconds,
+                    observed_at_unix_milliseconds=observed_at_unix_milliseconds,
+                    rgb_sequence_number=rgb_sequence_number,
+                    depth_sequence_number=depth_sequence_number,
+                )
+            )
+    return tuple(observations)
+
+
+def persist_shelf_events(
+    events: tuple[ShelfProximityEvent, ...],
+    *,
+    shop_state_store: ShopStateStore,
+    artifact_writer: ReplayArtifactWriter,
+) -> tuple[ShelfProximityEvent, ...]:
+    persisted: list[ShelfProximityEvent] = []
+    for event in events:
+        persisted_event = shop_state_store.record_shelf_event(event)
+        payload = shelf_event_payload(persisted_event)
+        artifact_writer.write_shelf_event(payload)
+        prefix = (
+            "SHELF_APPROACH_EVENT"
+            if event.event_type == "shelf_approach"
+            else "SHELF_DEPARTURE_EVENT"
+        )
+        print(
+            f"{prefix} event_id={persisted_event.event_id} "
+            f"shelf_id={event.shelf_id} visit_id={event.visit_id} "
+            f"customer_id={event.customer_id} device_id={event.device_id} "
+            f"track_id={event.track_id} distance_mm={event.distance_mm:.0f} "
+            f"session_id={event.proximity_session_id} reason={event.reason}"
+        )
+        persisted.append(persisted_event)
+    return tuple(persisted)
 
 
 def build_processed_live_rgb_frame(
@@ -1034,6 +1222,7 @@ def build_processed_live_rgb_frame(
     shop_api_client: ShopApiClient,
     shop_state_store: ShopStateStore,
     customer_ids_by_visit: dict[int, str],
+    shelf_coordinator: ShelfProximityCoordinator | None,
     args: argparse.Namespace,
     performance: LivePerformanceLogger,
 ) -> ProcessedLiveFrame:
@@ -1088,6 +1277,23 @@ def build_processed_live_rgb_frame(
         )
     performance.record_duration("depth_logic", depth_logic_started)
 
+    frame_unix_milliseconds = time.time_ns() // 1_000_000
+    shelf_person_depth_samples: dict[int, DepthSample] = {}
+    if state.shelf_anchor_manager is not None:
+        shelf_depth_started = performance.start()
+        for track in processing_tracks:
+            if track.status not in {"NEW", "TRACKED"}:
+                continue
+            sample = sample_shelf_person_depth(
+                depth_frame_mm,
+                track,
+                intrinsics=state.intrinsics,
+                config=state.shelf_anchor_manager.config.person_depth,
+            )
+            if sample is not None:
+                shelf_person_depth_samples[track.track_id] = sample
+        performance.record_duration("shelf_depth", shelf_depth_started)
+
     entered_track_ids = depth_result.entered_track_ids
     exited_track_ids = depth_result.exited_track_ids
     depth_samples = depth_result.depth_samples
@@ -1127,6 +1333,7 @@ def build_processed_live_rgb_frame(
         artifact_writer.write_track_evidence(track_evidence)
 
     visit_assignments = {}
+    shelf_events_this_frame: list[ShelfProximityEvent] = []
     observer_enabled = is_observer_enabled(state.camera_role)
     for track_id, track_evidence in track_visit_evidence_by_id.items():
         decision = visit_registry.resolve_existing_track(track_evidence)
@@ -1319,6 +1526,19 @@ def build_processed_live_rgb_frame(
             event_payload=event_payload,
         )
         visit_registry.close_visit(visit_id, host_seconds=rgb_host_synced_seconds)
+        if shelf_coordinator is not None:
+            closed_shelf_events = shelf_coordinator.close_visit(
+                visit_id,
+                host_synced_seconds=rgb_host_synced_seconds,
+                now_unix_milliseconds=frame_unix_milliseconds,
+            )
+            shelf_events_this_frame.extend(
+                persist_shelf_events(
+                    closed_shelf_events,
+                    shop_state_store=shop_state_store,
+                    artifact_writer=artifact_writer,
+                )
+            )
         if visit_id is not None:
             closed_visit_ids_this_frame.add(visit_id)
         if args.depth_trigger_mode == "plane":
@@ -1351,6 +1571,71 @@ def build_processed_live_rgb_frame(
             shop_api_client.mark_left(visit_id)
         except RuntimeError as exc:
             print(f"SHOP_API_MARK_LEFT_ERROR visit_id={visit_id} error={exc}")
+
+    shelf_snapshot = None
+    if state.shelf_anchor_manager is not None:
+        shelf_coordinator_started = performance.start()
+        shelf_observations = build_shelf_camera_observations(
+            camera_index=camera_index,
+            state=state,
+            processing_tracks=processing_tracks,
+            shelf_person_depth_samples=shelf_person_depth_samples,
+            visit_assignments=visit_assignments,
+            customer_ids_by_visit=customer_ids_by_visit,
+            host_synced_seconds=rgb_host_synced_seconds,
+            observed_at_unix_milliseconds=frame_unix_milliseconds,
+            rgb_sequence_number=rgb_sequence_num,
+            depth_sequence_number=depth_packet.sequence_num,
+        )
+        if args.log_shelf_distance:
+            closest_by_shelf: dict[int, ShelfCameraObservation] = {}
+            for observation in shelf_observations:
+                current = closest_by_shelf.get(observation.shelf_id)
+                if current is None or observation.distance_mm < current.distance_mm:
+                    closest_by_shelf[observation.shelf_id] = observation
+            for observation in closest_by_shelf.values():
+                print(
+                    f"SHELF_DISTANCE_TRACE shelf_id={observation.shelf_id} "
+                    f"visit_id={observation.visit_id} device_id={observation.device_id} "
+                    f"track_id={observation.track_id} "
+                    f"distance_mm={observation.distance_mm:.0f}"
+                )
+        if shelf_coordinator is not None:
+            coordinator_events = shelf_coordinator.update_camera(
+                camera_index=camera_index,
+                observations=shelf_observations,
+                host_synced_seconds=rgb_host_synced_seconds,
+                now_unix_milliseconds=frame_unix_milliseconds,
+            )
+            shelf_events_this_frame.extend(
+                persist_shelf_events(
+                    coordinator_events,
+                    shop_state_store=shop_state_store,
+                    artifact_writer=artifact_writer,
+                )
+            )
+        shelf_snapshot = build_shelf_camera_snapshot(
+            camera_index=camera_index,
+            device_id=state.device_id,
+            camera_role=state.camera_role,
+            rgb_sequence_number=rgb_sequence_num,
+            depth_sequence_number=depth_packet.sequence_num,
+            host_synced_seconds=rgb_host_synced_seconds,
+            shelves=state.shelf_anchor_manager.anchored_shelves,
+            anchors_by_shelf=state.shelf_anchor_manager.anchors,
+            observations=shelf_observations,
+            states_by_shelf=(
+                {}
+                if shelf_coordinator is None
+                else {
+                    status.shelf_id: status.state
+                    for status in shelf_coordinator.statuses(
+                        now_unix_milliseconds=frame_unix_milliseconds
+                    )
+                }
+            ),
+        )
+        performance.record_duration("shelf_coordinator", shelf_coordinator_started)
 
     observer_snapshot = None
     display_depth_samples = scale_depth_samples(
@@ -1421,7 +1706,12 @@ def build_processed_live_rgb_frame(
     else:
         overlay = processing_overlay
     performance.record_duration("overlay", overlay_started)
-    return ProcessedLiveFrame(overlay=overlay, observer_snapshot=observer_snapshot)
+    return ProcessedLiveFrame(
+        overlay=overlay,
+        observer_snapshot=observer_snapshot,
+        shelf_snapshot=shelf_snapshot,
+        shelf_events=tuple(shelf_events_this_frame),
+    )
 
 
 def placeholder_frame(label: str, *, width: int, height: int) -> np.ndarray:
@@ -1468,6 +1758,75 @@ def preview_frame_or_placeholder(
     return placeholder_frame(label, width=width, height=height)
 
 
+def restore_shelf_proximity_sessions(
+    coordinator: ShelfProximityCoordinator,
+    payloads: list[dict[str, Any]],
+) -> None:
+    restored = 0
+    for payload in payloads:
+        try:
+            camera = payload["camera"]
+            anchor_payload = payload["anchor"]
+            anchor_point = anchor_payload["point3dMm"]
+            person_point = payload["personPoint3dMm"]
+            anchor = ShelfAnchor(
+                shelf_id=int(payload["shelfId"]),
+                marker_id=int(payload["markerId"]),
+                device_id=str(camera["deviceId"]),
+                point_3d_mm=(
+                    float(anchor_point["x"]),
+                    float(anchor_point["y"]),
+                    float(anchor_point["z"]),
+                ),
+                sample_count=int(anchor_payload.get("sampleCount", 0)),
+                rms_spread_mm=float(anchor_payload.get("rmsSpreadMm", 0.0)),
+                updated_at_unix_milliseconds=int(
+                    anchor_payload.get("updatedAtUnixMilliseconds", 0)
+                ),
+                source=str(anchor_payload.get("source", "persisted")),
+            )
+            observation = ShelfCameraObservation(
+                shelf_id=int(payload["shelfId"]),
+                shelf_label=str(payload["shelfLabel"]),
+                marker_id=int(payload["markerId"]),
+                camera_index=int(camera["id"]),
+                device_id=str(camera["deviceId"]),
+                track_id=int(camera["trackId"]),
+                visit_id=int(payload["visitId"]),
+                visit_origin=payload.get("visitOrigin"),
+                customer_id=payload.get("customerId"),
+                distance_mm=float(payload["distanceMm"]),
+                person_point_3d_mm=(
+                    float(person_point["x"]),
+                    float(person_point["y"]),
+                    float(person_point["z"]),
+                ),
+                anchor=anchor,
+                host_synced_seconds=float(payload["hostSyncedSeconds"]),
+                observed_at_unix_milliseconds=int(
+                    payload["occurredAtUnixMilliseconds"]
+                ),
+                rgb_sequence_number=int(payload["rgbSequenceNumber"]),
+                depth_sequence_number=int(payload["depthSequenceNumber"]),
+            )
+            coordinator.restore_near_session(
+                shelf_id=observation.shelf_id,
+                visit_id=int(payload["visitId"]),
+                proximity_session_id=str(payload["proximitySessionId"]),
+                observation=observation,
+                minimum_distance_mm=(
+                    None
+                    if payload.get("minimumDistanceMm") is None
+                    else float(payload["minimumDistanceMm"])
+                ),
+            )
+            restored += 1
+        except (KeyError, TypeError, ValueError) as exc:
+            print(f"SHELF_SESSION_RESTORE_SKIPPED error={exc}")
+    if restored:
+        print(f"Restored {restored} active shelf proximity sessions.")
+
+
 def main() -> None:
     args = build_argparser().parse_args()
     if args.frame_width <= 0 or args.frame_height <= 0:
@@ -1507,6 +1866,24 @@ def main() -> None:
     signal.signal(signal.SIGTERM, request_stop)
 
     camera_roles = resolve_camera_roles(args)
+    shelf_config = None
+    shelf_coordinator = None
+    if args.enable_shelf_watching:
+        shelf_config = load_shelf_config(args.shelf_config)
+        validate_shelf_config_for_live_cameras(
+            shelf_config,
+            camera_device_ids=args.device_id,
+            observer_capable_device_ids={
+                device_id
+                for device_id, camera_role in zip(args.device_id, camera_roles)
+                if is_observer_enabled(camera_role)
+            },
+        )
+        shelf_coordinator = ShelfProximityCoordinator(shelf_config)
+        print(
+            f"Loaded shelf config {args.shelf_config} "
+            f"shelves={len(shelf_config.shelves)}"
+        )
     detector = build_person_detector(args)
     face_matcher = build_face_recognizer(args)
     body_evidence_extractor = build_body_evidence_extractor(args)
@@ -1532,6 +1909,11 @@ def main() -> None:
         f"Using shop state DB {shop_state_store.db_path} "
         f"next_visit_id={visit_registry.next_visit_id}"
     )
+    if shelf_coordinator is not None:
+        restore_shelf_proximity_sessions(
+            shelf_coordinator,
+            shop_state_store.load_active_shelf_session_payloads(),
+        )
     shop_api_client = ShopApiClient(
         base_url=args.shop_api_base_url,
         api_key=args.shop_api_key,
@@ -1557,6 +1939,15 @@ def main() -> None:
                 camera_timeout_seconds=args.stream_camera_timeout_seconds,
             )
             stream_server.start()
+            stream_server.publish_shelf_event_payloads(
+                shop_state_store.load_recent_shelf_event_payloads()
+            )
+            if shelf_coordinator is not None:
+                stream_server.publish_shelf_statuses(
+                    shelf_coordinator.statuses(
+                        now_unix_milliseconds=time.time_ns() // 1_000_000
+                    )
+                )
 
         with ExitStack() as stack:
             states = [
@@ -1565,6 +1956,7 @@ def main() -> None:
                     camera_role=camera_role,
                     args=args,
                     stack=stack,
+                    shelf_config=shelf_config,
                 )
                 for device_id, camera_role in zip(args.device_id, camera_roles)
             ]
@@ -1605,6 +1997,7 @@ def main() -> None:
                         shop_api_client=shop_api_client,
                         shop_state_store=shop_state_store,
                         customer_ids_by_visit=customer_ids_by_visit,
+                        shelf_coordinator=shelf_coordinator,
                         args=args,
                         performance=performance,
                     )
@@ -1634,7 +2027,28 @@ def main() -> None:
                                 camera_index,
                                 state.cached_observer_snapshot,
                             )
+                        if processed_rgb_changed and state.cached_shelf_snapshot is not None:
+                            stream_server.publish_shelf_snapshot(
+                                camera_index,
+                                state.cached_shelf_snapshot,
+                            )
+                        if state.pending_shelf_events:
+                            stream_server.publish_shelf_event_payloads(
+                                [
+                                    shelf_event_payload(event)
+                                    for event in state.pending_shelf_events
+                                ]
+                            )
+                            state.pending_shelf_events.clear()
+                        if shelf_coordinator is not None and processed_rgb_changed:
+                            stream_server.publish_shelf_statuses(
+                                shelf_coordinator.statuses(
+                                    now_unix_milliseconds=time.time_ns() // 1_000_000
+                                )
+                            )
                         performance.record_duration("stream_publish", stream_started)
+                    elif state.pending_shelf_events:
+                        state.pending_shelf_events.clear()
                     performance.record_duration("camera_iteration", camera_iteration_started)
 
                 if not args.headless:

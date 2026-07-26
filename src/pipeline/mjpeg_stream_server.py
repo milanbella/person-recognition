@@ -12,6 +12,12 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 
 from pipeline.observer_api import ObserverCameraSnapshot, observer_snapshot_payload
+from pipeline.shelf_api import (
+    ShelfCameraSnapshot,
+    shelf_camera_snapshot_payload,
+    shelf_status_payload,
+)
+from pipeline.shelf_proximity import ShelfProximityStatus
 from pipeline.visit_registry import is_observer_enabled
 
 
@@ -24,6 +30,8 @@ class _CameraFrame:
     last_frame_monotonic: float | None = None
     observer_snapshot: ObserverCameraSnapshot | None = None
     observer_snapshot_monotonic: float | None = None
+    shelf_snapshot: ShelfCameraSnapshot | None = None
+    shelf_snapshot_monotonic: float | None = None
 
 
 class MjpegStreamServer:
@@ -67,6 +75,8 @@ class MjpegStreamServer:
         self._server: uvicorn.Server | None = None
         self._thread: threading.Thread | None = None
         self._server_error: BaseException | None = None
+        self._shelf_statuses: tuple[ShelfProximityStatus, ...] = ()
+        self._shelf_event_payloads: dict[int, dict[str, object]] = {}
         self.app = self._build_app()
 
     def _build_app(self) -> FastAPI:
@@ -99,6 +109,47 @@ class MjpegStreamServer:
                     detail=f"Camera index {cam_index} is not observer-capable.",
                 )
             return self.observer_snapshot_payload(cam_index)
+
+        @app.get("/observer-cameras/{cam_index}/shelves")
+        def observer_camera_shelves(cam_index: int) -> dict[str, object]:
+            if cam_index not in self._cameras:
+                raise HTTPException(status_code=404, detail=f"Camera index {cam_index} is not configured.")
+            if not is_observer_enabled(self._cameras[cam_index].camera_role):
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Camera index {cam_index} is not observer-capable.",
+                )
+            return self.shelf_snapshot_payload(cam_index)
+
+        @app.get("/shelves/status")
+        def shelves_status() -> dict[str, object]:
+            with self._condition:
+                statuses = self._shelf_statuses
+            return shelf_status_payload(statuses)
+
+        @app.get("/shelf-events")
+        def shelf_events(
+            afterEventId: int = 0,
+            limit: int = 100,
+        ) -> dict[str, object]:
+            if afterEventId < 0:
+                raise HTTPException(status_code=422, detail="afterEventId must not be negative.")
+            if not 1 <= limit <= 1000:
+                raise HTTPException(status_code=422, detail="limit must be between 1 and 1000.")
+            with self._condition:
+                payloads = [
+                    payload
+                    for event_id, payload in sorted(self._shelf_event_payloads.items())
+                    if event_id > afterEventId
+                ][:limit]
+            return {
+                "events": payloads,
+                "lastEventId": (
+                    afterEventId
+                    if not payloads
+                    else int(payloads[-1]["eventId"])
+                ),
+            }
 
         return app
 
@@ -230,6 +281,79 @@ class MjpegStreamServer:
             status="active" if is_fresh else "offline",
             include_observations=is_fresh,
         )
+
+    def publish_shelf_snapshot(
+        self,
+        camera_index: int,
+        snapshot: ShelfCameraSnapshot,
+    ) -> None:
+        if camera_index not in self._cameras:
+            raise KeyError(f"Camera index {camera_index} is not configured.")
+        if not is_observer_enabled(self._cameras[camera_index].camera_role):
+            raise ValueError(f"Camera index {camera_index} is not observer-capable.")
+        if snapshot.camera_index != camera_index:
+            raise ValueError("Shelf snapshot camera index does not match publication index.")
+        with self._condition:
+            camera = self._cameras[camera_index]
+            camera.shelf_snapshot = snapshot
+            camera.shelf_snapshot_monotonic = time.monotonic()
+
+    def shelf_snapshot_payload(self, camera_index: int) -> dict[str, object]:
+        if camera_index not in self._cameras:
+            raise KeyError(f"Camera index {camera_index} is not configured.")
+        now = time.monotonic()
+        with self._condition:
+            camera = self._cameras[camera_index]
+            if not is_observer_enabled(camera.camera_role):
+                raise ValueError(f"Camera index {camera_index} is not observer-capable.")
+            snapshot = camera.shelf_snapshot
+            published_monotonic = camera.shelf_snapshot_monotonic
+        if snapshot is None or published_monotonic is None:
+            return {
+                "camera": {
+                    "id": camera_index,
+                    "deviceId": camera.device_id,
+                    "role": camera.camera_role,
+                    "status": "starting",
+                },
+                "frame": None,
+                "shelves": [],
+            }
+        age_milliseconds = max(
+            0,
+            int(round((now - published_monotonic) * 1000.0)),
+        )
+        is_fresh = now - published_monotonic <= self.camera_timeout_seconds
+        return shelf_camera_snapshot_payload(
+            snapshot,
+            age_milliseconds=age_milliseconds,
+            status="active" if is_fresh else "offline",
+            include_observations=is_fresh,
+        )
+
+    def publish_shelf_statuses(
+        self,
+        statuses: tuple[ShelfProximityStatus, ...],
+    ) -> None:
+        with self._condition:
+            self._shelf_statuses = tuple(statuses)
+
+    def publish_shelf_event_payloads(
+        self,
+        payloads: list[dict[str, object]],
+    ) -> None:
+        with self._condition:
+            for payload in payloads:
+                event_id = payload.get("eventId")
+                if not isinstance(event_id, int):
+                    raise ValueError("Shelf event payload must contain an integer eventId.")
+                self._shelf_event_payloads[event_id] = dict(payload)
+            if len(self._shelf_event_payloads) > 1000:
+                retained_ids = sorted(self._shelf_event_payloads)[-1000:]
+                self._shelf_event_payloads = {
+                    event_id: self._shelf_event_payloads[event_id]
+                    for event_id in retained_ids
+                }
 
     def _generate_stream(self, camera_index: int) -> Iterator[bytes]:
         with self._condition:

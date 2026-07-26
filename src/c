@@ -68,8 +68,16 @@ python ./live_synced_rgbd_streams.py \
   --log-visit-decisions \
   --log-plane-trace \
   --shop-api-base-url https://ovie.sk \
-  --shop-api-key 98cdde4b-0852-4866-a17f-1063795e3760 \
+  --shop-api-key a4e02c6a-7657-4077-97da-debbeb88add5 \
   --shop-id 1 \
   --state-db state/shop_state.sqlite \
+  --enable-shelf-watching \
+  --log-shelf-distance \
   --headless
 
+
+#python ./calibrate_shelf_anchors.py \
+#  --device-id 1944301061B0B32F00 \
+#  --shelf-config config/shelves.json \
+#  --show-preview \
+#  --show-rejected-candidates

@@ -1,4 +1,5 @@
 import unittest
+from pathlib import Path
 
 from live_synced_rgbd_streams import build_argparser, placeholder_frame
 
@@ -37,6 +38,13 @@ class LiveFrameConfigTests(unittest.TestCase):
 
         self.assertTrue(default_args.show_annotated_preview)
         self.assertFalse(raw_args.show_annotated_preview)
+
+    def test_shelf_watching_is_opt_in(self) -> None:
+        args = build_argparser().parse_args([])
+
+        self.assertFalse(args.enable_shelf_watching)
+        self.assertEqual(args.shelf_config, Path("config") / "shelves.json")
+        self.assertFalse(hasattr(args, "shelf_marker_scan_interval_seconds"))
 
 
 if __name__ == "__main__":

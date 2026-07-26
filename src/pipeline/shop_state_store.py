@@ -5,6 +5,9 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
+from pipeline.shelf_api import shelf_event_payload
+from pipeline.shelf_proximity import ShelfProximityEvent
+
 
 DEFAULT_SHOP_STATE_DB = Path("state") / "shop_state.sqlite"
 
@@ -168,6 +171,209 @@ class ShopStateStore:
                 (shopping_customer_id, visit_id),
             )
 
+    def record_shelf_event(
+        self,
+        event: ShelfProximityEvent,
+    ) -> ShelfProximityEvent:
+        payload = shelf_event_payload(event)
+        with self.connection:
+            if event.event_type == "shelf_approach":
+                self.connection.execute(
+                    """
+                    INSERT INTO shelf_proximity_sessions (
+                        proximity_session_id,
+                        shelf_id,
+                        marker_id,
+                        visit_id,
+                        shopping_customer_id,
+                        status,
+                        approached_host_seconds,
+                        approached_at_unix_ms,
+                        minimum_distance_mm,
+                        last_distance_mm,
+                        last_device_id,
+                        last_camera_index,
+                        last_track_id,
+                        updated_at_unix_ms
+                    )
+                    VALUES (?, ?, ?, ?, ?, 'near', ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(proximity_session_id) DO UPDATE SET
+                        shopping_customer_id=COALESCE(
+                            excluded.shopping_customer_id,
+                            shelf_proximity_sessions.shopping_customer_id
+                        ),
+                        status='near',
+                        minimum_distance_mm=MIN(
+                            shelf_proximity_sessions.minimum_distance_mm,
+                            excluded.minimum_distance_mm
+                        ),
+                        last_distance_mm=excluded.last_distance_mm,
+                        last_device_id=excluded.last_device_id,
+                        last_camera_index=excluded.last_camera_index,
+                        last_track_id=excluded.last_track_id,
+                        updated_at_unix_ms=excluded.updated_at_unix_ms
+                    """,
+                    (
+                        event.proximity_session_id,
+                        event.shelf_id,
+                        event.marker_id,
+                        event.visit_id,
+                        event.customer_id,
+                        event.host_synced_seconds,
+                        event.occurred_at_unix_milliseconds,
+                        event.distance_mm,
+                        event.distance_mm,
+                        event.device_id,
+                        event.camera_index,
+                        event.track_id,
+                        event.occurred_at_unix_milliseconds,
+                    ),
+                )
+            elif event.event_type == "shelf_departure":
+                self.connection.execute(
+                    """
+                    UPDATE shelf_proximity_sessions
+                    SET
+                        status='departed',
+                        shopping_customer_id=COALESCE(
+                            ?,
+                            shopping_customer_id
+                        ),
+                        departed_host_seconds=?,
+                        departed_at_unix_ms=?,
+                        minimum_distance_mm=MIN(
+                            minimum_distance_mm,
+                            ?
+                        ),
+                        last_distance_mm=?,
+                        last_device_id=?,
+                        last_camera_index=?,
+                        last_track_id=?,
+                        updated_at_unix_ms=?
+                    WHERE proximity_session_id=?
+                    """,
+                    (
+                        event.customer_id,
+                        event.host_synced_seconds,
+                        event.occurred_at_unix_milliseconds,
+                        event.distance_mm,
+                        event.distance_mm,
+                        event.device_id,
+                        event.camera_index,
+                        event.track_id,
+                        event.occurred_at_unix_milliseconds,
+                        event.proximity_session_id,
+                    ),
+                )
+            else:
+                raise ValueError(f"Unsupported shelf event type: {event.event_type}")
+
+            cursor = self.connection.execute(
+                """
+                INSERT OR IGNORE INTO shelf_events (
+                    event_type,
+                    proximity_session_id,
+                    shelf_id,
+                    marker_id,
+                    visit_id,
+                    shopping_customer_id,
+                    host_seconds,
+                    occurred_at_unix_ms,
+                    device_id,
+                    camera_index,
+                    track_id,
+                    distance_mm,
+                    payload_json
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    event.event_type,
+                    event.proximity_session_id,
+                    event.shelf_id,
+                    event.marker_id,
+                    event.visit_id,
+                    event.customer_id,
+                    event.host_synced_seconds,
+                    event.occurred_at_unix_milliseconds,
+                    event.device_id,
+                    event.camera_index,
+                    event.track_id,
+                    event.distance_mm,
+                    json.dumps(payload, sort_keys=True),
+                ),
+            )
+            if cursor.rowcount:
+                event_id = int(cursor.lastrowid)
+            else:
+                row = self.connection.execute(
+                    """
+                    SELECT event_id
+                    FROM shelf_events
+                    WHERE proximity_session_id=? AND event_type=?
+                    """,
+                    (event.proximity_session_id, event.event_type),
+                ).fetchone()
+                if row is None:
+                    raise RuntimeError("Could not resolve persisted shelf event id.")
+                event_id = int(row["event_id"])
+            persisted_event = event.with_event_id(event_id)
+            persisted_payload = shelf_event_payload(persisted_event)
+            self.connection.execute(
+                "UPDATE shelf_events SET payload_json=? WHERE event_id=?",
+                (json.dumps(persisted_payload, sort_keys=True), event_id),
+            )
+        return persisted_event
+
+    def load_recent_shelf_event_payloads(
+        self,
+        *,
+        limit: int = 1000,
+    ) -> list[dict[str, Any]]:
+        if limit <= 0:
+            raise ValueError("Shelf event limit must be positive.")
+        rows = self.connection.execute(
+            """
+            SELECT event_id, payload_json
+            FROM shelf_events
+            ORDER BY event_id DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+        payloads: list[dict[str, Any]] = []
+        for row in reversed(rows):
+            payload = json.loads(str(row["payload_json"]))
+            payload["eventId"] = int(row["event_id"])
+            payloads.append(payload)
+        return payloads
+
+    def load_active_shelf_session_payloads(self) -> list[dict[str, Any]]:
+        rows = self.connection.execute(
+            """
+            SELECT
+                sessions.proximity_session_id,
+                sessions.minimum_distance_mm,
+                events.payload_json
+            FROM shelf_proximity_sessions AS sessions
+            JOIN shelf_events AS events
+              ON events.proximity_session_id = sessions.proximity_session_id
+             AND events.event_type = 'shelf_approach'
+            WHERE sessions.status = 'near'
+            ORDER BY sessions.updated_at_unix_ms
+            """
+        ).fetchall()
+        result: list[dict[str, Any]] = []
+        for row in rows:
+            payload = json.loads(str(row["payload_json"]))
+            payload["minimumDistanceMm"] = (
+                None
+                if row["minimum_distance_mm"] is None
+                else float(row["minimum_distance_mm"])
+            )
+            result.append(payload)
+        return result
+
     def _insert_event(
         self,
         *,
@@ -255,4 +461,66 @@ class ShopStateStore:
             )
             self.connection.execute(
                 "CREATE INDEX IF NOT EXISTS idx_visit_events_host_seconds ON visit_events(host_seconds)"
+            )
+            self.connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS shelf_proximity_sessions (
+                    proximity_session_id TEXT PRIMARY KEY,
+                    shelf_id INTEGER NOT NULL,
+                    marker_id INTEGER NOT NULL,
+                    visit_id INTEGER NOT NULL,
+                    shopping_customer_id TEXT,
+                    status TEXT NOT NULL,
+                    approached_host_seconds REAL,
+                    approached_at_unix_ms INTEGER,
+                    departed_host_seconds REAL,
+                    departed_at_unix_ms INTEGER,
+                    minimum_distance_mm REAL,
+                    last_distance_mm REAL,
+                    last_device_id TEXT,
+                    last_camera_index INTEGER,
+                    last_track_id INTEGER,
+                    updated_at_unix_ms INTEGER NOT NULL
+                )
+                """
+            )
+            self.connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS shelf_events (
+                    event_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    event_type TEXT NOT NULL,
+                    proximity_session_id TEXT NOT NULL,
+                    shelf_id INTEGER NOT NULL,
+                    marker_id INTEGER NOT NULL,
+                    visit_id INTEGER NOT NULL,
+                    shopping_customer_id TEXT,
+                    host_seconds REAL NOT NULL,
+                    occurred_at_unix_ms INTEGER NOT NULL,
+                    device_id TEXT NOT NULL,
+                    camera_index INTEGER NOT NULL,
+                    track_id INTEGER NOT NULL,
+                    distance_mm REAL NOT NULL,
+                    payload_json TEXT NOT NULL,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(proximity_session_id, event_type)
+                )
+                """
+            )
+            self.connection.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_shelf_events_shelf_time
+                ON shelf_events(shelf_id, occurred_at_unix_ms)
+                """
+            )
+            self.connection.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_shelf_events_visit_time
+                ON shelf_events(visit_id, occurred_at_unix_ms)
+                """
+            )
+            self.connection.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_shelf_events_session
+                ON shelf_events(proximity_session_id)
+                """
             )
