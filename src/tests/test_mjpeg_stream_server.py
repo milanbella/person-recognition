@@ -31,6 +31,19 @@ class MjpegStreamServerTests(unittest.TestCase):
         time.sleep(0.15)
         self.assertEqual(self.server.camera_status_payload()["cameras"][1]["status"], "offline")
 
+    def test_operator_console_routes_and_state_are_disabled_by_default(self) -> None:
+        paths = {getattr(route, "path", None) for route in self.server.app.routes}
+
+        self.assertIsNone(self.server.operator_state)
+        self.assertIsNone(self.server.operator_store)
+        self.assertNotIn("/operator/", paths)
+        self.assertFalse(
+            any(
+                isinstance(path, str) and path.startswith("/operator/api/")
+                for path in paths
+            )
+        )
+
     def test_stream_returns_latest_jpeg(self) -> None:
         self.server.publish(0, np.zeros((8, 8, 3), dtype=np.uint8))
         part = next(self.server._generate_stream(0))

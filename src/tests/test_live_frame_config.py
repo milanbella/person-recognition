@@ -1,7 +1,11 @@
 import unittest
 from pathlib import Path
 
-from live_synced_rgbd_streams import build_argparser, placeholder_frame
+from live_synced_rgbd_streams import (
+    build_argparser,
+    placeholder_frame,
+    validate_operator_console_args,
+)
 
 
 class LiveFrameConfigTests(unittest.TestCase):
@@ -45,6 +49,48 @@ class LiveFrameConfigTests(unittest.TestCase):
         self.assertFalse(args.enable_shelf_watching)
         self.assertEqual(args.shelf_config, Path("config") / "shelves.json")
         self.assertFalse(hasattr(args, "shelf_marker_scan_interval_seconds"))
+
+    def test_operator_console_is_disabled_with_separate_run_root(self) -> None:
+        args = build_argparser().parse_args([])
+
+        self.assertFalse(args.enable_operator_console)
+        self.assertIsNone(args.operator_api_token)
+        self.assertEqual(args.operator_runs_root, Path("test-runs"))
+
+    def test_operator_console_can_be_enabled_with_cli_token(self) -> None:
+        args = build_argparser().parse_args(
+            [
+                "--enable-operator-console",
+                "--operator-api-token",
+                "test-secret",
+            ]
+        )
+
+        self.assertTrue(args.enable_operator_console)
+        self.assertEqual(args.operator_api_token, "test-secret")
+        validate_operator_console_args(args)
+
+    def test_operator_console_requires_enable_flag_and_token_together(self) -> None:
+        parser = build_argparser()
+        missing_token = parser.parse_args(["--enable-operator-console"])
+        token_without_console = parser.parse_args(
+            ["--operator-api-token", "test-secret"]
+        )
+        disabled_streaming = parser.parse_args(
+            [
+                "--enable-operator-console",
+                "--operator-api-token",
+                "test-secret",
+                "--disable-streaming",
+            ]
+        )
+
+        with self.assertRaisesRegex(ValueError, "operator-api-token is required"):
+            validate_operator_console_args(missing_token)
+        with self.assertRaisesRegex(ValueError, "requires --enable"):
+            validate_operator_console_args(token_without_console)
+        with self.assertRaisesRegex(ValueError, "cannot be used"):
+            validate_operator_console_args(disabled_streaming)
 
 
 if __name__ == "__main__":

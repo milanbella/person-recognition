@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#102f2b">
+  <title>Shop Walk Test</title>
+  <link rel="stylesheet" href="/operator/assets/operator.css?v=event-console-1">
+</head>
+<body>
+  <header class="masthead">
+    <div>
+      <p class="eyebrow">Live physical verification</p>
+      <h1>Shop Walk Test</h1>
+    </div>
+    <div class="connection">
+      <span id="connection-dot" class="connection-dot"></span>
+      <span id="connection-label">Connecting</span>
+    </div>
+  </header>
+
+  <main>
+    <section class="run-bar">
+      <div>
+        <span class="label">Feedback recording</span>
+        <strong id="run-name">No active test</strong>
+        <span id="run-clock">Start a run to record confirmations and missing events.</span>
+      </div>
+      <div class="run-actions">
+        <button id="start-run" class="button primary">Start</button>
+        <button id="stop-run" class="button danger" disabled>Stop</button>
+        <button id="analyze-run" class="button" disabled>Analyze</button>
+      </div>
+    </section>
+
+    <section class="walk-layout">
+      <article class="camera-column">
+        <div id="camera-tabs" class="camera-tabs" aria-label="Cameras"></div>
+        <div id="camera-stage" class="camera-stage">
+          <img id="camera-stream" alt="Selected shop camera" draggable="false">
+          <canvas id="observation-overlay"></canvas>
+          <div id="observation-hitboxes" class="observation-hitboxes"></div>
+          <div id="camera-empty" class="camera-empty">Select an active camera</div>
+          <div id="frame-age" class="frame-age">No observation</div>
+        </div>
+        <div id="observation-choices" class="observation-choices camera-track-choices">
+          <p>Detected tracks will appear here.</p>
+        </div>
+      </article>
+
+      <div class="walk-controls">
+        <section class="timeline-panel event-monitor">
+          <div class="panel-heading">
+            <div>
+              <span class="label">Generated events</span>
+              <h2>Did the system get it right?</h2>
+            </div>
+            <span id="result-summary" class="result-summary">Listening</span>
+          </div>
+          <p class="event-help">New ENTRY, LEAVE and shelf events appear here. Confirm or reject each one while it is fresh.</p>
+          <div id="timeline" class="timeline event-cards">
+            <p class="timeline-empty">Waiting for the next shop event.</p>
+          </div>
+        </section>
+
+        <section class="panel missing-panel">
+          <div class="panel-heading">
+            <div>
+              <span class="label">Expected event missing</span>
+              <h2>What just happened physically?</h2>
+            </div>
+          </div>
+          <p class="event-help">Use these only when the system did not generate the event you expected.</p>
+          <div class="action-grid missing-actions">
+            <button data-physical="physical_entry" class="button primary" disabled>Missing ENTRY</button>
+            <button data-physical="physical_leave" class="button danger" disabled>Missing LEAVE</button>
+          </div>
+          <label class="shelf-picker" for="missing-shelf">
+            Shelf
+            <select id="missing-shelf"></select>
+          </label>
+          <div class="action-grid missing-actions">
+            <button id="shelf-approach" class="button" disabled>Missing shelf APPROACH</button>
+            <button id="shelf-departure" class="button" disabled>Missing shelf LEAVE</button>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <details class="advanced-tools">
+      <summary>Advanced track and identity feedback</summary>
+      <div class="advanced-grid">
+        <section class="panel selected-panel">
+          <div class="panel-heading">
+            <div>
+              <span class="label">Selected observation</span>
+              <h2 id="selected-title">No selectable person visible</h2>
+            </div>
+            <span id="selected-freshness" class="pill">None</span>
+          </div>
+          <dl id="selected-details" class="details"></dl>
+          <div class="subject-row">
+            <label for="subject-select">Physical subject</label>
+            <select id="subject-select"></select>
+          </div>
+          <div class="action-grid observation-actions">
+            <button data-annotation="observation_is_subject" class="button primary" disabled>This is me</button>
+            <button data-annotation="observation_is_not_subject" class="button" disabled>Not me</button>
+            <button data-annotation="bounding_box_correct" class="button" disabled>Box correct</button>
+            <button data-annotation="bounding_box_incorrect" class="button danger-soft" disabled>Box wrong</button>
+            <button data-annotation="customer_identity_correct" class="button" disabled>Identity correct</button>
+            <button data-annotation="customer_identity_incorrect" class="button danger-soft" disabled>Identity wrong</button>
+            <button data-annotation="duplicate_track" class="button" disabled>Duplicate track</button>
+            <button data-annotation="different_physical_person" class="button" disabled>Different person</button>
+          </div>
+        </section>
+
+        <section class="panel">
+          <span class="label">Current machine state</span>
+          <p id="system-answer">Waiting for live state.</p>
+          <div class="speech-controls">
+            <button id="speak-state" class="button compact">Read state</button>
+            <button id="push-to-talk" class="button compact">Voice command</button>
+            <label><input id="speak-events" type="checkbox"> Speak events</label>
+          </div>
+          <div class="action-grid secondary-physical-actions">
+            <button data-physical="subject_stationary" class="button" disabled>I am stationary</button>
+            <button data-physical="subject_visible_but_not_detected" class="button danger-soft" disabled>Not detected</button>
+            <button data-physical="subject_occluded" class="button" disabled>Occluded</button>
+            <button data-physical="subject_reappeared" class="button" disabled>Reappeared</button>
+          </div>
+          <div class="note-row">
+            <input id="note-text" type="text" placeholder="Add a short physical observation">
+            <button id="add-note" class="button compact" disabled>Add note</button>
+          </div>
+        </section>
+      </div>
+    </details>
+  </main>
+
+  <dialog id="start-dialog">
+    <form id="start-form" method="dialog">
+      <span class="label">New walk test</span>
+      <h2>Start recording feedback</h2>
+      <label>Scenario
+        <input name="scenario" value="shop-walk" required>
+      </label>
+      <label>Verifier
+        <input name="verifier" value="Milan" required>
+      </label>
+      <label>Subject ID
+        <input name="subjectId" value="milan" required>
+      </label>
+      <label>Subject name
+        <input name="displayName" value="Milan" required>
+      </label>
+      <label>Expected customer ID
+        <input name="expectedCustomerId" placeholder="Optional">
+      </label>
+      <label>Notes
+        <textarea name="notes" rows="2" placeholder="Optional route notes"></textarea>
+      </label>
+      <label>Operator token
+        <input name="token" type="password" placeholder="Required for recording feedback">
+      </label>
+      <div class="dialog-actions">
+        <button id="cancel-start" type="button" class="button">Cancel</button>
+        <button id="confirm-start" value="default" class="button primary">Start</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status"></div>
+  <script src="/operator/assets/operator.js?v=event-console-1"></script>
+</body>
+</html>

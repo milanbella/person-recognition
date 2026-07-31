@@ -73,6 +73,8 @@ python ./live_synced_rgbd_streams.py \
   --state-db state/shop_state.sqlite \
   --enable-shelf-watching \
   --log-shelf-distance \
+  --enable-operator-console \
+  --operator-api-token 'secret' \
   --headless
 
 

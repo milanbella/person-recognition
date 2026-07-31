@@ -2,6 +2,7 @@ import argparse
 import json
 import math
 import signal
+import subprocess
 import threading
 import time
 import urllib.error
@@ -403,6 +404,27 @@ def build_argparser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--disable-streaming", action="store_true", help="Disable the MJPEG streaming API.")
     parser.add_argument(
+        "--enable-operator-console",
+        action="store_true",
+        help=(
+            "Enable the mobile operator test console and test-run API. "
+            "Requires --operator-api-token."
+        ),
+    )
+    parser.add_argument(
+        "--operator-runs-root",
+        type=Path,
+        default=Path("test-runs"),
+        help="Directory for exported operator test runs. Default: test-runs.",
+    )
+    parser.add_argument(
+        "--operator-api-token",
+        help=(
+            "Bearer token for the operator console and test-run API. "
+            "Used only with --enable-operator-console."
+        ),
+    )
+    parser.add_argument(
         "--hide-depth-window",
         action="store_true",
         default=True,
@@ -509,6 +531,21 @@ def build_argparser() -> argparse.ArgumentParser:
     add_visit_identity_args(parser)
     add_visit_registry_args(parser)
     return parser
+
+
+def validate_operator_console_args(args: argparse.Namespace) -> None:
+    if args.enable_operator_console and not args.operator_api_token:
+        raise ValueError(
+            "--operator-api-token is required with --enable-operator-console."
+        )
+    if args.operator_api_token and not args.enable_operator_console:
+        raise ValueError(
+            "--operator-api-token requires --enable-operator-console."
+        )
+    if args.enable_operator_console and args.disable_streaming:
+        raise ValueError(
+            "--enable-operator-console cannot be used with --disable-streaming."
+        )
 
 
 def resolve_camera_roles(args: argparse.Namespace) -> list[str]:
@@ -699,13 +736,42 @@ def write_live_config(
         "args": {
             key: str(value) if isinstance(value, Path) else value
             for key, value in vars(args).items()
-            if key != "shop_api_key"
+            if key not in {"shop_api_key", "operator_api_token"}
         },
     }
     (artifact_writer.output_dir / "live_config.json").write_text(
         json.dumps(payload, indent=2, sort_keys=True),
         encoding="utf-8",
     )
+
+
+def operator_runtime_configuration(
+    *,
+    args: argparse.Namespace,
+    camera_roles: list[str],
+) -> dict[str, object]:
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=Path(__file__).resolve().parent,
+            capture_output=True,
+            check=True,
+            text=True,
+            timeout=2.0,
+        )
+        git_commit = result.stdout.strip() or None
+    except (OSError, subprocess.SubprocessError):
+        git_commit = None
+    return {
+        "gitCommit": git_commit,
+        "deviceIds": list(args.device_id),
+        "cameraRoles": list(camera_roles),
+        "arguments": {
+            key: str(value) if isinstance(value, Path) else value
+            for key, value in vars(args).items()
+            if key not in {"shop_api_key", "operator_api_token"}
+        },
+    }
 
 
 def drain_messages_into_buffer(queue: dai.MessageQueue, messages: deque[Any]) -> int:
@@ -1027,6 +1093,7 @@ def process_latest_depth_frame(
     shop_state_store: ShopStateStore,
     customer_ids_by_visit: dict[int, str],
     shelf_coordinator: ShelfProximityCoordinator | None,
+    stream_server: MjpegStreamServer | None,
     args: argparse.Namespace,
     performance: LivePerformanceLogger,
 ) -> bool:
@@ -1108,6 +1175,7 @@ def process_latest_depth_frame(
         shop_state_store=shop_state_store,
         customer_ids_by_visit=customer_ids_by_visit,
         shelf_coordinator=shelf_coordinator,
+        stream_server=stream_server,
         args=args,
         performance=performance,
     )
@@ -1223,6 +1291,7 @@ def build_processed_live_rgb_frame(
     shop_state_store: ShopStateStore,
     customer_ids_by_visit: dict[int, str],
     shelf_coordinator: ShelfProximityCoordinator | None,
+    stream_server: MjpegStreamServer | None,
     args: argparse.Namespace,
     performance: LivePerformanceLogger,
 ) -> ProcessedLiveFrame:
@@ -1333,6 +1402,7 @@ def build_processed_live_rgb_frame(
         artifact_writer.write_track_evidence(track_evidence)
 
     visit_assignments = {}
+    visit_decisions: dict[int, VisitRegistryDecision] = {}
     shelf_events_this_frame: list[ShelfProximityEvent] = []
     observer_enabled = is_observer_enabled(state.camera_role)
     for track_id, track_evidence in track_visit_evidence_by_id.items():
@@ -1343,6 +1413,7 @@ def build_processed_live_rgb_frame(
             resolution = "observer_track"
         if decision is not None:
             visit_assignments[track_id] = decision.assignment
+            visit_decisions[track_id] = decision
             artifact_writer.write_visit_decision(
                 resolution=resolution,
                 track_evidence=track_evidence,
@@ -1358,6 +1429,7 @@ def build_processed_live_rgb_frame(
         if track_evidence is not None:
             decision = visit_registry.resolve_entrance_track(track_evidence)
             visit_assignments[track_id] = decision.assignment
+            visit_decisions[track_id] = decision
             artifact_writer.write_visit_decision(
                 resolution="entrance_track",
                 track_evidence=track_evidence,
@@ -1401,6 +1473,12 @@ def build_processed_live_rgb_frame(
             reason=entry_reasons_by_track.get(track_id, "direct_crossing"),
             event_payload=event_payload,
         )
+        if stream_server is not None:
+            stream_server.publish_entrance_event(
+                event_type="entry_accepted",
+                camera_index=camera_index,
+                payload=event_payload,
+            )
         if args.depth_trigger_mode == "plane":
             print(
                 f"LIVE_DEPTH_PLANE_ENTRY_EVENT device_id={state.device_id} "
@@ -1435,6 +1513,15 @@ def build_processed_live_rgb_frame(
             )
             if visit_id is not None and shopping_customer_id is not None:
                 customer_ids_by_visit[visit_id] = shopping_customer_id
+                if stream_server is not None:
+                    stream_server.publish_customer_binding(
+                        visit_id=visit_id,
+                        customer_id=shopping_customer_id,
+                        host_synced_seconds=rgb_host_synced_seconds,
+                        camera_index=camera_index,
+                        device_id=state.device_id,
+                        track_id=track_id,
+                    )
         except RuntimeError as exc:
             print(f"SHOP_API_BIND_ERROR visit_id={visit_id} error={exc}")
 
@@ -1526,6 +1613,12 @@ def build_processed_live_rgb_frame(
             event_payload=event_payload,
         )
         visit_registry.close_visit(visit_id, host_seconds=rgb_host_synced_seconds)
+        if stream_server is not None:
+            stream_server.publish_entrance_event(
+                event_type="leave_accepted",
+                camera_index=camera_index,
+                payload=event_payload,
+            )
         if shelf_coordinator is not None:
             closed_shelf_events = shelf_coordinator.close_visit(
                 visit_id,
@@ -1658,6 +1751,7 @@ def build_processed_live_rgb_frame(
             visit_assignments=visit_assignments,
             depth_samples=display_depth_samples,
             customer_ids_by_visit=customer_ids_by_visit,
+            visit_decisions=visit_decisions,
             frame_width=display_width,
             frame_height=display_height,
             provisional_track_ids={
@@ -1829,6 +1923,7 @@ def restore_shelf_proximity_sessions(
 
 def main() -> None:
     args = build_argparser().parse_args()
+    validate_operator_console_args(args)
     if args.frame_width <= 0 or args.frame_height <= 0:
         raise ValueError("--frame-width and --frame-height must be greater than zero.")
     if args.processing_width <= 0 or args.processing_height <= 0:
@@ -1937,11 +2032,27 @@ def main() -> None:
                 port=args.stream_port,
                 jpeg_quality=args.stream_jpeg_quality,
                 camera_timeout_seconds=args.stream_camera_timeout_seconds,
+                operator_state_db=(
+                    args.state_db if args.enable_operator_console else None
+                ),
+                operator_runs_root=args.operator_runs_root,
+                operator_api_token=args.operator_api_token,
+                operator_runtime_configuration=operator_runtime_configuration(
+                    args=args,
+                    camera_roles=camera_roles,
+                ),
             )
             stream_server.start()
             stream_server.publish_shelf_event_payloads(
-                shop_state_store.load_recent_shelf_event_payloads()
+                shop_state_store.load_recent_shelf_event_payloads(),
+                emit_operator_events=False,
             )
+            if args.enable_operator_console:
+                print(
+                    f"Operator console available at "
+                    f"http://{args.stream_host}:{args.stream_port}/operator/ "
+                    "(bearer token required)"
+                )
             if shelf_coordinator is not None:
                 stream_server.publish_shelf_statuses(
                     shelf_coordinator.statuses(
@@ -1998,6 +2109,7 @@ def main() -> None:
                         shop_state_store=shop_state_store,
                         customer_ids_by_visit=customer_ids_by_visit,
                         shelf_coordinator=shelf_coordinator,
+                        stream_server=stream_server,
                         args=args,
                         performance=performance,
                     )
@@ -2020,7 +2132,15 @@ def main() -> None:
                             (args.stream_annotated and processed_rgb_changed)
                             or (not args.stream_annotated and raw_rgb_changed)
                         ):
-                            stream_server.publish(camera_index, stream_frame)
+                            stream_server.publish(
+                                camera_index,
+                                stream_frame,
+                                rgb_sequence_number=(
+                                    state.last_processed_rgb_sequence
+                                    if args.stream_annotated
+                                    else state.last_raw_rgb_sequence
+                                ),
+                            )
                             performance.record_stream_frame()
                         if processed_rgb_changed and state.cached_observer_snapshot is not None:
                             stream_server.publish_observer_snapshot(

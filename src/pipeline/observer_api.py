@@ -9,7 +9,11 @@ import numpy as np
 from pipeline.depth import DepthSample
 from pipeline.tracking import Track
 from pipeline.visit_identity import VisitAssignment
-from pipeline.visit_registry import TrackVisitEvidence, VISIT_ORIGIN_ENTRANCE
+from pipeline.visit_registry import (
+    TrackVisitEvidence,
+    VisitRegistryDecision,
+    VISIT_ORIGIN_ENTRANCE,
+)
 
 
 VISIBLE_TRACK_STATUSES = {"NEW", "TRACKED"}
@@ -46,6 +50,8 @@ class ObservedPerson:
     body: ObservedBody
     matched_score: float | None
     match_state: str
+    match_decision: str | None = None
+    match_reason: str | None = None
 
 
 @dataclass(frozen=True)
@@ -99,10 +105,12 @@ def build_observer_camera_snapshot(
     visit_assignments: Mapping[int, VisitAssignment],
     depth_samples: Mapping[int, DepthSample],
     customer_ids_by_visit: Mapping[int, str],
+    visit_decisions: Mapping[int, VisitRegistryDecision] | None = None,
     provisional_track_ids: Collection[int] = (),
     frame_width: int | None = None,
     frame_height: int | None = None,
 ) -> ObserverCameraSnapshot:
+    decisions = {} if visit_decisions is None else visit_decisions
     source_frame_height, source_frame_width = rgb_frame.shape[:2]
     snapshot_frame_width = source_frame_width if frame_width is None else frame_width
     snapshot_frame_height = source_frame_height if frame_height is None else frame_height
@@ -115,6 +123,7 @@ def build_observer_camera_snapshot(
         evidence = track_visit_evidence_by_id.get(track.track_id)
         appearance = None if evidence is None else evidence.body_appearance
         customer_id, binding_status = _customer_binding(assignment, customer_ids_by_visit)
+        registry_decision = decisions.get(track.track_id)
         observations.append(
             ObservedPerson(
                 track_id=int(track.track_id),
@@ -140,6 +149,16 @@ def build_observer_camera_snapshot(
                     else "provisional"
                     if track.track_id in provisional_track_ids
                     else "unassigned"
+                ),
+                match_decision=(
+                    None
+                    if registry_decision is None
+                    else registry_decision.decision
+                ),
+                match_reason=(
+                    None
+                    if registry_decision is None
+                    else registry_decision.reason
                 ),
             )
         )
@@ -219,6 +238,8 @@ def observer_snapshot_payload(
                 "visitMatch": {
                     "matchedScore": person.matched_score,
                     "state": person.match_state,
+                    "decision": person.match_decision,
+                    "reason": person.match_reason,
                 },
             }
             for person in snapshot.observations

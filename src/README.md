@@ -134,6 +134,34 @@ The old on-device `RVC2` experiment scripts were intentionally removed.
   - supports `--log-plane-trace` for per-frame plane signed-distance debugging on entrance-capable cameras
   - enables plane track-split recovery by default to recover entry/leave events when a tracker split happens exactly at the entrance plane; disable it with `--disable-plane-track-split-recovery`
   - supports `--output-dir` for live artifacts: visit decisions, track visit evidence, entrance/leave plane-crossing events, live config, and final visit summaries
+  - optionally serves a mobile shop-test console at `/operator/` on the configured streaming port
+  - operator runs, physical ground-truth annotations, system transition events, and analysis results persist in the same `--state-db`
+  - exported run artifacts are written below `--operator-runs-root` (default `test-runs`)
+  - enable it explicitly with `--enable-operator-console --operator-api-token <secret>`; it is disabled by default
+  - the operator console reuses raw MJPEG plus observer JSON and draws selectable person boxes in the browser; it does not run another detector
+  - accepted entry/leave, visit assignment, customer binding, shelf, track, and camera transitions are available through `/operator/api/events`
+
+## Shop Test Operator Console
+
+The console is disabled by default. Enable it on the MJPEG API port with an
+explicit bearer token:
+
+```bash
+python ./live_synced_rgbd_streams.py \
+  ... \
+  --enable-operator-console \
+  --operator-api-token 'replace-with-a-long-random-token'
+```
+
+The console is then available at:
+
+```text
+http://<shop-server>:8002/operator/
+```
+
+The browser asks for the same token when starting a run. All mutation endpoints
+require `Authorization: Bearer <token>`. When `--enable-operator-console` is
+omitted, the operator page and API routes are not registered.
 
 - `replay_depth_tuner.py`
   - replays one recorded RGBD stream through detection, tracking, and depth-based entrance logic
