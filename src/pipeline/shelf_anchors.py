@@ -52,7 +52,11 @@ def configured_shelf_marker_detections(
     detections: Sequence[ArucoMarkerDetection],
     shelves: Sequence[ShelfDefinition],
 ) -> tuple[ShelfMarkerDetectionSnapshot, ...]:
-    shelves_by_marker = {shelf.marker_id: shelf for shelf in shelves}
+    shelves_by_marker = {
+        marker_id: shelf
+        for shelf in shelves
+        for marker_id in shelf.all_marker_ids
+    }
     return tuple(
         ShelfMarkerDetectionSnapshot(
             shelf_id=shelves_by_marker[detection.marker_id].shelf_id,
@@ -199,29 +203,56 @@ class ShelfAnchorManager:
         self.movement_tolerance_mm = movement_tolerance_mm
         self.marker_min_valid_pixels = marker_min_valid_pixels
         self.auto_save = auto_save
-        self._anchors: dict[int, ShelfAnchor] = {}
-        self._observations: dict[int, deque[ShelfAnchorObservation]] = {
-            shelf.shelf_id: deque(maxlen=max(60, min_samples * 3))
+        marker_keys = tuple(
+            (shelf.shelf_id, marker_id)
             for shelf in self.shelves
+            for marker_id in shelf.all_marker_ids
+        )
+        self._anchors: dict[tuple[int, int], ShelfAnchor] = {}
+        self._observations: dict[
+            tuple[int, int], deque[ShelfAnchorObservation]
+        ] = {
+            key: deque(maxlen=max(60, min_samples * 3)) for key in marker_keys
         }
-        self._accepted_since_update: dict[int, int] = {
-            shelf.shelf_id: 0 for shelf in self.shelves
+        self._accepted_since_update: dict[tuple[int, int], int] = {
+            key: 0 for key in marker_keys
         }
         if load_existing:
             self._load()
 
     @property
-    def anchors(self) -> Mapping[int, ShelfAnchor]:
+    def anchors(self) -> Mapping[tuple[int, int], ShelfAnchor]:
         return dict(self._anchors)
+
+    @property
+    def anchors_by_shelf(self) -> Mapping[int, tuple[ShelfAnchor, ...]]:
+        return {
+            shelf.shelf_id: self.anchors_for_shelf(shelf.shelf_id)
+            for shelf in self.shelves
+            if self.anchors_for_shelf(shelf.shelf_id)
+        }
 
     @property
     def anchored_shelves(self) -> tuple[ShelfDefinition, ...]:
         return tuple(
-            shelf for shelf in self.shelves if shelf.shelf_id in self._anchors
+            shelf
+            for shelf in self.shelves
+            if self.anchors_for_shelf(shelf.shelf_id)
         )
 
     def anchor_for_shelf(self, shelf_id: int) -> ShelfAnchor | None:
-        return self._anchors.get(shelf_id)
+        anchors = self.anchors_for_shelf(shelf_id)
+        return anchors[0] if anchors else None
+
+    def anchors_for_shelf(self, shelf_id: int) -> tuple[ShelfAnchor, ...]:
+        shelf = self.config.shelf_by_id().get(shelf_id)
+        if shelf is None:
+            return ()
+        return tuple(
+            anchor
+            for marker_id in shelf.all_marker_ids
+            if (anchor := self._anchors.get((shelf_id, marker_id))) is not None
+        )
 
     def process_detections(
         self,
@@ -236,7 +267,8 @@ class ShelfAnchorManager:
         accepted: list[ShelfAnchorObservation] = []
         changed = False
         for detection in detections:
-            if detection.shelf_id not in self._observations:
+            anchor_key = (detection.shelf_id, detection.marker_id)
+            if anchor_key not in self._observations:
                 continue
             observation = sample_shelf_marker_anchor(
                 depth_frame_mm,
@@ -256,7 +288,7 @@ class ShelfAnchorManager:
                     )
                 continue
 
-            current = self._anchors.get(observation.shelf_id)
+            current = self._anchors.get(anchor_key)
             if (
                 current is not None
                 and _point_distance_mm(
@@ -275,9 +307,9 @@ class ShelfAnchorManager:
                 continue
 
             accepted.append(observation)
-            samples = self._observations[observation.shelf_id]
+            samples = self._observations[anchor_key]
             samples.append(observation)
-            self._accepted_since_update[observation.shelf_id] += 1
+            self._accepted_since_update[anchor_key] += 1
             candidate = stabilized_anchor(
                 tuple(samples),
                 source=(
@@ -292,12 +324,11 @@ class ShelfAnchorManager:
                 and candidate.rms_spread_mm <= self.max_spread_mm
                 and (
                     current is None
-                    or self._accepted_since_update[observation.shelf_id]
-                    >= self.min_samples
+                    or self._accepted_since_update[anchor_key] >= self.min_samples
                 )
             ):
-                self._anchors[observation.shelf_id] = candidate
-                self._accepted_since_update[observation.shelf_id] = 0
+                self._anchors[anchor_key] = candidate
+                self._accepted_since_update[anchor_key] = 0
                 changed = True
                 if log_trace:
                     print(
@@ -317,8 +348,18 @@ class ShelfAnchorManager:
             self.save()
         return tuple(accepted)
 
-    def candidate_anchor(self, shelf_id: int) -> ShelfAnchor | None:
-        samples = self._observations.get(shelf_id)
+    def candidate_anchor(
+        self,
+        shelf_id: int,
+        marker_id: int | None = None,
+    ) -> ShelfAnchor | None:
+        shelf = self.config.shelf_by_id().get(shelf_id)
+        if shelf is None:
+            return None
+        selected_marker_id = (
+            shelf.all_marker_ids[0] if marker_id is None else marker_id
+        )
+        samples = self._observations.get((shelf_id, selected_marker_id))
         if not samples:
             return None
         return stabilized_anchor(tuple(samples), source="calibration_candidate")
@@ -326,25 +367,26 @@ class ShelfAnchorManager:
     def accept_candidates(self) -> None:
         changed = False
         for shelf in self.shelves:
-            candidate = self.candidate_anchor(shelf.shelf_id)
-            if candidate is None or candidate.sample_count < self.min_samples:
-                continue
-            if candidate.rms_spread_mm > self.max_spread_mm:
-                continue
-            self._anchors[shelf.shelf_id] = ShelfAnchor(
-                **{
-                    **candidate.__dict__,
-                    "source": "operator_calibrated",
-                }
-            )
-            changed = True
+            for marker_id in shelf.all_marker_ids:
+                candidate = self.candidate_anchor(shelf.shelf_id, marker_id)
+                if candidate is None or candidate.sample_count < self.min_samples:
+                    continue
+                if candidate.rms_spread_mm > self.max_spread_mm:
+                    continue
+                self._anchors[(shelf.shelf_id, marker_id)] = ShelfAnchor(
+                    **{
+                        **candidate.__dict__,
+                        "source": "operator_calibrated",
+                    }
+                )
+                changed = True
         if changed:
             self.save()
 
     def save(self) -> None:
         self.calibration_path.parent.mkdir(parents=True, exist_ok=True)
         payload = {
-            "schemaVersion": 1,
+            "schemaVersion": 2,
             "deviceId": self.device_id,
             "arucoDictionary": self.config.aruco_dictionary,
             "anchors": [
@@ -359,7 +401,7 @@ class ShelfAnchorManager:
                 }
                 for anchor in sorted(
                     self._anchors.values(),
-                    key=lambda item: item.shelf_id,
+                    key=lambda item: (item.shelf_id, item.marker_id),
                 )
             ],
         }
@@ -374,7 +416,7 @@ class ShelfAnchorManager:
         if not self.calibration_path.exists():
             return
         payload = json.loads(self.calibration_path.read_text(encoding="utf-8"))
-        if payload.get("schemaVersion") != 1:
+        if payload.get("schemaVersion") not in {1, 2}:
             raise ValueError(
                 f"Unsupported shelf anchor schema in {self.calibration_path}."
             )
@@ -386,23 +428,28 @@ class ShelfAnchorManager:
             raise ValueError(
                 f"Shelf anchor dictionary mismatch in {self.calibration_path}."
             )
-        shelves_by_id = {shelf.shelf_id: shelf for shelf in self.shelves}
+        shelves_by_marker = {
+            marker_id: shelf
+            for shelf in self.shelves
+            for marker_id in shelf.all_marker_ids
+        }
         for raw_anchor in payload.get("anchors", []):
-            shelf_id = int(raw_anchor["shelfId"])
-            shelf = shelves_by_id.get(shelf_id)
+            marker_id = int(raw_anchor["markerId"])
+            shelf = shelves_by_marker.get(marker_id)
             if shelf is None:
                 continue
-            marker_id = int(raw_anchor["markerId"])
-            if marker_id != shelf.marker_id:
-                raise ValueError(
-                    f"Shelf {shelf_id} marker mismatch in {self.calibration_path}."
-                )
+            shelf_id = shelf.shelf_id
             point = raw_anchor["point3dMm"]
             if not isinstance(point, list) or len(point) != 3:
                 raise ValueError(
                     f"Shelf {shelf_id} point3dMm is invalid in {self.calibration_path}."
                 )
-            self._anchors[shelf_id] = ShelfAnchor(
+            anchor_key = (shelf_id, marker_id)
+            if anchor_key in self._anchors:
+                raise ValueError(
+                    f"Duplicate shelf anchor {anchor_key} in {self.calibration_path}."
+                )
+            self._anchors[anchor_key] = ShelfAnchor(
                 shelf_id=shelf_id,
                 marker_id=marker_id,
                 device_id=self.device_id,

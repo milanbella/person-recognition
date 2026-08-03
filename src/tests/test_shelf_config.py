@@ -49,6 +49,30 @@ class ShelfConfigTests(unittest.TestCase):
 
         self.assertEqual(config.shelves[0].label, "Shelf 1")
 
+    def test_loads_multiple_markers_for_one_shelf(self) -> None:
+        payload = _payload()
+        del payload["shelves"][0]["markerId"]
+        payload["shelves"][0]["markerIds"] = [10, 13]
+
+        config = self._load(payload)
+
+        self.assertEqual(config.shelves[0].marker_id, 10)
+        self.assertEqual(config.shelves[0].all_marker_ids, (10, 13))
+
+    def test_rejects_both_marker_fields(self) -> None:
+        payload = _payload()
+        payload["shelves"][0]["markerIds"] = [10, 13]
+
+        with self.assertRaisesRegex(ValueError, "both markerId and markerIds"):
+            self._load(payload)
+
+    def test_rejects_marker_reused_by_another_shelf(self) -> None:
+        payload = _payload()
+        payload["shelves"].append({"shelfId": 2, "markerIds": [11, 10]})
+
+        with self.assertRaisesRegex(ValueError, "Duplicate markerId"):
+            self._load(payload)
+
     def test_rejects_reserved_door_marker(self) -> None:
         payload = _payload()
         payload["shelves"][0]["markerId"] = 3

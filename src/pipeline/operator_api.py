@@ -156,6 +156,33 @@ def create_operator_router(
             raise HTTPException(status_code=404, detail=f"Unknown test run: {run_id}")
         return run
 
+    @router.get("/operator/api/test-runs/{run_id}/voice-context")
+    def test_run_voice_context(run_id: str) -> dict[str, Any]:
+        run = store.get_run(run_id)
+        if run is None:
+            raise HTTPException(status_code=404, detail=f"Unknown test run: {run_id}")
+        store.flush_events()
+        annotations, events = store.run_rows(run_id)
+        verdicts = {
+            int(annotation["payload"]["systemEventId"]): annotation
+            for annotation in annotations
+            if annotation["annotationType"] in {
+                "system_event_correct",
+                "system_event_incorrect",
+            }
+            and isinstance(annotation.get("payload", {}).get("systemEventId"), int)
+        }
+        return {
+            "run": run,
+            "subjects": store.subjects(run_id),
+            "physicalVisits": store.physical_visits(run_id),
+            "events": events,
+            "verdicts": {
+                str(event_id): annotation
+                for event_id, annotation in verdicts.items()
+            },
+        }
+
     @router.post("/operator/api/test-runs/{run_id}/stop")
     def stop_test_run(
         run_id: str,

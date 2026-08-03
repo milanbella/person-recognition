@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -387,6 +388,26 @@ def render_depth_frame(
     return colored
 
 
+def draw_save_feedback(
+    frame: np.ndarray,
+    *,
+    text: str,
+    color: tuple[int, int, int],
+) -> None:
+    height, width = frame.shape[:2]
+    cv2.rectangle(frame, (0, height - 58), (width, height), (0, 0, 0), -1)
+    cv2.putText(
+        frame,
+        text,
+        (20, height - 20),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.8,
+        color,
+        2,
+        cv2.LINE_AA,
+    )
+
+
 def main() -> None:
     args = build_argparser().parse_args()
     recording_dir = resolve_recording_dir(
@@ -423,6 +444,9 @@ def main() -> None:
     print(f"Dictionary: {args.dictionary}")
     print(f"Door marker IDs: {sorted(door_marker_ids)}")
     print("Controls: a/d previous/next frame, j/l -10/+10 frames, f/enter fit+save, q quit.")
+
+    save_feedback: tuple[str, tuple[int, int, int]] | None = None
+    save_feedback_until = 0.0
 
     def reload_frame(new_index: int) -> None:
         nonlocal frame_index, current_rgb, current_depth
@@ -461,6 +485,14 @@ def main() -> None:
                 fit=fit,
                 output_json_path=output_json_path,
             )
+            if save_feedback is not None and time.monotonic() < save_feedback_until:
+                draw_save_feedback(
+                    rgb_view,
+                    text=save_feedback[0],
+                    color=save_feedback[1],
+                )
+            elif save_feedback is not None:
+                save_feedback = None
 
             cv2.imshow("ArUco Plane Fit RGB", rgb_view)
             cv2.imshow("ArUco Plane Fit Depth", render_depth_frame(current_depth, marker_points))
@@ -480,12 +512,15 @@ def main() -> None:
             if key == ord("l"):
                 reload_frame(frame_index + 10)
                 continue
-            if key == ord("f") or key == 13:
+            if key in {ord("f"), 10, 13}:
                 if fit is None:
-                    print(
+                    message = (
                         "Need at least 3 detected door markers with valid depth before saving. "
                         f"Current valid count: {len(marker_points)}"
                     )
+                    print(message, flush=True)
+                    save_feedback = (f"NOT SAVED: {message}", (0, 0, 255))
+                    save_feedback_until = time.monotonic() + 3.0
                     continue
 
                 payload = build_output_payload(
@@ -495,6 +530,11 @@ def main() -> None:
                     fit=fit,
                 )
                 output_json_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+                save_feedback = (
+                    f"SAVED: {output_json_path}",
+                    (0, 255, 0),
+                )
+                save_feedback_until = time.monotonic() + 3.0
 
                 plane = fit.plane
                 print("\nFitted ArUco plane:")
@@ -508,7 +548,7 @@ def main() -> None:
                 print(f"  marker_ids = {[point.marker_id for point in fit.marker_points]}")
                 print("\nRecommended replay command:")
                 print(payload["recommended_replay_cli"])
-                print(f"\nSaved plane fit to {output_json_path}\n")
+                print(f"\nSaved plane fit to {output_json_path}\n", flush=True)
     finally:
         cv2.destroyAllWindows()
 

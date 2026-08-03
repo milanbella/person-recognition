@@ -65,6 +65,13 @@ class OperatorApiTests(unittest.TestCase):
             annotation["annotation"]["annotationType"],
             "physical_entry",
         )
+        context = self.route(
+            "/operator/api/test-runs/{run_id}/voice-context"
+        )(run_id)
+        self.assertEqual(context["run"]["runId"], run_id)
+        self.assertEqual(context["subjects"][0]["subjectId"], "milan")
+        self.assertIn("events", context)
+        self.assertEqual(context["verdicts"], {})
 
     def test_console_assets_are_local(self) -> None:
         page = self.route("/operator/")()
@@ -94,6 +101,8 @@ class OperatorApiTests(unittest.TestCase):
         page_source = Path(page.path).read_text(encoding="utf-8")
         self.assertIn("Expected event missing", page_source)
         self.assertIn("Did the system get it right?", page_source)
+        self.assertIn("Start voice test", page_source)
+        self.assertIn("/operator/voice/sessions", script_source)
 
     def test_mutations_are_read_only_without_configured_token(self) -> None:
         self.server.stop()

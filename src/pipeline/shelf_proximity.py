@@ -191,7 +191,8 @@ class ShelfProximityCoordinator:
         observation: ShelfCameraObservation,
         minimum_distance_mm: float | None = None,
     ) -> None:
-        if shelf_id not in self._states:
+        shelf = self._shelves.get(shelf_id)
+        if shelf is None or observation.marker_id not in shelf.all_marker_ids:
             return
         state = self._states[shelf_id]
         state.owner_visit_id = visit_id
@@ -218,7 +219,11 @@ class ShelfProximityCoordinator:
                 ShelfProximityStatus(
                     shelf_id=shelf.shelf_id,
                     shelf_label=shelf.label,
-                    marker_id=shelf.marker_id,
+                    marker_id=(
+                        shelf.marker_id
+                        if observation is None
+                        else observation.marker_id
+                    ),
                     state=state.phase,
                     owner_visit_id=state.owner_visit_id,
                     owner_customer_id=(
@@ -527,7 +532,7 @@ class ShelfProximityCoordinator:
             proximity_session_id=state.proximity_session_id,
             shelf_id=shelf.shelf_id,
             shelf_label=shelf.label,
-            marker_id=shelf.marker_id,
+            marker_id=observation.marker_id,
             visit_id=observation.visit_id,
             visit_origin=observation.visit_origin,
             customer_id=observation.customer_id,

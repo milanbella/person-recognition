@@ -1208,10 +1208,10 @@ def build_shelf_camera_observations(
     manager = state.shelf_anchor_manager
     if manager is None:
         return ()
-    observations: list[ShelfCameraObservation] = []
+    closest_observations: dict[tuple[int, int], ShelfCameraObservation] = {}
     for shelf in manager.shelves:
-        anchor = manager.anchor_for_shelf(shelf.shelf_id)
-        if anchor is None:
+        anchors = manager.anchors_for_shelf(shelf.shelf_id)
+        if not anchors:
             continue
         for track in processing_tracks:
             if track.status not in {"NEW", "TRACKED"}:
@@ -1221,11 +1221,11 @@ def build_shelf_camera_observations(
                 continue
             assignment = visit_assignments.get(track.track_id)
             visit_id = None if assignment is None else assignment.visit_id
-            observations.append(
-                ShelfCameraObservation(
+            for anchor in anchors:
+                observation = ShelfCameraObservation(
                     shelf_id=shelf.shelf_id,
                     shelf_label=shelf.label,
-                    marker_id=shelf.marker_id,
+                    marker_id=anchor.marker_id,
                     camera_index=camera_index,
                     device_id=state.device_id,
                     track_id=track.track_id,
@@ -1247,8 +1247,11 @@ def build_shelf_camera_observations(
                     rgb_sequence_number=rgb_sequence_number,
                     depth_sequence_number=depth_sequence_number,
                 )
-            )
-    return tuple(observations)
+                key = (shelf.shelf_id, track.track_id)
+                current = closest_observations.get(key)
+                if current is None or observation.distance_mm < current.distance_mm:
+                    closest_observations[key] = observation
+    return tuple(closest_observations.values())
 
 
 def persist_shelf_events(
@@ -1715,7 +1718,7 @@ def build_processed_live_rgb_frame(
             depth_sequence_number=depth_packet.sequence_num,
             host_synced_seconds=rgb_host_synced_seconds,
             shelves=state.shelf_anchor_manager.anchored_shelves,
-            anchors_by_shelf=state.shelf_anchor_manager.anchors,
+            anchors_by_shelf=state.shelf_anchor_manager.anchors_by_shelf,
             observations=shelf_observations,
             states_by_shelf=(
                 {}

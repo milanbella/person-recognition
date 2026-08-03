@@ -23,7 +23,7 @@ class ShelfCameraSnapshot:
     host_synced_seconds: float
     published_at_unix_milliseconds: int
     shelves: tuple[ShelfDefinition, ...]
-    anchors_by_shelf: Mapping[int, ShelfAnchor]
+    anchors_by_shelf: Mapping[int, tuple[ShelfAnchor, ...]]
     observations: tuple[ShelfCameraObservation, ...]
     states_by_shelf: Mapping[int, str]
 
@@ -37,7 +37,7 @@ def build_shelf_camera_snapshot(
     depth_sequence_number: int,
     host_synced_seconds: float,
     shelves: Sequence[ShelfDefinition],
-    anchors_by_shelf: Mapping[int, ShelfAnchor],
+    anchors_by_shelf: Mapping[int, Sequence[ShelfAnchor]],
     observations: Sequence[ShelfCameraObservation],
     states_by_shelf: Mapping[int, str],
 ) -> ShelfCameraSnapshot:
@@ -50,7 +50,10 @@ def build_shelf_camera_snapshot(
         host_synced_seconds=host_synced_seconds,
         published_at_unix_milliseconds=time.time_ns() // 1_000_000,
         shelves=tuple(shelves),
-        anchors_by_shelf=dict(anchors_by_shelf),
+        anchors_by_shelf={
+            shelf_id: tuple(anchors)
+            for shelf_id, anchors in anchors_by_shelf.items()
+        },
         observations=tuple(observations),
         states_by_shelf=dict(states_by_shelf),
     )
@@ -81,25 +84,40 @@ def shelf_camera_snapshot_payload(
             key=lambda item: item.distance_mm,
         )
         closest = observations[0] if observations else None
-        anchor = snapshot.anchors_by_shelf.get(shelf.shelf_id)
+        anchors = snapshot.anchors_by_shelf.get(shelf.shelf_id, ())
+        anchor = anchors[0] if anchors else None
         shelves_payload.append(
             {
                 "shelfId": shelf.shelf_id,
                 "label": shelf.label,
                 "markerId": shelf.marker_id,
-                "anchorStatus": "valid" if anchor is not None else "calibrating",
+                "markerIds": list(shelf.all_marker_ids),
+                "anchorStatus": "valid" if anchors else "calibrating",
                 "anchor": None
                 if anchor is None
                 else {
+                    "markerId": anchor.marker_id,
                     "source": anchor.source,
                     "point3dMm": _point_payload(anchor.point_3d_mm),
                     "sampleCount": anchor.sample_count,
                     "rmsSpreadMm": anchor.rms_spread_mm,
                     "updatedAtUnixMilliseconds": anchor.updated_at_unix_milliseconds,
                 },
+                "anchors": [
+                    {
+                        "markerId": item.marker_id,
+                        "source": item.source,
+                        "point3dMm": _point_payload(item.point_3d_mm),
+                        "sampleCount": item.sample_count,
+                        "rmsSpreadMm": item.rms_spread_mm,
+                        "updatedAtUnixMilliseconds": item.updated_at_unix_milliseconds,
+                    }
+                    for item in anchors
+                ],
                 "closest": None
                 if closest is None
                 else {
+                    "markerId": closest.marker_id,
                     "trackId": closest.track_id,
                     "visitId": closest.visit_id,
                     "visitOrigin": closest.visit_origin,
@@ -117,6 +135,7 @@ def shelf_camera_snapshot_payload(
                         "visitId": observation.visit_id,
                         "visitOrigin": observation.visit_origin,
                         "customerId": observation.customer_id,
+                        "markerId": observation.marker_id,
                         "distanceMm": observation.distance_mm,
                         "personPoint3dMm": _point_payload(
                             observation.person_point_3d_mm

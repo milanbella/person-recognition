@@ -4,7 +4,8 @@
     "shelves": [
       {"shelfId": 1, "markerId": 10},
       {"shelfId": 2, "markerId": 11},
-      {"shelfId": 3, "markerId": 12},
-      {"shelfId": 4, "markerId": 13}
+      {"shelfId": 3, "markerIds": [12, 13]},
+      {"shelfId": 4, "markerId": 14},
+      {"shelfId": 5, "markerId": 15}
     ]
   }

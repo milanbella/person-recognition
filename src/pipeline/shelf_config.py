@@ -45,6 +45,11 @@ class ShelfDefinition:
     lost_visit_grace_milliseconds: int
     owner_switch_margin_mm: float
     owner_switch_dwell_milliseconds: int
+    marker_ids: tuple[int, ...] = ()
+
+    @property
+    def all_marker_ids(self) -> tuple[int, ...]:
+        return self.marker_ids or (self.marker_id,)
 
 
 @dataclass(frozen=True)
@@ -85,6 +90,7 @@ _SHELF_FIELDS = {
     "shelfId",
     "label",
     "markerId",
+    "markerIds",
     "approachDistanceMm",
     "departureDistanceMm",
     "approachDwellMilliseconds",
@@ -247,16 +253,40 @@ def _resolved_shelf(
         allowed=_LEGACY_SHELF_FIELDS if schema_version == 1 else _SHELF_FIELDS,
         field_name=field_name,
     )
-    for required in ("shelfId", "markerId"):
-        if required not in payload:
-            raise ValueError(f"{field_name}.{required} is required.")
+    if "shelfId" not in payload:
+        raise ValueError(f"{field_name}.shelfId is required.")
+    marker_fields = [field for field in ("markerId", "markerIds") if field in payload]
+    if not marker_fields:
+        raise ValueError(
+            f"{field_name} requires either markerId or markerIds."
+        )
+    if len(marker_fields) > 1:
+        raise ValueError(
+            f"{field_name} must not specify both markerId and markerIds."
+        )
 
     shelf_id = payload["shelfId"]
-    marker_id = payload["markerId"]
     if isinstance(shelf_id, bool) or not isinstance(shelf_id, int) or shelf_id < 0:
         raise ValueError(f"{field_name}.shelfId must be a non-negative integer.")
-    if isinstance(marker_id, bool) or not isinstance(marker_id, int) or marker_id < 0:
-        raise ValueError(f"{field_name}.markerId must be a non-negative integer.")
+    if "markerId" in payload:
+        raw_marker_ids = [payload["markerId"]]
+    else:
+        raw_marker_ids = payload["markerIds"]
+        if not isinstance(raw_marker_ids, list) or not raw_marker_ids:
+            raise ValueError(f"{field_name}.markerIds must be a non-empty array.")
+    marker_ids: list[int] = []
+    for marker_index, marker_id in enumerate(raw_marker_ids):
+        if (
+            isinstance(marker_id, bool)
+            or not isinstance(marker_id, int)
+            or marker_id < 0
+        ):
+            raise ValueError(
+                f"{field_name}.markerIds[{marker_index}] must be a non-negative integer."
+            )
+        marker_ids.append(marker_id)
+    if len(marker_ids) != len(set(marker_ids)):
+        raise ValueError(f"{field_name}.markerIds contains duplicates.")
     label = payload.get("label", f"Shelf {shelf_id}")
     if not isinstance(label, str) or not label.strip():
         raise ValueError(f"{field_name}.label must be a non-empty string.")
@@ -293,7 +323,7 @@ def _resolved_shelf(
     return ShelfDefinition(
         shelf_id=shelf_id,
         label=label.strip(),
-        marker_id=marker_id,
+        marker_id=marker_ids[0],
         approach_distance_mm=approach_distance_mm,
         departure_distance_mm=departure_distance_mm,
         approach_dwell_milliseconds=_non_negative_int(
@@ -328,6 +358,7 @@ def _resolved_shelf(
             ),
             field_name=f"{field_name}.ownerSwitchDwellMilliseconds",
         ),
+        marker_ids=tuple(marker_ids),
     )
 
 
@@ -373,7 +404,11 @@ def load_shelf_config(path: Path) -> ShelfWatchingConfig:
     )
 
     shelf_ids = [shelf.shelf_id for shelf in shelves]
-    marker_ids = [shelf.marker_id for shelf in shelves]
+    marker_ids = [
+        marker_id
+        for shelf in shelves
+        for marker_id in shelf.all_marker_ids
+    ]
     duplicate_shelf_ids = sorted(
         shelf_id for shelf_id in set(shelf_ids) if shelf_ids.count(shelf_id) > 1
     )

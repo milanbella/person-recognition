@@ -163,6 +163,62 @@ The browser asks for the same token when starting a run. All mutation endpoints
 require `Authorization: Bearer <token>`. When `--enable-operator-console` is
 omitted, the operator page and API routes are not registered.
 
+## Realtime Voice Shop Testing
+
+`shop_voice_agent.py` is a separate companion process for hands-free physical
+verification. The phone sends microphone audio directly to the OpenAI Realtime
+API over WebRTC. The permanent OpenAI key remains on the shop server, while a
+server-side sideband connection validates and executes fixed feedback tools
+through the existing operator annotation API.
+
+Prerequisites:
+
+- enable the operator console and start a test run before voice mode
+- serve `/operator/` over HTTPS because mobile browsers require a secure origin
+  for microphone access
+- install `requirements.txt`, including the `websockets` sideband client
+- use the same operator token for the recognition and voice services
+- store the OpenAI API key only on the server
+
+Development startup:
+
+```bash
+export OPENAI_API_KEY='replace-with-project-api-key'
+python ./shop_voice_agent.py \
+  --operator-api-base-url http://127.0.0.1:8002 \
+  --operator-api-token 'same-token-as-person-recognition-live' \
+  --state-db state/shop_state.sqlite
+```
+
+Production should use credential files instead of command-line secrets. An
+example unit using systemd credentials is provided at
+`deploy/person-recognition-voice.service.example`.
+
+Route the browser-facing voice namespace to the companion service on port
+`8003`; leave the rest of the operator console routed to port `8002`:
+
+```nginx
+location /operator/voice/ {
+    proxy_pass http://127.0.0.1:8003/operator/voice/;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+```
+
+Health check:
+
+```bash
+curl http://127.0.0.1:8003/operator/voice/health
+```
+
+The voice service is opt-in. If it stops or OpenAI is unavailable, camera
+processing, streaming, event persistence, and manual feedback on port `8002`
+continue normally. Voice audit sessions and tool calls are stored in the same
+SQLite database; raw audio is never stored. Short transcripts can be disabled
+with `--disable-transcript-retention`, which also disables the separate input
+transcription model and its associated usage.
+
 - `replay_depth_tuner.py`
   - replays one recorded RGBD stream through detection, tracking, and depth-based entrance logic
   - writes replayed depth entrance/leave event timing logs from recorded timestamps and aligned recorded depth

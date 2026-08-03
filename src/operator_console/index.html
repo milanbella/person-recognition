@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#102f2b">
   <title>Shop Walk Test</title>
-  <link rel="stylesheet" href="/operator/assets/operator.css?v=event-console-1">
+  <link rel="stylesheet" href="/operator/assets/operator.css?v=realtime-voice-1">
 </head>
 <body>
   <header class="masthead">
@@ -31,6 +31,20 @@
         <button id="stop-run" class="button danger" disabled>Stop</button>
         <button id="analyze-run" class="button" disabled>Analyze</button>
       </div>
+    </section>
+
+    <section id="voice-bar" class="voice-bar disconnected">
+      <div class="voice-status-copy">
+        <span class="label">Hands-free verification</span>
+        <strong id="voice-status">Voice test is off</strong>
+        <span id="voice-detail">Audio is sent to OpenAI only while voice mode is connected.</span>
+      </div>
+      <div class="voice-actions">
+        <button id="start-voice" class="button voice-start" disabled>Start voice test</button>
+        <button id="mute-voice" class="button" disabled>Mute</button>
+        <button id="disconnect-voice" class="button danger" disabled>Disconnect</button>
+      </div>
+      <audio id="voice-audio" autoplay playsinline></audio>
     </section>
 
     <section class="walk-layout">
@@ -120,7 +134,6 @@
           <p id="system-answer">Waiting for live state.</p>
           <div class="speech-controls">
             <button id="speak-state" class="button compact">Read state</button>
-            <button id="push-to-talk" class="button compact">Voice command</button>
             <label><input id="speak-events" type="checkbox"> Speak events</label>
           </div>
           <div class="action-grid secondary-physical-actions">
@@ -171,6 +184,6 @@
   </dialog>
 
   <div id="toast" class="toast" role="status"></div>
-  <script src="/operator/assets/operator.js?v=event-console-1"></script>
+  <script src="/operator/assets/operator.js?v=realtime-voice-1"></script>
 </body>
 </html>

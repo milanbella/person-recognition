@@ -14,6 +14,15 @@
     pollTimer: null,
     runTimer: null,
     token: localStorage.getItem("shopOperatorToken") || "",
+    voice: {
+      peerConnection: null,
+      localStream: null,
+      dataChannel: null,
+      sessionId: null,
+      statusTimer: null,
+      muted: false,
+      starting: false,
+    },
   };
 
   const el = (id) => document.getElementById(id);
@@ -83,6 +92,8 @@
     el("start-run").disabled = Boolean(run);
     el("analyze-run").disabled = !run;
     el("stop-run").disabled = !run;
+    el("start-voice").disabled = !run || app.voice.starting || Boolean(app.voice.peerConnection);
+    if (!run && app.voice.peerConnection) void disconnectVoice(true, "Test run ended");
     if (app.runTimer) clearInterval(app.runTimer);
     if (!run) {
       el("run-clock").textContent = "Start a run before recording physical facts.";
@@ -586,6 +597,7 @@
     const run = app.state?.activeRun;
     if (!run || !confirm("Stop and analyze this test run?")) return;
     try {
+      await disconnectVoice(true, "Test run stopped");
       const response = await api(`/operator/api/test-runs/${run.runId}/stop`, {method: "POST"});
       app.report = response.report;
       renderReport();
@@ -792,7 +804,7 @@
 
   el("speak-state").addEventListener("click", () => speak(el("system-answer").textContent));
   function shouldSpeakEvent(event) {
-    return el("speak-events").checked && [
+    return !app.voice.peerConnection && el("speak-events").checked && [
       "visit_assignment_changed", "customer_binding_changed", "entry_accepted",
       "leave_accepted", "shelf_approach", "shelf_departure",
     ].includes(event.eventType);
@@ -803,32 +815,169 @@
     speechSynthesis.speak(new SpeechSynthesisUtterance(text));
   }
 
-  el("push-to-talk").addEventListener("click", startVoiceCommand);
-  function startVoiceCommand() {
-    const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!Recognition) return showToast("Speech recognition is not supported by this browser.");
-    const recognition = new Recognition();
-    recognition.lang = "en-US";
-    recognition.interimResults = false;
-    el("push-to-talk").textContent = "Listening…";
-    recognition.onresult = (event) => handleVoiceCommand(event.results[0][0].transcript.toLowerCase());
-    recognition.onerror = (event) => showToast(`Voice error: ${event.error}`);
-    recognition.onend = () => { el("push-to-talk").textContent = "Push to talk"; };
-    recognition.start();
+  el("start-voice").addEventListener("click", startRealtimeVoice);
+  el("mute-voice").addEventListener("click", toggleVoiceMute);
+  el("disconnect-voice").addEventListener("click", () => disconnectVoice(true));
+
+  async function startRealtimeVoice() {
+    if (!app.state?.activeRun) return showToast("Start a test run first.");
+    if (!app.token) return showToast("Enter the operator token when starting the test run.");
+    if (!window.isSecureContext) {
+      return showToast("Microphone access requires HTTPS.");
+    }
+    if (!navigator.mediaDevices?.getUserMedia || !window.RTCPeerConnection) {
+      return showToast("This browser does not support WebRTC microphone sessions.");
+    }
+    app.voice.starting = true;
+    setVoiceStatus("starting", "Requesting microphone access");
+    renderRun();
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {echoCancellation: true, noiseSuppression: true, autoGainControl: true},
+      });
+      const peerConnection = new RTCPeerConnection();
+      app.voice.localStream = stream;
+      app.voice.peerConnection = peerConnection;
+      stream.getAudioTracks().forEach((track) => peerConnection.addTrack(track, stream));
+      peerConnection.ontrack = (event) => {
+        const audio = el("voice-audio");
+        audio.srcObject = event.streams[0];
+        void audio.play().catch(() => {
+          setVoiceStatus("connected", "Tap Start voice test again to enable audio playback");
+        });
+      };
+      peerConnection.onconnectionstatechange = () => {
+        const state = peerConnection.connectionState;
+        if (state === "connected") setVoiceStatus("connected", "Microphone active · listening for shop events");
+        if (["failed", "closed", "disconnected"].includes(state) && app.voice.peerConnection) {
+          void disconnectVoice(false, `WebRTC ${state}`);
+        }
+      };
+      const dataChannel = peerConnection.createDataChannel("oai-events");
+      app.voice.dataChannel = dataChannel;
+      dataChannel.addEventListener("message", receiveRealtimeBrowserEvent);
+      dataChannel.addEventListener("open", () => {
+        setVoiceStatus("connected", "Microphone active · listening for shop events");
+      });
+      dataChannel.addEventListener("close", () => {
+        if (app.voice.peerConnection) setVoiceStatus("error", "Realtime control channel closed");
+      });
+
+      const offer = await peerConnection.createOffer();
+      await peerConnection.setLocalDescription(offer);
+      const response = await fetch("/operator/voice/sessions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${app.token}`,
+          "Content-Type": "application/sdp",
+          "X-Operator-Id": app.state.activeRun.verifier || "mobile-operator",
+        },
+        body: offer.sdp,
+      });
+      if (!response.ok) throw new Error(await voiceHttpError(response));
+      app.voice.sessionId = response.headers.get("X-Voice-Session-Id");
+      if (!app.voice.sessionId) throw new Error("Voice service returned no session ID.");
+      await peerConnection.setRemoteDescription({type: "answer", sdp: await response.text()});
+      app.voice.statusTimer = setInterval(pollVoiceStatus, 2000);
+      setVoiceStatus("connected", "Connecting audio and server controls");
+    } catch (error) {
+      await disconnectVoice(false, error.message);
+      showToast(error.message);
+    } finally {
+      app.voice.starting = false;
+      renderRun();
+    }
   }
 
-  function handleVoiceCommand(command) {
-    showToast(`Heard: ${command}`);
-    if (command.includes("what do you see") || command.includes("repeat")) return speak(el("system-answer").textContent);
-    if (command.includes("entered")) return annotate("physical_entry");
-    if (command.includes("left the shop") || command === "i left") return annotate("physical_leave");
-    if (command.includes("that person is me")) return annotate("observation_is_subject", {}, true);
-    if (command.includes("box") && command.includes("wrong")) return annotate("bounding_box_incorrect", {}, true);
-    if (command.includes("identity") && command.includes("wrong")) return annotate("customer_identity_incorrect", {}, true);
-    const shelf = command.match(/shelf\s+(\d+)/);
-    if (shelf && command.includes("approach")) return annotate("shelf_approach", {shelfId: Number(shelf[1])});
-    if (shelf && (command.includes("depart") || command.includes("left shelf"))) return annotate("shelf_departure", {shelfId: Number(shelf[1])});
-    showToast("Voice command was not recognized.");
+  async function voiceHttpError(response) {
+    try {
+      const payload = await response.json();
+      return payload.detail || `${response.status} ${response.statusText}`;
+    } catch (_) {
+      return `${response.status} ${response.statusText}`;
+    }
+  }
+
+  function receiveRealtimeBrowserEvent(message) {
+    let event;
+    try { event = JSON.parse(message.data); } catch (_) { return; }
+    if (event.type === "input_audio_buffer.speech_started") {
+      setVoiceStatus("listening", "Hearing you…");
+    } else if (event.type === "input_audio_buffer.speech_stopped") {
+      setVoiceStatus("thinking", "Checking your feedback…");
+    } else if (event.type === "response.output_audio_transcript.done" && event.transcript) {
+      setVoiceStatus("connected", event.transcript);
+    } else if (event.type === "error") {
+      setVoiceStatus("error", event.error?.message || "Realtime API error");
+    }
+  }
+
+  async function pollVoiceStatus() {
+    if (!app.voice.sessionId) return;
+    try {
+      const status = await api(`/operator/voice/sessions/${app.voice.sessionId}`);
+      if (status.status === "ended") {
+        await disconnectVoice(false, status.disconnectReason || "Voice session ended");
+      }
+    } catch (error) {
+      setVoiceStatus("error", error.message);
+    }
+  }
+
+  function toggleVoiceMute() {
+    const track = app.voice.localStream?.getAudioTracks()[0];
+    if (!track) return;
+    app.voice.muted = !app.voice.muted;
+    track.enabled = !app.voice.muted;
+    el("mute-voice").textContent = app.voice.muted ? "Unmute" : "Mute";
+    setVoiceStatus(
+      app.voice.muted ? "muted" : "connected",
+      app.voice.muted ? "Microphone muted" : "Microphone active · listening for shop events"
+    );
+  }
+
+  async function disconnectVoice(notifyServer = true, detail = "Voice test is off") {
+    const sessionId = app.voice.sessionId;
+    app.voice.sessionId = null;
+    if (app.voice.statusTimer) clearInterval(app.voice.statusTimer);
+    app.voice.statusTimer = null;
+    app.voice.dataChannel?.close();
+    app.voice.peerConnection?.close();
+    app.voice.localStream?.getTracks().forEach((track) => track.stop());
+    el("voice-audio").srcObject = null;
+    app.voice.peerConnection = null;
+    app.voice.localStream = null;
+    app.voice.dataChannel = null;
+    app.voice.muted = false;
+    el("mute-voice").textContent = "Mute";
+    setVoiceStatus("disconnected", detail);
+    renderRun();
+    if (notifyServer && sessionId) {
+      try {
+        await api(`/operator/voice/sessions/${sessionId}`, {method: "DELETE"});
+      } catch (_) {
+        // Closing the peer connection still terminates browser audio immediately.
+      }
+    }
+  }
+
+  function setVoiceStatus(state, detail) {
+    el("voice-bar").className = `voice-bar ${state}`;
+    const labels = {
+      disconnected: "Voice test is off",
+      starting: "Starting voice test",
+      connected: "Voice test connected",
+      listening: "Listening",
+      thinking: "Processing feedback",
+      muted: "Voice test muted",
+      error: "Voice unavailable",
+    };
+    el("voice-status").textContent = labels[state] || "Voice test";
+    el("voice-detail").textContent = detail;
+    const active = Boolean(app.voice.peerConnection);
+    el("mute-voice").disabled = !active;
+    el("disconnect-voice").disabled = !active;
+    el("start-voice").disabled = !app.state?.activeRun || active || app.voice.starting;
   }
 
   function renderReport() {
@@ -847,5 +996,9 @@
   }
 
   window.addEventListener("resize", drawOverlay);
+  window.addEventListener("beforeunload", () => {
+    app.voice.localStream?.getTracks().forEach((track) => track.stop());
+    app.voice.peerConnection?.close();
+  });
   bootstrap();
 })();

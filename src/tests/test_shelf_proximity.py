@@ -1,4 +1,5 @@
 import unittest
+from dataclasses import replace
 
 from pipeline.shelf_anchors import ShelfAnchor
 from pipeline.shelf_config import (
@@ -45,11 +46,12 @@ def _observation(
     distance_mm: float,
     now_ms: int,
     camera_index: int = 0,
+    marker_id: int = 10,
 ) -> ShelfCameraObservation:
     device_id = "camera-a" if camera_index == 0 else "camera-b"
     anchor = ShelfAnchor(
         shelf_id=1,
-        marker_id=10,
+        marker_id=marker_id,
         device_id=device_id,
         point_3d_mm=(0, 0, 3000),
         sample_count=20,
@@ -60,7 +62,7 @@ def _observation(
     return ShelfCameraObservation(
         shelf_id=1,
         shelf_label="Drinks",
-        marker_id=10,
+        marker_id=marker_id,
         camera_index=camera_index,
         device_id=device_id,
         track_id=track_id,
@@ -83,6 +85,61 @@ class ShelfProximityTests(unittest.TestCase):
             person_to_shelf_distance_mm((3, 4, 12), (0, 0, 0)),
             13,
         )
+
+    def test_approach_event_uses_nearest_observation_marker(self) -> None:
+        shelf = replace(_shelf(), marker_ids=(10, 13))
+        coordinator = ShelfProximityCoordinator(replace(_config(), shelves=(shelf,)))
+        coordinator.update_camera(
+            camera_index=0,
+            observations=(
+                _observation(
+                    visit_id=4,
+                    track_id=7,
+                    marker_id=13,
+                    distance_mm=800,
+                    now_ms=1000,
+                ),
+            ),
+            host_synced_seconds=1,
+            now_unix_milliseconds=1000,
+        )
+        events = coordinator.update_camera(
+            camera_index=0,
+            observations=(
+                _observation(
+                    visit_id=4,
+                    track_id=7,
+                    marker_id=13,
+                    distance_mm=790,
+                    now_ms=1500,
+                ),
+            ),
+            host_synced_seconds=1.5,
+            now_unix_milliseconds=1500,
+        )
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0].shelf_id, 1)
+        self.assertEqual(events[0].marker_id, 13)
+
+    def test_restore_ignores_session_with_stale_marker_mapping(self) -> None:
+        coordinator = ShelfProximityCoordinator(_config())
+        coordinator.restore_near_session(
+            shelf_id=1,
+            visit_id=4,
+            proximity_session_id="stale-session",
+            observation=_observation(
+                visit_id=4,
+                track_id=7,
+                marker_id=13,
+                distance_mm=800,
+                now_ms=1000,
+            ),
+        )
+
+        status = coordinator.statuses(now_unix_milliseconds=1000)[0]
+        self.assertEqual(status.state, "far")
+        self.assertIsNone(status.proximity_session_id)
 
     def test_approach_dwell_no_duplicates_and_departure_rearm(self) -> None:
         coordinator = ShelfProximityCoordinator(_config())

@@ -5,3 +5,4 @@ numpy
 opencv-python
 onnxruntime-gpu[cuda,cudnn]==1.26.0
 uvicorn
+websockets>=14,<17

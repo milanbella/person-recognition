@@ -182,8 +182,15 @@ def _valid_candidate_count(
     return sum(
         1
         for shelf in shelves
+        for marker_id in shelf.all_marker_ids
         if (
-            (candidate := manager.candidate_anchor(shelf.shelf_id)) is not None
+            (
+                candidate := manager.candidate_anchor(
+                    shelf.shelf_id,
+                    marker_id,
+                )
+            )
+            is not None
             and candidate.sample_count >= manager.min_samples
             and candidate.rms_spread_mm <= manager.max_spread_mm
         )
@@ -204,13 +211,13 @@ def _draw_detections(
         elif detection.marker_id not in valid_depth_marker_ids:
             color = (0, 255, 255)
             label = (
-                f"shelf={shelf.shelf_id} marker={shelf.marker_id} "
+                f"shelf={shelf.shelf_id} marker={detection.marker_id} "
                 "DEPTH INVALID"
             )
         else:
             color = (0, 220, 0)
             label = (
-                f"shelf={shelf.shelf_id} marker={shelf.marker_id} {shelf.label}"
+                f"shelf={shelf.shelf_id} marker={detection.marker_id} {shelf.label}"
             )
         corners = [(int(round(x)), int(round(y))) for x, y in detection.corners_px]
         for start, end in zip(corners, corners[1:] + corners[:1]):
@@ -290,7 +297,11 @@ def _process_frame(
     _draw_detections(
         preview,
         result.detections,
-        {shelf.marker_id: shelf for shelf in shelves},
+        {
+            marker_id: shelf
+            for shelf in shelves
+            for marker_id in shelf.all_marker_ids
+        },
         {observation.marker_id for observation in observations},
     )
     if show_rejected_candidates:
@@ -301,7 +312,7 @@ def _process_frame(
         preview,
         (
             f"dictionary={config.aruco_dictionary} detected={detected_ids} "
-            f"catalog_markers={len(shelves)} "
+            f"catalog_markers={sum(len(shelf.all_marker_ids) for shelf in shelves)} "
             f"rejected={len(result.rejected_candidates)}"
         ),
         (20, 35),
@@ -598,23 +609,24 @@ def _report_and_save(
     valid_count = 0
     unseen_marker_ids: list[int] = []
     for shelf in shelves:
-        candidate = manager.candidate_anchor(shelf.shelf_id)
-        if candidate is None:
-            unseen_marker_ids.append(shelf.marker_id)
-            continue
-        valid = (
-            candidate.sample_count >= args.min_samples
-            and candidate.rms_spread_mm <= args.max_spread_mm
-        )
-        print(
-            f"Shelf {shelf.shelf_id} marker={shelf.marker_id}: "
-            f"samples={candidate.sample_count} "
-            f"spread_mm={candidate.rms_spread_mm:.1f} "
-            f"point_mm={tuple(round(value, 1) for value in candidate.point_3d_mm)} "
-            f"status={'valid' if valid else 'rejected'}"
-        )
-        if valid:
-            valid_count += 1
+        for marker_id in shelf.all_marker_ids:
+            candidate = manager.candidate_anchor(shelf.shelf_id, marker_id)
+            if candidate is None:
+                unseen_marker_ids.append(marker_id)
+                continue
+            valid = (
+                candidate.sample_count >= args.min_samples
+                and candidate.rms_spread_mm <= args.max_spread_mm
+            )
+            print(
+                f"Shelf {shelf.shelf_id} marker={marker_id}: "
+                f"samples={candidate.sample_count} "
+                f"spread_mm={candidate.rms_spread_mm:.1f} "
+                f"point_mm={tuple(round(value, 1) for value in candidate.point_3d_mm)} "
+                f"status={'valid' if valid else 'rejected'}"
+            )
+            if valid:
+                valid_count += 1
     if unseen_marker_ids:
         print(
             "Configured markers not seen by this camera (not saved): "
