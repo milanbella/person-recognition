@@ -37,6 +37,26 @@ class OperatorApiClient:
             f"/observer-cameras/{camera_index}/observations",
         )
 
+    def world_state(self) -> dict[str, Any]:
+        return self._request("GET", "/world-state")
+
+    def subject_world_state(self, run_id: str, subject_id: str) -> dict[str, Any]:
+        quoted_run = urllib.parse.quote(run_id, safe="")
+        quoted_subject = urllib.parse.quote(subject_id, safe="")
+        return self._request(
+            "GET",
+            f"/operator/api/test-runs/{quoted_run}/subjects/{quoted_subject}/world-state?captureQuery=true",
+        )
+
+    def visit_world_state(self, visit_id: int) -> dict[str, Any]:
+        return self._request("GET", f"/world-state/visits/{visit_id}")
+
+    def shelf_world_state(self, shelf_id: int) -> dict[str, Any]:
+        return self._request("GET", f"/world-state/shelves/{shelf_id}")
+
+    def camera_world_state(self, camera_index: int) -> dict[str, Any]:
+        return self._request("GET", f"/world-state/cameras/{camera_index}")
+
     def create_annotation(
         self,
         run_id: str,
@@ -92,4 +112,3 @@ class OperatorApiClient:
         if not isinstance(result, dict):
             raise OperatorApiError(502, "Operator API returned a non-object response.")
         return result
-

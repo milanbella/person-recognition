@@ -26,6 +26,11 @@ class ShelfCameraObservation:
     observed_at_unix_milliseconds: int
     rgb_sequence_number: int
     depth_sequence_number: int
+    track_bounding_box: tuple[int, int, int, int] | None = None
+    person_depth_mm: float | None = None
+    person_depth_valid_pixel_count: int | None = None
+    person_depth_roi: tuple[int, int, int, int] | None = None
+    person_depth_anchor_px: tuple[int, int] | None = None
 
 
 @dataclass(frozen=True)
@@ -138,11 +143,15 @@ class ShelfProximityCoordinator:
                 (camera_index, observation.shelf_id, observation.visit_id)
             ] = observation
 
+        preferred_shelves = self._preferred_shelves_by_visit(
+            now_unix_milliseconds=now_unix_milliseconds,
+        )
         events: list[ShelfProximityEvent] = []
         for shelf in self._shelves.values():
             events.extend(
                 self._advance_shelf(
                     shelf,
+                    preferred_shelves=preferred_shelves,
                     host_synced_seconds=host_synced_seconds,
                     now_unix_milliseconds=now_unix_milliseconds,
                 )
@@ -193,6 +202,13 @@ class ShelfProximityCoordinator:
     ) -> None:
         shelf = self._shelves.get(shelf_id)
         if shelf is None or observation.marker_id not in shelf.all_marker_ids:
+            return
+        if any(
+            other_shelf_id != shelf_id
+            and other_state.owner_visit_id == visit_id
+            and other_state.phase in {"near", "departing"}
+            for other_shelf_id, other_state in self._states.items()
+        ):
             return
         state = self._states[shelf_id]
         state.owner_visit_id = visit_id
@@ -272,10 +288,61 @@ class ShelfProximityCoordinator:
                 best_by_visit[visit_id] = observation
         return best_by_visit
 
+    def _preferred_shelves_by_visit(
+        self,
+        *,
+        now_unix_milliseconds: int,
+    ) -> dict[int, int]:
+        """Choose at most one shelf allowed to begin approach for each visit."""
+        active: dict[int, int] = {}
+        for shelf_id, state in self._states.items():
+            if (
+                state.owner_visit_id is not None
+                and state.phase in {"near", "departing"}
+                and state.proximity_session_id is not None
+            ):
+                active.setdefault(state.owner_visit_id, shelf_id)
+
+        candidates: dict[int, list[tuple[ShelfDefinition, ShelfCameraObservation]]] = {}
+        for shelf in self._shelves.values():
+            for visit_id, observation in self._fresh_observations(
+                shelf,
+                now_unix_milliseconds=now_unix_milliseconds,
+            ).items():
+                if observation.distance_mm <= shelf.approach_distance_mm:
+                    candidates.setdefault(visit_id, []).append((shelf, observation))
+
+        preferred = dict(active)
+        for visit_id, options in candidates.items():
+            if visit_id in active:
+                continue
+            options.sort(
+                key=lambda item: (
+                    item[1].distance_mm / item[0].approach_distance_mm,
+                    item[1].distance_mm,
+                    item[0].shelf_id,
+                )
+            )
+            winner_shelf, winner_observation = options[0]
+            if len(options) > 1:
+                runner_shelf, runner_observation = options[1]
+                distance_margin = (
+                    runner_observation.distance_mm - winner_observation.distance_mm
+                )
+                required_margin = max(
+                    winner_shelf.owner_switch_margin_mm,
+                    runner_shelf.owner_switch_margin_mm,
+                )
+                if distance_margin < required_margin:
+                    continue
+            preferred[visit_id] = winner_shelf.shelf_id
+        return preferred
+
     def _advance_shelf(
         self,
         shelf: ShelfDefinition,
         *,
+        preferred_shelves: Mapping[int, int],
         host_synced_seconds: float,
         now_unix_milliseconds: int,
     ) -> list[ShelfProximityEvent]:
@@ -373,6 +440,10 @@ class ShelfProximityCoordinator:
                 shelf,
                 state,
                 owner_observation,
+                approach_allowed=(
+                    preferred_shelves.get(owner_observation.visit_id)
+                    == shelf.shelf_id
+                ),
                 host_synced_seconds=host_synced_seconds,
                 now_unix_milliseconds=now_unix_milliseconds,
             )
@@ -385,10 +456,15 @@ class ShelfProximityCoordinator:
         state: _ShelfRuntimeState,
         observation: ShelfCameraObservation,
         *,
+        approach_allowed: bool,
         host_synced_seconds: float,
         now_unix_milliseconds: int,
     ) -> list[ShelfProximityEvent]:
         events: list[ShelfProximityEvent] = []
+        if state.phase in {"far", "approaching"} and not approach_allowed:
+            state.phase = "far"
+            state.transition_started_unix_milliseconds = None
+            return events
         if state.phase == "far":
             if observation.distance_mm <= shelf.approach_distance_mm:
                 state.phase = "approaching"

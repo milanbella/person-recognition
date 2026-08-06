@@ -414,6 +414,23 @@ class OperatorTestStore:
                 raise ValueError(
                     f"{annotation_type} requires a positive systemEventId."
                 )
+        if annotation_type in {
+            "world_state_claim_correct",
+            "world_state_claim_incorrect",
+        }:
+            state_ref = payload.get("worldStateRef")
+            if not isinstance(state_ref, Mapping) or not state_ref.get("snapshotId"):
+                raise ValueError(f"{annotation_type} requires worldStateRef.snapshotId.")
+            if not isinstance(payload.get("claim"), str) or not str(payload["claim"]).strip():
+                raise ValueError(f"{annotation_type} requires claim.")
+        if annotation_type == "subject_visit_mapping":
+            mapped_visit_id = payload.get("visitId")
+            if (
+                isinstance(mapped_visit_id, bool)
+                or not isinstance(mapped_visit_id, int)
+                or mapped_visit_id <= 0
+            ):
+                raise ValueError("subject_visit_mapping requires a positive visitId.")
         if (
             annotation_type in OBSERVATION_ANNOTATION_TYPES
             and observation_reference is None
@@ -516,6 +533,18 @@ class OperatorTestStore:
                 elif open_visit is not None:
                     physical_visit_id = str(open_visit["physical_visit_id"])
 
+                if annotation_type == "subject_visit_mapping":
+                    if open_visit is not None:
+                        physical_visit_id = str(open_visit["physical_visit_id"])
+                        connection.execute(
+                            """
+                            UPDATE operator_physical_visits
+                            SET mapped_system_visit_id=?, mapping_status='confirmed'
+                            WHERE physical_visit_id=?
+                            """,
+                            (int(payload["visitId"]), physical_visit_id),
+                        )
+
             cursor = connection.execute(
                 """
                 INSERT INTO operator_annotations (
@@ -561,6 +590,46 @@ class OperatorTestStore:
                 else observation_reference.payload()
             ),
         }
+
+    def subject_visit_mapping(self, run_id: str, subject_id: str) -> int | None:
+        """Return the confirmed/current visit mapping for an operator subject."""
+        with self._connection() as connection:
+            row = connection.execute(
+                """
+                SELECT mapped_system_visit_id
+                FROM operator_physical_visits
+                WHERE run_id=? AND subject_id=? AND left_at_unix_ms IS NULL
+                ORDER BY ordinal DESC
+                LIMIT 1
+                """,
+                (run_id, subject_id),
+            ).fetchone()
+            if row is not None and row["mapped_system_visit_id"] is not None:
+                return int(row["mapped_system_visit_id"])
+            annotation = connection.execute(
+                """
+                SELECT observation_reference_json, payload_json
+                FROM operator_annotations
+                WHERE run_id=? AND subject_id=?
+                  AND annotation_type IN (
+                    'subject_visit_mapping', 'observation_is_subject'
+                  )
+                ORDER BY annotation_id DESC
+                LIMIT 1
+                """,
+                (run_id, subject_id),
+            ).fetchone()
+        if annotation is None:
+            return None
+        payload = json.loads(str(annotation["payload_json"]))
+        if payload.get("visitId") is not None:
+            return int(payload["visitId"])
+        reference_json = annotation["observation_reference_json"]
+        if reference_json:
+            reference = json.loads(str(reference_json))
+            if reference.get("observedVisitId") is not None:
+                return int(reference["observedVisitId"])
+        return None
 
     def update_annotation_evidence(
         self,

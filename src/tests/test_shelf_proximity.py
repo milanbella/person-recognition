@@ -14,11 +14,15 @@ from pipeline.shelf_proximity import (
 )
 
 
-def _shelf() -> ShelfDefinition:
+def _shelf(
+    shelf_id: int = 1,
+    marker_id: int = 10,
+    label: str = "Drinks",
+) -> ShelfDefinition:
     return ShelfDefinition(
-        shelf_id=1,
-        label="Drinks",
-        marker_id=10,
+        shelf_id=shelf_id,
+        label=label,
+        marker_id=marker_id,
         approach_distance_mm=900,
         departure_distance_mm=1100,
         approach_dwell_milliseconds=500,
@@ -47,10 +51,12 @@ def _observation(
     now_ms: int,
     camera_index: int = 0,
     marker_id: int = 10,
+    shelf_id: int = 1,
+    shelf_label: str = "Drinks",
 ) -> ShelfCameraObservation:
     device_id = "camera-a" if camera_index == 0 else "camera-b"
     anchor = ShelfAnchor(
-        shelf_id=1,
+        shelf_id=shelf_id,
         marker_id=marker_id,
         device_id=device_id,
         point_3d_mm=(0, 0, 3000),
@@ -60,8 +66,8 @@ def _observation(
         source="operator_calibrated",
     )
     return ShelfCameraObservation(
-        shelf_id=1,
-        shelf_label="Drinks",
+        shelf_id=shelf_id,
+        shelf_label=shelf_label,
         marker_id=marker_id,
         camera_index=camera_index,
         device_id=device_id,
@@ -272,6 +278,108 @@ class ShelfProximityTests(unittest.TestCase):
         )
         self.assertEqual([event.event_type for event in events], ["shelf_departure"])
         self.assertEqual(events[0].reason, "visit_closed")
+
+    def test_one_visit_cannot_approach_two_ambiguous_shelves(self) -> None:
+        shelf_one = _shelf(1, 10, "Shelf 1")
+        shelf_two = _shelf(2, 11, "Shelf 2")
+        coordinator = ShelfProximityCoordinator(
+            replace(_config(), shelves=(shelf_one, shelf_two))
+        )
+
+        def observations(now_ms: int):
+            return (
+                _observation(
+                    visit_id=4,
+                    track_id=7,
+                    shelf_id=1,
+                    shelf_label="Shelf 1",
+                    marker_id=10,
+                    distance_mm=700,
+                    now_ms=now_ms,
+                ),
+                _observation(
+                    visit_id=4,
+                    track_id=7,
+                    shelf_id=2,
+                    shelf_label="Shelf 2",
+                    marker_id=11,
+                    distance_mm=750,
+                    now_ms=now_ms,
+                ),
+            )
+
+        coordinator.update_camera(
+            camera_index=0,
+            observations=observations(1000),
+            host_synced_seconds=1.0,
+            now_unix_milliseconds=1000,
+        )
+        events = coordinator.update_camera(
+            camera_index=0,
+            observations=observations(1600),
+            host_synced_seconds=1.6,
+            now_unix_milliseconds=1600,
+        )
+
+        self.assertEqual(events, ())
+        self.assertEqual(
+            [status.state for status in coordinator.statuses(now_unix_milliseconds=1600)],
+            ["far", "far"],
+        )
+
+    def test_active_shelf_blocks_second_shelf_for_same_visit(self) -> None:
+        shelf_one = _shelf(1, 10, "Shelf 1")
+        shelf_two = _shelf(2, 11, "Shelf 2")
+        coordinator = ShelfProximityCoordinator(
+            replace(_config(), shelves=(shelf_one, shelf_two))
+        )
+        shelf_one_observation = lambda now_ms, distance=700: _observation(
+            visit_id=4,
+            track_id=7,
+            shelf_id=1,
+            shelf_label="Shelf 1",
+            marker_id=10,
+            distance_mm=distance,
+            now_ms=now_ms,
+        )
+        shelf_two_observation = lambda now_ms: _observation(
+            visit_id=4,
+            track_id=7,
+            shelf_id=2,
+            shelf_label="Shelf 2",
+            marker_id=11,
+            distance_mm=400,
+            now_ms=now_ms,
+        )
+        coordinator.update_camera(
+            camera_index=0,
+            observations=(shelf_one_observation(1000),),
+            host_synced_seconds=1.0,
+            now_unix_milliseconds=1000,
+        )
+        events = coordinator.update_camera(
+            camera_index=0,
+            observations=(shelf_one_observation(1600),),
+            host_synced_seconds=1.6,
+            now_unix_milliseconds=1600,
+        )
+        self.assertEqual([event.shelf_id for event in events], [1])
+
+        for now_ms in (1800, 2500):
+            events = coordinator.update_camera(
+                camera_index=0,
+                observations=(
+                    shelf_one_observation(now_ms, 800),
+                    shelf_two_observation(now_ms),
+                ),
+                host_synced_seconds=now_ms / 1000,
+                now_unix_milliseconds=now_ms,
+            )
+            self.assertEqual(events, ())
+
+        statuses = coordinator.statuses(now_unix_milliseconds=2500)
+        self.assertEqual(statuses[0].state, "near")
+        self.assertEqual(statuses[1].state, "far")
 
 
 if __name__ == "__main__":

@@ -21,6 +21,8 @@ DEFAULT_OBSERVER_HANDOFF_MAX_DELAY_SECONDS = 8.0
 DEFAULT_OBSERVER_HANDOFF_THRESHOLD = 0.35
 DEFAULT_OBSERVER_SINGLE_ACTIVE_FALLBACK_THRESHOLD = 0.25
 DEFAULT_OBSERVER_PROVISIONAL_SECONDS = 3.0
+DEFAULT_OBSERVER_BOOTSTRAP_MATCH_THRESHOLD = 0.20
+DEFAULT_OBSERVER_BOOTSTRAP_WINDOW_SECONDS = 10.0
 
 VISIT_ORIGIN_ENTRANCE = "entrance_confirmed"
 VISIT_ORIGIN_OBSERVER = "observer_only"
@@ -173,6 +175,24 @@ def add_visit_registry_args(parser: argparse.ArgumentParser) -> argparse.Argumen
         ),
     )
     parser.add_argument(
+        "--observer-bootstrap-match-threshold",
+        type=float,
+        default=DEFAULT_OBSERVER_BOOTSTRAP_MATCH_THRESHOLD,
+        help=(
+            "Lower match threshold used briefly when the first observer-only "
+            "visit is being discovered concurrently by multiple cameras."
+        ),
+    )
+    parser.add_argument(
+        "--observer-bootstrap-window-seconds",
+        type=float,
+        default=DEFAULT_OBSERVER_BOOTSTRAP_WINDOW_SECONDS,
+        help=(
+            "Maximum age of the sole observer-only visit eligible for startup "
+            "cross-camera coalescing."
+        ),
+    )
+    parser.add_argument(
         "--log-visit-decisions",
         action="store_true",
         help="Print visit registry assignment and merge decisions for tuning.",
@@ -219,12 +239,18 @@ class VisitRegistry:
         observer_handoff_threshold: float = DEFAULT_OBSERVER_HANDOFF_THRESHOLD,
         observer_single_active_fallback_threshold: float = DEFAULT_OBSERVER_SINGLE_ACTIVE_FALLBACK_THRESHOLD,
         observer_provisional_seconds: float = DEFAULT_OBSERVER_PROVISIONAL_SECONDS,
+        observer_bootstrap_match_threshold: float = DEFAULT_OBSERVER_BOOTSTRAP_MATCH_THRESHOLD,
+        observer_bootstrap_window_seconds: float = DEFAULT_OBSERVER_BOOTSTRAP_WINDOW_SECONDS,
         log_decisions: bool = False,
     ) -> None:
         if not 0.0 <= observer_single_active_fallback_threshold <= 1.0:
             raise ValueError("observer_single_active_fallback_threshold must be between 0 and 1.")
         if observer_provisional_seconds < 0.0:
             raise ValueError("observer_provisional_seconds must be non-negative.")
+        if not 0.0 <= observer_bootstrap_match_threshold <= 1.0:
+            raise ValueError("observer_bootstrap_match_threshold must be between 0 and 1.")
+        if observer_bootstrap_window_seconds < 0.0:
+            raise ValueError("observer_bootstrap_window_seconds must be non-negative.")
         self.entrance_merge_window_seconds = entrance_merge_window_seconds
         self.observer_match_threshold = observer_match_threshold
         self.observer_visit_max_age_seconds = observer_visit_max_age_seconds
@@ -233,6 +259,8 @@ class VisitRegistry:
         self.observer_handoff_threshold = observer_handoff_threshold
         self.observer_single_active_fallback_threshold = observer_single_active_fallback_threshold
         self.observer_provisional_seconds = observer_provisional_seconds
+        self.observer_bootstrap_match_threshold = observer_bootstrap_match_threshold
+        self.observer_bootstrap_window_seconds = observer_bootstrap_window_seconds
         self.log_decisions = log_decisions
         self.next_visit_id = 1
         self.visits: dict[int, ShopVisit] = {}
@@ -396,12 +424,12 @@ class VisitRegistry:
             observation,
             origin=VISIT_ORIGIN_ENTRANCE,
         )
+        observer_candidates = self._observer_candidates(
+            observation,
+            origin=VISIT_ORIGIN_OBSERVER,
+        )
         visit, score, score_breakdown = self._best_observer_candidate(entrance_candidates)
         if visit is None:
-            observer_candidates = self._observer_candidates(
-                observation,
-                origin=VISIT_ORIGIN_OBSERVER,
-            )
             visit, score, score_breakdown = self._best_observer_candidate(observer_candidates)
 
         if (
@@ -423,8 +451,9 @@ class VisitRegistry:
                 score_breakdown=score_breakdown,
             )
 
-        if not has_face_conflict and len(entrance_candidates) == 1:
-            fallback_visit, fallback_score, fallback_breakdown = entrance_candidates[0]
+        eligible_candidates = entrance_candidates + observer_candidates
+        if not has_face_conflict and len(eligible_candidates) == 1:
+            fallback_visit, fallback_score, fallback_breakdown = eligible_candidates[0]
             if fallback_score >= self.observer_single_active_fallback_threshold:
                 self._bind_track(observation, fallback_visit)
                 self._update_visit(fallback_visit, observation)
@@ -433,7 +462,27 @@ class VisitRegistry:
                     observation=observation,
                     visit=fallback_visit,
                     decision="observer_single_active_fallback",
-                    reason="single_eligible_entrance_visit",
+                    reason="single_eligible_active_visit",
+                    score=fallback_score,
+                    matched_visit_id=fallback_visit.visit_id,
+                    score_breakdown=fallback_breakdown,
+                )
+
+            bootstrap_age = observation.host_seconds - fallback_visit.created_host_seconds
+            if (
+                fallback_visit.origin == VISIT_ORIGIN_OBSERVER
+                and observation.device_id != fallback_visit.last_device_id
+                and 0.0 <= bootstrap_age <= self.observer_bootstrap_window_seconds
+                and fallback_score >= self.observer_bootstrap_match_threshold
+            ):
+                self._bind_track(observation, fallback_visit)
+                self._update_visit(fallback_visit, observation)
+                fallback_visit.observer_observation_count += 1
+                return self._decision(
+                    observation=observation,
+                    visit=fallback_visit,
+                    decision="observer_bootstrap_reused",
+                    reason="recent_single_observer_visit_cross_camera_bootstrap",
                     score=fallback_score,
                     matched_visit_id=fallback_visit.visit_id,
                     score_breakdown=fallback_breakdown,

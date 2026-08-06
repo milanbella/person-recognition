@@ -12,13 +12,14 @@ class VoiceAgentConfig:
     state_db: Path
     model: str = "gpt-realtime-2.1-mini"
     voice: str = "marin"
-    transcription_model: str = "gpt-live-transcribe"
+    transcription_model: str = "gpt-realtime-whisper"
     idle_timeout_seconds: float = 120.0
     max_session_seconds: float = 2700.0
     event_poll_seconds: float = 0.5
     max_queued_events: int = 100
     allowed_origins: tuple[str, ...] = ()
     retain_transcripts: bool = True
+    announce_major_events: bool = False
 
     def __post_init__(self) -> None:
         if not self.openai_api_key.strip():

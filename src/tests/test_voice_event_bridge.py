@@ -27,15 +27,16 @@ class VoiceEventBridgeTests(unittest.TestCase):
         context = {
             "events": [
                 {"eventId": 4, "eventType": "shelf_approach", "occurredAtUnixMilliseconds": 1, "visitId": 2, "payload": {"shelfId": 3}},
-                {"eventId": 5, "eventType": "shelf_departure", "occurredAtUnixMilliseconds": 2, "visitId": 2, "payload": {"shelfId": 3}},
+                {"eventId": 5, "eventType": "entry_accepted", "occurredAtUnixMilliseconds": 2, "visitId": 2},
+                {"eventId": 6, "eventType": "leave_accepted", "occurredAtUnixMilliseconds": 3, "visitId": 2},
             ],
             "verdicts": {},
         }
         bridge.refresh(context)
         bridge.refresh(context)
-        self.assertEqual(bridge.next_event()["eventId"], 4)
-        self.assertEqual(bridge.skip_current()["eventId"], 4)
         self.assertEqual(bridge.next_event()["eventId"], 5)
+        self.assertEqual(bridge.skip_current()["eventId"], 5)
+        self.assertEqual(bridge.next_event()["eventId"], 6)
 
 
 if __name__ == "__main__":

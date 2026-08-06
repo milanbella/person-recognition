@@ -12,6 +12,7 @@ from pipeline.operator_analysis import analyze_test_run
 from pipeline.operator_models import ObservationReference
 from pipeline.operator_state import OperatorState
 from pipeline.operator_test_store import OperatorTestStore
+from pipeline.world_state_store import WorldStateStore
 
 
 def create_operator_router(
@@ -19,6 +20,7 @@ def create_operator_router(
     state: OperatorState,
     store: OperatorTestStore,
     api_token: str | None,
+    world_state_store: WorldStateStore | None,
     assets_root: Path,
 ) -> APIRouter:
     router = APIRouter()
@@ -243,6 +245,46 @@ def create_operator_router(
         authorization: str | None = Header(default=None),
     ) -> dict[str, Any]:
         require_mutation_auth(authorization)
+        payload = dict(payload)
+        world_query_snapshot: Mapping[str, Any] | None = None
+        annotation_type = str(payload.get("annotationType", ""))
+        if annotation_type in {
+            "world_state_claim_correct",
+            "world_state_claim_incorrect",
+        }:
+            if world_state_store is None:
+                raise HTTPException(status_code=503, detail="World-state persistence is disabled.")
+            state_ref = payload.get("worldStateRef")
+            if not isinstance(state_ref, Mapping):
+                raise HTTPException(status_code=422, detail="worldStateRef must be an object.")
+            snapshot_id = state_ref.get("snapshotId")
+            if not isinstance(snapshot_id, str) or not snapshot_id:
+                raise HTTPException(status_code=422, detail="worldStateRef.snapshotId is required.")
+            world_query_snapshot = world_state_store.query_snapshot(snapshot_id)
+            if world_query_snapshot is None:
+                raise HTTPException(status_code=409, detail="The referenced world-state query is unavailable.")
+            if (
+                state_ref.get("revision") != world_query_snapshot.get("revision")
+                or state_ref.get("processInstanceId")
+                != world_query_snapshot.get("processInstanceId")
+            ):
+                raise HTTPException(status_code=409, detail="The world-state reference does not match its snapshot.")
+            claim = payload.get("claim")
+            claims = world_query_snapshot.get("claims")
+            if not isinstance(claim, str) or not isinstance(claims, Mapping) or claim not in claims:
+                raise HTTPException(status_code=422, detail="The requested claim is not present in the referenced snapshot.")
+            authoritative_value = claims[claim]
+            if "systemValue" in payload and payload["systemValue"] != authoritative_value:
+                raise HTTPException(status_code=409, detail="systemValue does not match the referenced world-state claim.")
+            payload["systemValue"] = authoritative_value
+            payload["worldStateRef"] = {
+                "snapshotId": snapshot_id,
+                "revision": int(world_query_snapshot["revision"]),
+                "processInstanceId": str(world_query_snapshot["processInstanceId"]),
+                "queriedAtUnixMilliseconds": int(
+                    world_query_snapshot["generatedAtUnixMilliseconds"]
+                ),
+            }
         reference_payload = payload.get("observationRef")
         reference: ObservationReference | None = None
         observation_snapshot: Mapping[str, Any] | None = None
@@ -261,6 +303,8 @@ def create_operator_router(
                 raise HTTPException(status_code=409, detail=str(exc)) from exc
 
         snapshot = current_state()
+        if world_query_snapshot is not None:
+            snapshot["worldStateQuery"] = dict(world_query_snapshot)
         if observation_snapshot is not None:
             snapshot["selectedObservation"] = dict(observation_snapshot)
         try:

@@ -11,6 +11,8 @@
     timeline: [],
     eventFeedback: new Map(),
     report: null,
+    worldState: null,
+    lastWorldPollAt: 0,
     pollTimer: null,
     runTimer: null,
     token: localStorage.getItem("shopOperatorToken") || "",
@@ -32,8 +34,6 @@
   const MONITORED_EVENT_TYPES = new Set([
     "entry_accepted",
     "leave_accepted",
-    "shelf_approach",
-    "shelf_departure",
   ]);
 
   async function api(path, options = {}) {
@@ -84,6 +84,7 @@
     renderShelves();
     mergeTimeline(app.state?.recentEvents || []);
     setActionAvailability();
+    void pollWorldState();
   }
 
   function renderRun() {
@@ -216,6 +217,7 @@
       drawOverlay();
       renderSelected();
       updateSystemAnswer();
+      if (Date.now() - app.lastWorldPollAt >= 1000) void pollWorldState();
     } catch (error) {
       el("frame-age").textContent = "Observation unavailable";
       drawOverlay();
@@ -495,10 +497,195 @@
     const selected = active && Boolean(observationReference());
     annotationButtons.forEach((button) => { button.disabled = !selected; });
     physicalButtons.forEach((button) => { button.disabled = !active; });
-    el("shelf-approach").disabled = !active;
-    el("shelf-departure").disabled = !active;
+    el("record-shelf-position").disabled = !active || !app.worldState;
     el("add-note").disabled = !active;
+    el("world-confirm").disabled = !active || !app.worldState;
+    el("world-correct").disabled = !active || !app.worldState;
+    const mapButton = el("map-subject-visit");
+    if (mapButton) {
+      const resolution = app.worldState?.resolution || {};
+      const canMap = active
+        && ["single_candidate", "single_observer_candidate"].includes(resolution.status)
+        && Number.isInteger(resolution.visitId);
+      mapButton.disabled = !canMap;
+    }
   }
+
+  async function pollWorldState() {
+    app.lastWorldPollAt = Date.now();
+    const run = app.state?.activeRun;
+    const subjectId = selectedSubjectId();
+    if (!run || !subjectId) {
+      app.worldState = null;
+      renderWorldState();
+      return;
+    }
+    try {
+      app.worldState = await api(
+        `/operator/api/test-runs/${encodeURIComponent(run.runId)}/subjects/${encodeURIComponent(subjectId)}/world-state?captureQuery=true&persistQuery=false`
+      );
+      renderWorldState();
+    } catch (error) {
+      el("world-state-summary").textContent = error.message;
+    }
+  }
+
+  function renderWorldState() {
+    const payload = app.worldState;
+    const details = el("world-state-details");
+    details.replaceChildren();
+    if (!payload) {
+      el("world-state-title").textContent = "No subject state";
+      el("world-state-freshness").textContent = "Unknown";
+      el("world-state-summary").textContent = "Start a test run to query subject state.";
+      el("map-subject-visit").hidden = true;
+      renderShelfPositionEvidence(null);
+      setActionAvailability();
+      return;
+    }
+    const resolution = payload.resolution || {};
+    const claims = payload.claims || {};
+    const visitText = claims.visitId == null ? "unresolved" : `visit ${claims.visitId}`;
+    el("world-state-title").textContent = `${visitText} · ${resolution.status || "unknown"}`;
+    el("world-state-freshness").textContent = payload.freshness || "unknown";
+    const ambiguous = ["ambiguous", "ambiguous_observer_candidates"].includes(resolution.status);
+    const observerProposal = resolution.status === "single_observer_candidate";
+    el("world-state-summary").textContent = ambiguous
+      ? `Multiple candidate visits: ${(resolution.candidateVisitIds || []).join(", ")}. Select your person track before trusting subject answers.`
+      : observerProposal
+      ? `Likely observer-only visit ${resolution.visitId}. The system sees this person but did not observe an entrance. Confirm if this is you.`
+      : `Revision ${payload.revision} · ${claims.visibility || "unknown visibility"}`;
+    const mapButton = el("map-subject-visit");
+    const canMap = ["single_candidate", "single_observer_candidate"].includes(resolution.status)
+      && Number.isInteger(resolution.visitId);
+    mapButton.hidden = !canMap;
+    mapButton.textContent = canMap ? `Use visit ${resolution.visitId} for me` : "Use proposed visit";
+    const rows = [
+      ["Inside", displayWorldValue(claims.inside)],
+      ["Entrance", displayWorldValue(claims.entranceConfirmed)],
+      ["Customer", displayWorldValue(claims.customerId)],
+      ["Visible cameras", (claims.visibleOnCameraIndexes || []).map((index) => index + 1).join(", ") || "none"],
+      ["Shelf position", `${displayWorldValue(claims.shelfPositionId)} · ${claims.shelfPositionFreshness || "unknown"}`],
+      ["Shelf distance", claims.shelfPositionDistanceMm == null ? "unknown" : `${Math.round(claims.shelfPositionDistanceMm)} mm`],
+    ];
+    rows.forEach(([key, value]) => {
+      const dt = document.createElement("dt");
+      const dd = document.createElement("dd");
+      dt.textContent = key;
+      dd.textContent = value;
+      details.append(dt, dd);
+    });
+    renderShelfPositionEvidence(payload);
+    setActionAvailability();
+  }
+
+  function renderShelfPositionEvidence(payload) {
+    const container = el("shelf-position-evidence");
+    container.replaceChildren();
+    const measurements = payload?.visit?.shelfMeasurements || [];
+    if (!measurements.length) {
+      const empty = document.createElement("p");
+      empty.className = "shelf-evidence-empty";
+      empty.textContent = "No current shelf distance measurements for this visit.";
+      container.append(empty);
+      return;
+    }
+    const position = payload.visit?.shelfPosition;
+    const scroll = document.createElement("div");
+    scroll.className = "shelf-evidence-scroll";
+    const table = document.createElement("table");
+    table.className = "shelf-evidence-table";
+    const head = document.createElement("thead");
+    const heading = document.createElement("tr");
+    ["Shelf", "Camera", "Marker", "Distance", "Freshness"].forEach((label) => {
+      const cell = document.createElement("th");
+      cell.scope = "col";
+      cell.textContent = label;
+      heading.append(cell);
+    });
+    head.append(heading);
+    const body = document.createElement("tbody");
+    measurements.forEach((measurement) => {
+      const row = document.createElement("tr");
+      const selected = position
+        && measurement.shelfId === position.shelfId
+        && measurement.cameraIndex === position.cameraIndex
+        && measurement.markerId === position.markerId;
+      if (selected) row.className = "selected-position";
+      const values = [
+        `Shelf ${measurement.shelfId}${selected ? " · selected" : ""}`,
+        Number.isInteger(measurement.cameraIndex) ? `Camera ${measurement.cameraIndex + 1}` : "unknown",
+        measurement.markerId ?? "unknown",
+        measurement.distanceMm == null ? "unknown" : `${Math.round(measurement.distanceMm)} mm`,
+        measurement.freshness || "unknown",
+      ];
+      values.forEach((value) => {
+        const cell = document.createElement("td");
+        cell.textContent = String(value);
+        row.append(cell);
+      });
+      body.append(row);
+    });
+    table.append(head, body);
+    scroll.append(table);
+    container.append(scroll);
+  }
+
+  function displayWorldValue(value) {
+    if (value === null || value === undefined || value === "") return "unknown";
+    if (typeof value === "boolean") return value ? "yes" : "no";
+    return String(value);
+  }
+
+  function parsePhysicalValue(value) {
+    const normalized = value.trim();
+    if (normalized.toLowerCase() === "true") return true;
+    if (normalized.toLowerCase() === "false") return false;
+    if (normalized.toLowerCase() === "null" || normalized.toLowerCase() === "unknown") return null;
+    if (normalized !== "" && Number.isFinite(Number(normalized))) return Number(normalized);
+    return normalized;
+  }
+
+  async function annotateWorldClaim(correct) {
+    const payload = app.worldState;
+    if (!payload?.worldStateRef) return showToast("No current subject-state query is available.");
+    const claim = el("world-claim").value;
+    const systemValue = payload.claims?.[claim];
+    const extra = {
+      worldStateRef: payload.worldStateRef,
+      claim,
+      systemValue,
+    };
+    if (claim === "shelfPositionId" && Number.isInteger(systemValue)) {
+      extra.shelfId = systemValue;
+    }
+    if (!correct) {
+      const input = el("physical-value");
+      if (!input.value.trim()) return showToast("Enter the physical value first.");
+      extra.physicalValue = parsePhysicalValue(input.value);
+      if (claim === "shelfPositionId" && Number.isInteger(extra.physicalValue)) {
+        extra.shelfId = extra.physicalValue;
+      }
+    }
+    const response = await annotate(
+      correct ? "world_state_claim_correct" : "world_state_claim_incorrect",
+      extra
+    );
+    if (response) {
+      el("physical-value").value = "";
+      await pollWorldState();
+    }
+  }
+
+  el("world-confirm").addEventListener("click", () => annotateWorldClaim(true));
+  el("world-correct").addEventListener("click", () => annotateWorldClaim(false));
+  el("map-subject-visit").addEventListener("click", async () => {
+    const visitId = app.worldState?.resolution?.visitId;
+    if (!Number.isInteger(visitId)) return showToast("No single proposed visit is available.");
+    const response = await annotate("subject_visit_mapping", {visitId});
+    if (response) await pollWorldState();
+  });
+  el("subject-select").addEventListener("change", () => void pollWorldState());
 
   async function annotate(annotationType, extra = {}, withObservation = false) {
     const run = app.state?.activeRun;
@@ -549,13 +736,13 @@
     });
   });
 
-  el("shelf-approach").addEventListener("click", () => markShelf("shelf_approach"));
-  el("shelf-departure").addEventListener("click", () => markShelf("shelf_departure"));
-  function markShelf(type) {
+  el("record-shelf-position").addEventListener("click", () => {
     const shelfId = Number.parseInt(el("missing-shelf").value, 10);
     if (!Number.isInteger(shelfId)) return showToast("Shelf ID must be an integer.");
-    annotate(type, {shelfId});
-  }
+    el("world-claim").value = "shelfPositionId";
+    el("physical-value").value = String(shelfId);
+    annotateWorldClaim(app.worldState?.claims?.shelfPositionId === shelfId);
+  });
 
   el("add-note").addEventListener("click", () => {
     const input = el("note-text");
@@ -634,7 +821,7 @@
     const types = [
       "track_appeared", "track_disappeared", "visit_assignment_changed",
       "customer_binding_changed", "entry_accepted", "leave_accepted",
-      "shelf_approach", "shelf_departure", "human_annotation_created",
+      "human_annotation_created",
       "test_run_started", "test_run_stopped", "resync_required",
     ];
     types.forEach((type) => app.eventSource.addEventListener(type, receiveEvent));
@@ -652,7 +839,7 @@
     if ([
       "test_run_started", "test_run_stopped", "customer_binding_changed",
       "entry_accepted", "leave_accepted", "track_appeared",
-      "track_disappeared", "shelf_approach", "shelf_departure",
+      "track_disappeared",
     ].includes(event.eventType)) {
       refreshState();
     }
@@ -760,14 +947,13 @@
   function eventCardClass(eventType) {
     if (eventType === "entry_accepted") return "entry";
     if (eventType === "leave_accepted") return "leave";
-    return "shelf";
+    return "transition";
   }
 
   function eventTitle(event) {
     if (event.eventType === "entry_accepted") return "ENTRY";
     if (event.eventType === "leave_accepted") return "LEAVE";
-    if (event.eventType === "shelf_approach") return "SHELF APPROACH";
-    return "SHELF LEAVE";
+    return "TRANSITION";
   }
 
   function eventSummary(event) {
@@ -779,8 +965,6 @@
       case "track_disappeared": return `Track ${event.trackId} disappeared`;
       case "visit_assignment_changed": return `Track ${event.trackId} moved to visit ${event.visitId ?? "unassigned"}`;
       case "customer_binding_changed": return `Visit ${event.visitId} customer ${payload.customerId ?? payload.previousCustomerId ?? "changed"}`;
-      case "shelf_approach": return `Visit ${event.visitId} approached shelf ${payload.shelfId}.`;
-      case "shelf_departure": return `Visit ${event.visitId} left shelf ${payload.shelfId}.`;
       case "human_annotation_created": return String(payload.annotationType || "Human annotation").replaceAll("_", " ");
       default: return event.eventType.replaceAll("_", " ");
     }
@@ -806,7 +990,7 @@
   function shouldSpeakEvent(event) {
     return !app.voice.peerConnection && el("speak-events").checked && [
       "visit_assignment_changed", "customer_binding_changed", "entry_accepted",
-      "leave_accepted", "shelf_approach", "shelf_departure",
+      "leave_accepted",
     ].includes(event.eventType);
   }
   function speak(text) {
@@ -907,6 +1091,8 @@
       setVoiceStatus("thinking", "Checking your feedback…");
     } else if (event.type === "response.output_audio_transcript.done" && event.transcript) {
       setVoiceStatus("connected", event.transcript);
+    } else if (event.type === "conversation.item.input_audio_transcription.completed" && event.transcript) {
+      setVoiceStatus("thinking", `Heard: ${event.transcript}`);
     } else if (event.type === "error") {
       setVoiceStatus("error", event.error?.message || "Realtime API error");
     }
@@ -918,6 +1104,10 @@
       const status = await api(`/operator/voice/sessions/${app.voice.sessionId}`);
       if (status.status === "ended") {
         await disconnectVoice(false, status.disconnectReason || "Voice session ended");
+      } else if (status.durationSeconds >= 10 && status.operatorTranscriptCount === 0) {
+        setVoiceStatus("error", "No operator speech transcribed. Check microphone permission, input device, and noise suppression.");
+      } else if (status.operatorTranscriptCount > 0 && status.toolCallCount === 0) {
+        setVoiceStatus("thinking", `Heard: ${status.lastOperatorTranscript || "speech"} · no shop-state tool called yet`);
       }
     } catch (error) {
       setVoiceStatus("error", error.message);

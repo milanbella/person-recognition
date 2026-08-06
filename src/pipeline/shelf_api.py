@@ -63,6 +63,38 @@ def _point_payload(point: tuple[float, float, float]) -> dict[str, float]:
     return {"x": point[0], "y": point[1], "z": point[2]}
 
 
+def _box_payload(
+    box: tuple[int, int, int, int] | None,
+) -> dict[str, int] | None:
+    if box is None:
+        return None
+    return {"x1": box[0], "y1": box[1], "x2": box[2], "y2": box[3]}
+
+
+def _pixel_payload(pixel: tuple[int, int] | None) -> dict[str, int] | None:
+    if pixel is None:
+        return None
+    return {"x": pixel[0], "y": pixel[1]}
+
+
+def _depth_diagnostic_payload(
+    observation: ShelfCameraObservation,
+) -> dict[str, object]:
+    return {
+        "trackBoundingBox": _box_payload(observation.track_bounding_box),
+        "personDepthMm": observation.person_depth_mm,
+        "personDepthValidPixelCount": observation.person_depth_valid_pixel_count,
+        "personDepthRoi": _box_payload(observation.person_depth_roi),
+        "personDepthAnchorPixel": _pixel_payload(
+            observation.person_depth_anchor_px
+        ),
+        "personPoint3dMm": _point_payload(observation.person_point_3d_mm),
+        "anchorPoint3dMm": _point_payload(observation.anchor.point_3d_mm),
+        "rgbSequenceNumber": observation.rgb_sequence_number,
+        "depthSequenceNumber": observation.depth_sequence_number,
+    }
+
+
 def shelf_camera_snapshot_payload(
     snapshot: ShelfCameraSnapshot,
     *,
@@ -128,6 +160,7 @@ def shelf_camera_snapshot_payload(
                         shelf.shelf_id,
                         "far",
                     ),
+                    "depthDiagnostic": _depth_diagnostic_payload(closest),
                 },
                 "people": [
                     {
@@ -140,6 +173,7 @@ def shelf_camera_snapshot_payload(
                         "personPoint3dMm": _point_payload(
                             observation.person_point_3d_mm
                         ),
+                        "depthDiagnostic": _depth_diagnostic_payload(observation),
                     }
                     for observation in observations
                 ],

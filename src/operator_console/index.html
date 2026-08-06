@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#102f2b">
   <title>Shop Walk Test</title>
-  <link rel="stylesheet" href="/operator/assets/operator.css?v=realtime-voice-1">
+  <link rel="stylesheet" href="/operator/assets/operator.css?v=shelf-evidence-2">
 </head>
 <body>
   <header class="masthead">
@@ -63,39 +63,78 @@
       </article>
 
       <div class="walk-controls">
-        <section class="timeline-panel event-monitor">
+        <section class="panel world-state-panel">
+          <div class="panel-heading">
+            <div>
+              <span class="label">System belief</span>
+              <h2 id="world-state-title">No subject state</h2>
+            </div>
+            <span id="world-state-freshness" class="pill">Unknown</span>
+          </div>
+          <p id="world-state-summary" class="world-state-summary">Start a test run to query subject state.</p>
+          <button id="map-subject-visit" class="button primary" hidden disabled>Use proposed visit</button>
+          <dl id="world-state-details" class="details world-state-details"></dl>
+          <section class="shelf-position-evidence" aria-labelledby="shelf-position-evidence-title">
+            <h3 id="shelf-position-evidence-title">Shelf distance evidence</h3>
+            <div id="shelf-position-evidence"></div>
+          </section>
+          <div class="world-claim-controls">
+            <label for="world-claim">Check claim
+              <select id="world-claim">
+                <option value="visitId">Visit ID</option>
+                <option value="inside">Inside shop</option>
+                <option value="entranceConfirmed">Entrance confirmed</option>
+                <option value="customerId">Customer ID</option>
+                <option value="visibility">Visibility</option>
+                <option value="shelfPositionId">Shelf position</option>
+                <option value="shelfPositionDistanceMm">Shelf distance</option>
+              </select>
+            </label>
+            <label for="physical-value">Physical value when wrong
+              <input id="physical-value" placeholder="Example: 1, true, or unknown">
+            </label>
+          </div>
+          <div class="action-grid state-verdict-actions">
+            <button id="world-confirm" class="button primary" disabled>Current claim is correct</button>
+            <button id="world-correct" class="button danger-soft" disabled>Record correction</button>
+          </div>
+        </section>
+
+        <details class="timeline-panel event-monitor event-diagnostics">
+          <summary>Generated event diagnostics</summary>
+          <div class="event-diagnostics-body">
           <div class="panel-heading">
             <div>
               <span class="label">Generated events</span>
-              <h2>Did the system get it right?</h2>
+              <h2>Transition history</h2>
             </div>
             <span id="result-summary" class="result-summary">Listening</span>
           </div>
-          <p class="event-help">New ENTRY, LEAVE and shelf events appear here. Confirm or reject each one while it is fresh.</p>
+          <p class="event-help">Use this history only when diagnosing a transition or explicitly reviewing an event.</p>
           <div id="timeline" class="timeline event-cards">
             <p class="timeline-empty">Waiting for the next shop event.</p>
           </div>
-        </section>
+          </div>
+        </details>
 
         <section class="panel missing-panel">
           <div class="panel-heading">
             <div>
-              <span class="label">Expected event missing</span>
-              <h2>What just happened physically?</h2>
+              <span class="label">Physical reality</span>
+              <h2>What is true right now?</h2>
             </div>
           </div>
-          <p class="event-help">Use these only when the system did not generate the event you expected.</p>
+          <p class="event-help">Record missing shop transitions or correct the current shelf position.</p>
           <div class="action-grid missing-actions">
             <button data-physical="physical_entry" class="button primary" disabled>Missing ENTRY</button>
             <button data-physical="physical_leave" class="button danger" disabled>Missing LEAVE</button>
           </div>
           <label class="shelf-picker" for="missing-shelf">
-            Shelf
+            Physical shelf position
             <select id="missing-shelf"></select>
           </label>
           <div class="action-grid missing-actions">
-            <button id="shelf-approach" class="button" disabled>Missing shelf APPROACH</button>
-            <button id="shelf-departure" class="button" disabled>Missing shelf LEAVE</button>
+            <button id="record-shelf-position" class="button" disabled>I am at this shelf</button>
           </div>
         </section>
       </div>
@@ -184,6 +223,6 @@
   </dialog>
 
   <div id="toast" class="toast" role="status"></div>
-  <script src="/operator/assets/operator.js?v=realtime-voice-1"></script>
+  <script src="/operator/assets/operator.js?v=shelf-evidence-2"></script>
 </body>
 </html>

@@ -136,11 +136,6 @@ def build_argparser() -> argparse.ArgumentParser:
         help="Maximum processed frames; zero means run until q or Ctrl+C.",
     )
     parser.add_argument(
-        "--replace-existing",
-        action="store_true",
-        help="Ignore existing anchors and calibrate them from this source.",
-    )
-    parser.add_argument(
         "--show-preview",
         action="store_true",
         help="Show detected shelf markers while processing.",
@@ -256,7 +251,7 @@ def _create_manager(
             movement_tolerance_mm=args.movement_tolerance_mm,
             marker_min_valid_pixels=args.marker_min_valid_pixels,
             auto_save=False,
-            load_existing=not args.replace_existing,
+            load_existing=False,
         ),
         shelves,
     )

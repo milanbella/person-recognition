@@ -787,6 +787,8 @@ def main() -> None:
         observer_handoff_threshold=args.observer_handoff_threshold,
         observer_single_active_fallback_threshold=args.observer_single_active_fallback_threshold,
         observer_provisional_seconds=args.observer_provisional_seconds,
+        observer_bootstrap_match_threshold=args.observer_bootstrap_match_threshold,
+        observer_bootstrap_window_seconds=args.observer_bootstrap_window_seconds,
         log_decisions=args.log_visit_decisions,
     )
     stream_states = build_stream_states(streams=streams, args=args, camera_roles=camera_roles)

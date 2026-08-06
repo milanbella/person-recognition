@@ -198,6 +198,67 @@ def analyze_test_run(
                 )
             )
 
+    for annotation in annotations:
+        annotation_type = annotation.get("annotationType")
+        if annotation_type not in {
+            "world_state_claim_correct",
+            "world_state_claim_incorrect",
+            "physical_subject_state",
+        }:
+            continue
+        payload = annotation.get("payload", {})
+        annotation_id = int(annotation["annotationId"])
+        claim = payload.get("claim", "subject_state")
+        if annotation_type == "world_state_claim_correct":
+            results.append(
+                AnalysisResult(
+                    rule_id=f"world-state-claim:{annotation_id}",
+                    status="pass",
+                    summary=(
+                        f"Operator confirmed world-state claim {claim}="
+                        f"{payload.get('systemValue')!r}."
+                    ),
+                    expected_annotation_id=annotation_id,
+                    details={
+                        "claim": claim,
+                        "systemValue": payload.get("systemValue"),
+                        "worldStateRef": payload.get("worldStateRef"),
+                    },
+                )
+            )
+        elif annotation_type == "world_state_claim_incorrect":
+            results.append(
+                AnalysisResult(
+                    rule_id=f"world-state-claim:{annotation_id}",
+                    status="fail",
+                    summary=(
+                        f"World-state claim {claim} was {payload.get('systemValue')!r}; "
+                        f"physical value was {payload.get('physicalValue')!r}."
+                    ),
+                    expected_annotation_id=annotation_id,
+                    details={
+                        "claim": claim,
+                        "systemValue": payload.get("systemValue"),
+                        "physicalValue": payload.get("physicalValue"),
+                        "worldStateRef": payload.get("worldStateRef"),
+                        "reason": payload.get("reason"),
+                    },
+                )
+            )
+        else:
+            results.append(
+                AnalysisResult(
+                    rule_id=f"physical-subject-state:{annotation_id}",
+                    status="inconclusive",
+                    summary=(
+                        f"Recorded physical subject fact {claim}="
+                        f"{payload.get('physicalValue')!r} without a selected system claim."
+                    ),
+                    expected_annotation_id=annotation_id,
+                    details=dict(payload),
+                )
+            )
+
     counts = Counter(result.status for result in results)
     overall = (
         "fail"

@@ -104,7 +104,7 @@ class VoiceApiTests(unittest.TestCase):
             )
         self.assertEqual(
             realtime_session_config(retained)["audio"]["input"]["transcription"]["model"],
-            "gpt-live-transcribe",
+            "gpt-realtime-whisper",
         )
         self.assertNotIn(
             "transcription",

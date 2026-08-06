@@ -2,10 +2,10 @@
     "schemaVersion": 2,
     "arucoDictionary": "DICT_6X6_250",
     "shelves": [
-      {"shelfId": 1, "markerId": 10},
-      {"shelfId": 2, "markerId": 11},
-      {"shelfId": 3, "markerIds": [12, 13]},
-      {"shelfId": 4, "markerId": 14},
-      {"shelfId": 5, "markerId": 15}
+      {"shelfId": 1, "markerId": 14},
+      {"shelfId": 2, "markerId": 15},
+      {"shelfId": 3, "markerId": 16},
+      {"shelfId": 4, "markerId": 17},
+      {"shelfId": 5, "markerId": 18}
     ]
   }

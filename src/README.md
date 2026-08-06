@@ -139,7 +139,63 @@ The old on-device `RVC2` experiment scripts were intentionally removed.
   - exported run artifacts are written below `--operator-runs-root` (default `test-runs`)
   - enable it explicitly with `--enable-operator-console --operator-api-token <secret>`; it is disabled by default
   - the operator console reuses raw MJPEG plus observer JSON and draws selectable person boxes in the browser; it does not run another detector
-  - accepted entry/leave, visit assignment, customer binding, shelf, track, and camera transitions are available through `/operator/api/events`
+  - accepted entry/leave, visit assignment, customer binding, track, and camera transitions are available through `/operator/api/events`; current shelf position is exposed through world state
+  - continuously materializes system-believed shop state in the same SQLite DB and exposes it through `/world-state`; this read API is available whenever MJPEG streaming is enabled, even when the operator console is disabled
+
+## System-Believed World State
+
+The live service maintains a revisioned projection of cameras, tracks, visits,
+customers, and shelf position. It deliberately represents what the system
+believes; human physical ground truth remains in operator annotations.
+
+For every visit with fresh shelf observations, `shelfPosition` is the shelf
+marker with the smallest measured 3D distance across all cameras. Shelf
+approach/departure thresholds and events are not used for this position.
+
+Read the complete current projection:
+
+```bash
+curl -s http://127.0.0.1:8002/world-state | jq
+```
+
+Entity endpoints:
+
+```text
+GET /world-state/visits/{visit_id}
+GET /world-state/visits/{visit_id}/shelf-position
+GET /world-state/shelves/{shelf_id}
+GET /world-state/cameras/{camera_index}
+GET /world-state/revisions/{revision}
+```
+
+Query only the current shelf position for a visit:
+
+```bash
+curl -s http://127.0.0.1:8002/world-state/visits/1/shelf-position | jq
+```
+
+The response includes the selected `position` plus `measurements` for every
+camera/marker distance that participated in the decision. Camera indexes in the
+API are zero-based; the operator console displays them as Camera 1, Camera 2,
+and so on.
+
+Current rows are checkpointed asynchronously in `state/shop_state.sqlite`.
+Observation writes are coalesced so camera processing does not wait for SQLite.
+After restart, visit lifecycle is restored while camera, track, and shelf
+measurements remain explicitly stale until fresh observations arrive.
+
+With an active operator run, query one physical test subject:
+
+```bash
+curl -s \
+  http://127.0.0.1:8002/operator/api/test-runs/RUN_ID/subjects/milan/world-state \
+  | jq
+```
+
+The response resolves the subject to a confirmed visit, a single proposed
+candidate, an ambiguous candidate set, or unknown. Use
+`captureQuery=true` only when creating a confirmation/correction; it stores an
+opaque snapshot reference so feedback is validated against the exact answer.
 
 ## Shop Test Operator Console
 
@@ -166,7 +222,14 @@ omitted, the operator page and API routes are not registered.
 ## Realtime Voice Shop Testing
 
 `shop_voice_agent.py` is a separate companion process for hands-free physical
-verification. The phone sends microphone audio directly to the OpenAI Realtime
+verification. Voice testing is query-driven by default: walk normally and ask
+questions such as “what is my visit ID?” or “what shelf am I nearest?”. The
+agent reads revisioned world state and records subsequent confirmations or
+corrections against the exact queried snapshot. It does not announce every
+generated event. Add `--announce-major-events` if ENTRY and LEAVE announcements
+are also wanted.
+
+The phone sends microphone audio directly to the OpenAI Realtime
 API over WebRTC. The permanent OpenAI key remains on the shop server, while a
 server-side sideband connection validates and executes fixed feedback tools
 through the existing operator annotation API.

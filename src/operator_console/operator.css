@@ -258,6 +258,118 @@ main {
   gap: 1rem;
 }
 
+.world-state-panel {
+  border-left: 6px solid var(--mint);
+}
+
+.world-state-summary {
+  margin: 0.7rem 0;
+  color: var(--ink-soft);
+}
+
+.world-state-details {
+  margin-bottom: 0.9rem;
+}
+
+.shelf-position-evidence {
+  margin: 0.9rem 0;
+}
+
+.shelf-position-evidence h3 {
+  margin: 0 0 0.45rem;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+}
+
+.shelf-evidence-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  background: var(--paper-bright);
+}
+
+.shelf-evidence-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.shelf-evidence-table th,
+.shelf-evidence-table td {
+  padding: 0.45rem 0.55rem;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.shelf-evidence-table th {
+  color: var(--ink-soft);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+}
+
+.shelf-evidence-table tr.selected-position td {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--mint) 20%, var(--paper-bright));
+  font-weight: 800;
+}
+
+.shelf-evidence-empty {
+  margin: 0;
+  padding: 0.65rem;
+  color: var(--ink-soft);
+  border: 1px dashed var(--line);
+}
+
+.world-claim-controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.7rem;
+}
+
+.world-claim-controls label,
+.world-claim-controls input,
+.world-claim-controls select {
+  width: 100%;
+}
+
+.world-claim-controls label {
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.world-claim-controls input,
+.world-claim-controls select {
+  display: block;
+  min-height: 2.6rem;
+  margin-top: 0.3rem;
+  padding: 0.5rem;
+  color: var(--ink);
+  background: var(--paper-bright);
+  border: 1px solid var(--line);
+}
+
+.state-verdict-actions {
+  margin-top: 0.7rem;
+}
+
+.event-diagnostics > summary {
+  padding: 0.9rem 1rem;
+  cursor: pointer;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.event-diagnostics-body {
+  padding: 0 1rem 1rem;
+}
+
+@media (max-width: 640px) {
+  .world-claim-controls {
+    grid-template-columns: 1fr;
+  }
+}
+
 .camera-column {
   min-width: 0;
   overflow: hidden;

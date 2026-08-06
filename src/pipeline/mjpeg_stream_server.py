@@ -23,6 +23,9 @@ from pipeline.shelf_api import (
 )
 from pipeline.shelf_proximity import ShelfProximityStatus
 from pipeline.visit_registry import is_observer_enabled
+from pipeline.world_state import WorldStateProjector
+from pipeline.world_state_api import create_world_state_router
+from pipeline.world_state_store import WorldStateStore
 
 
 @dataclass
@@ -50,6 +53,7 @@ class MjpegStreamServer:
         port: int = 8002,
         jpeg_quality: int = 70,
         camera_timeout_seconds: float = 3.0,
+        world_state_db: Path | None = None,
         operator_state_db: Path | None = None,
         operator_runs_root: Path = Path("test-runs"),
         operator_api_token: str | None = None,
@@ -85,6 +89,24 @@ class MjpegStreamServer:
         self._server_error: BaseException | None = None
         self._shelf_statuses: tuple[ShelfProximityStatus, ...] = ()
         self._shelf_event_payloads: dict[int, dict[str, object]] = {}
+        effective_world_state_db = (
+            operator_state_db if world_state_db is None else world_state_db
+        )
+        self.world_state_store = (
+            None
+            if effective_world_state_db is None
+            else WorldStateStore(effective_world_state_db)
+        )
+        self.world_state = (
+            None
+            if self.world_state_store is None
+            else WorldStateProjector(
+                camera_device_ids=camera_device_ids,
+                camera_roles=camera_roles,
+                camera_timeout_seconds=camera_timeout_seconds,
+                store=self.world_state_store,
+            )
+        )
         self.operator_store = (
             None
             if operator_state_db is None
@@ -106,6 +128,15 @@ class MjpegStreamServer:
             )
         )
         self.app = self._build_app()
+        if self.world_state_store is not None:
+            assert self.world_state is not None
+            self.app.include_router(
+                create_world_state_router(
+                    projector=self.world_state,
+                    store=self.world_state_store,
+                    operator_store=self.operator_store,
+                )
+            )
         if self.operator_store is not None:
             assert self.operator_state is not None
             self.app.include_router(
@@ -113,6 +144,7 @@ class MjpegStreamServer:
                     state=self.operator_state,
                     store=self.operator_store,
                     api_token=operator_api_token,
+                    world_state_store=self.world_state_store,
                     assets_root=Path(__file__).resolve().parent.parent
                     / "operator_console",
                 )
@@ -268,6 +300,11 @@ class MjpegStreamServer:
                 stream_sequence=stream_sequence,
                 rgb_sequence_number=rgb_sequence_number,
             )
+        if self.world_state is not None:
+            self.world_state.mark_camera_frame(
+                camera_index,
+                rgb_sequence_number=rgb_sequence_number,
+            )
 
     def camera_status_payload(self) -> dict[str, list[dict[str, int | str]]]:
         now = time.monotonic()
@@ -305,6 +342,8 @@ class MjpegStreamServer:
             camera.observer_snapshot_monotonic = time.monotonic()
         if self.operator_state is not None:
             self.operator_state.publish_observer_snapshot(snapshot)
+        if self.world_state is not None:
+            self.world_state.publish_observer_snapshot(snapshot)
 
     def observer_snapshot_payload(self, camera_index: int) -> dict[str, object]:
         if camera_index not in self._cameras:
@@ -356,6 +395,8 @@ class MjpegStreamServer:
             camera.shelf_snapshot_monotonic = time.monotonic()
         if self.operator_state is not None:
             self.operator_state.publish_shelf_snapshot(snapshot)
+        if self.world_state is not None:
+            self.world_state.publish_shelf_snapshot(snapshot)
 
     def shelf_snapshot_payload(self, camera_index: int) -> dict[str, object]:
         if camera_index not in self._cameras:
@@ -398,6 +439,8 @@ class MjpegStreamServer:
             self._shelf_statuses = tuple(statuses)
         if self.operator_state is not None:
             self.operator_state.publish_shelf_statuses(statuses)
+        if self.world_state is not None:
+            self.world_state.publish_shelf_statuses(statuses)
 
     def publish_shelf_event_payloads(
         self,
@@ -461,6 +504,25 @@ class MjpegStreamServer:
                     ),
                     payload=payload,
                 )
+        if self.world_state is not None:
+            for payload in payloads:
+                self.world_state.publish_transition(
+                    event_type=str(payload.get("eventType", "shelf_event")),
+                    entity_type="shelf",
+                    entity_id=int(payload.get("shelfId", 0)),
+                    payload=payload,
+                    occurred_at_unix_milliseconds=int(
+                        payload.get("occurredAtUnixMilliseconds", time.time_ns() // 1_000_000)
+                    ),
+                    host_synced_seconds=(
+                        None
+                        if payload.get("hostSyncedSeconds") is None
+                        else float(payload["hostSyncedSeconds"])
+                    ),
+                    source_event_id=(
+                        None if payload.get("eventId") is None else int(payload["eventId"])
+                    ),
+                )
 
     def publish_entrance_event(
         self,
@@ -469,33 +531,45 @@ class MjpegStreamServer:
         camera_index: int,
         payload: dict[str, object],
     ) -> None:
-        if self.operator_state is None:
+        if self.operator_state is None and self.world_state is None:
             return
         visit_id = payload.get("visit_id")
         track_id = int(payload["track_id"])
         host_seconds = float(payload["host_synced_seconds"])
         device_id = str(payload["device_id"])
         status = "inside" if event_type == "entry_accepted" else "left"
-        self.operator_state.publish_visit_state(
-            None if visit_id is None else int(visit_id),
-            status=status,
-            origin="entrance_confirmed",
-            host_synced_seconds=host_seconds,
-            camera_index=camera_index,
-            device_id=device_id,
-            track_id=track_id,
-        )
-        self.operator_state.publish_event(
-            event_type=event_type,
-            occurred_at_unix_milliseconds=time.time_ns() // 1_000_000,
-            host_synced_seconds=host_seconds,
-            camera_index=camera_index,
-            device_id=device_id,
-            rgb_sequence_number=int(payload["rgb_sequence_num"]),
-            track_id=track_id,
-            visit_id=None if visit_id is None else int(visit_id),
-            payload=payload,
-        )
+        if self.operator_state is not None:
+            self.operator_state.publish_visit_state(
+                None if visit_id is None else int(visit_id),
+                status=status,
+                origin="entrance_confirmed",
+                host_synced_seconds=host_seconds,
+                camera_index=camera_index,
+                device_id=device_id,
+                track_id=track_id,
+            )
+            self.operator_state.publish_event(
+                event_type=event_type,
+                occurred_at_unix_milliseconds=time.time_ns() // 1_000_000,
+                host_synced_seconds=host_seconds,
+                camera_index=camera_index,
+                device_id=device_id,
+                rgb_sequence_number=int(payload["rgb_sequence_num"]),
+                track_id=track_id,
+                visit_id=None if visit_id is None else int(visit_id),
+                payload=payload,
+            )
+        if self.world_state is not None:
+            self.world_state.publish_visit_state(
+                None if visit_id is None else int(visit_id),
+                status=status,
+                origin="entrance_confirmed",
+                host_synced_seconds=host_seconds,
+                camera_index=camera_index,
+                device_id=device_id,
+                track_id=track_id,
+                event_type=event_type,
+            )
 
     def publish_customer_binding(
         self,
@@ -507,25 +581,36 @@ class MjpegStreamServer:
         device_id: str,
         track_id: int,
     ) -> None:
-        if self.operator_state is None:
+        if self.operator_state is None and self.world_state is None:
             return
-        self.operator_state.publish_visit_state(
-            visit_id,
-            customer_id=customer_id,
-            host_synced_seconds=host_synced_seconds,
-            camera_index=camera_index,
-            device_id=device_id,
-            track_id=track_id,
-        )
-        self.operator_state.publish_event(
-            event_type="customer_binding_changed",
-            host_synced_seconds=host_synced_seconds,
-            camera_index=camera_index,
-            device_id=device_id,
-            track_id=track_id,
-            visit_id=visit_id,
-            payload={"customerId": customer_id},
-        )
+        if self.operator_state is not None:
+            self.operator_state.publish_visit_state(
+                visit_id,
+                customer_id=customer_id,
+                host_synced_seconds=host_synced_seconds,
+                camera_index=camera_index,
+                device_id=device_id,
+                track_id=track_id,
+            )
+            self.operator_state.publish_event(
+                event_type="customer_binding_changed",
+                host_synced_seconds=host_synced_seconds,
+                camera_index=camera_index,
+                device_id=device_id,
+                track_id=track_id,
+                visit_id=visit_id,
+                payload={"customerId": customer_id},
+            )
+        if self.world_state is not None:
+            self.world_state.publish_visit_state(
+                visit_id,
+                customer_id=customer_id,
+                host_synced_seconds=host_synced_seconds,
+                camera_index=camera_index,
+                device_id=device_id,
+                track_id=track_id,
+                event_type="customer_binding_changed",
+            )
 
     def _generate_stream(self, camera_index: int) -> Iterator[bytes]:
         with self._condition:
@@ -561,3 +646,5 @@ class MjpegStreamServer:
                 print("Warning: MJPEG streaming API did not stop before the shutdown timeout.")
         if self.operator_store is not None:
             self.operator_store.close()
+        if self.world_state_store is not None:
+            self.world_state_store.close()

@@ -81,8 +81,87 @@ class VisitRegistryProvisionalTests(unittest.TestCase):
         assert decision is not None
         self.assertEqual(decision.assignment.visit_id, entrance.assignment.visit_id)
         self.assertEqual(decision.decision, "observer_single_active_fallback")
+
+    def test_single_eligible_observer_visit_uses_lower_fallback_threshold(self) -> None:
+        visits = registry()
+        original_body = appearance([1.0, 0.0])
+        first = evidence(
+            device_id="room-a",
+            track_id=1,
+            host_seconds=0.0,
+            body=original_body,
+        )
+        self.assertIsNone(visits.resolve_observer_track(first))
+        created = visits.resolve_observer_track(
+            evidence(
+                device_id="room-a",
+                track_id=1,
+                host_seconds=3.1,
+                body=original_body,
+                track_status="TRACKED",
+            )
+        )
+        self.assertIsNotNone(created)
+        assert created is not None
+        self.assertEqual(created.assignment.origin, VISIT_ORIGIN_OBSERVER)
+
+        decision = visits.resolve_observer_track(
+            evidence(
+                device_id="room-b",
+                track_id=2,
+                host_seconds=4.0,
+                body=appearance([0.2, math.sqrt(0.96)]),
+            )
+        )
+
+        self.assertIsNotNone(decision)
+        assert decision is not None
+        self.assertEqual(decision.assignment.visit_id, created.assignment.visit_id)
+        self.assertEqual(decision.decision, "observer_single_active_fallback")
+        self.assertEqual(decision.reason, "single_eligible_active_visit")
         self.assertGreaterEqual(decision.score or 0.0, 0.25)
         self.assertLess(decision.score or 1.0, 0.45)
+
+    def test_recent_single_observer_visit_uses_bootstrap_threshold_across_cameras(self) -> None:
+        visits = registry()
+        original_body = appearance([1.0, 0.0])
+        self.assertIsNone(
+            visits.resolve_observer_track(
+                evidence(
+                    device_id="room-a",
+                    track_id=1,
+                    host_seconds=0.0,
+                    body=original_body,
+                )
+            )
+        )
+        created = visits.resolve_observer_track(
+            evidence(
+                device_id="room-a",
+                track_id=1,
+                host_seconds=3.1,
+                body=original_body,
+                track_status="TRACKED",
+            )
+        )
+        assert created is not None
+
+        decision = visits.resolve_observer_track(
+            evidence(
+                device_id="room-b",
+                track_id=2,
+                host_seconds=4.0,
+                body=appearance([0.1, math.sqrt(0.99)]),
+            )
+        )
+
+        self.assertIsNotNone(decision)
+        assert decision is not None
+        self.assertEqual(decision.assignment.visit_id, created.assignment.visit_id)
+        self.assertEqual(decision.decision, "observer_bootstrap_reused")
+        self.assertGreaterEqual(decision.score or 0.0, 0.20)
+        self.assertLess(decision.score or 1.0, 0.25)
+        self.assertEqual(len(visits.visits), 1)
 
     def test_multiple_entrance_visits_do_not_use_low_fallback(self) -> None:
         visits = registry()

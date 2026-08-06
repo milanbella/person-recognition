@@ -148,6 +148,24 @@ class OperatorTestStoreTests(unittest.TestCase):
 
         self.assertEqual(annotation["payload"]["systemEventId"], 23)
 
+    def test_subject_mapping_does_not_require_a_physical_entry(self) -> None:
+        run = self.start_run()
+
+        annotation = self.store.create_annotation(
+            run["runId"],
+            {
+                "annotationType": "subject_visit_mapping",
+                "subjectId": "milan",
+                "visitId": 7,
+            },
+            system_snapshot={},
+            observation_reference=None,
+        )
+
+        self.assertIsNone(annotation["physicalVisitId"])
+        self.assertEqual(self.store.subject_visit_mapping(run["runId"], "milan"), 7)
+        self.assertEqual(self.store.physical_visits(run["runId"]), [])
+
 
 if __name__ == "__main__":
     unittest.main()

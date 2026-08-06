@@ -24,11 +24,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--state-db", type=Path, default=Path("state/shop_state.sqlite"))
     parser.add_argument("--realtime-model", default="gpt-realtime-2.1-mini")
     parser.add_argument("--realtime-voice", default="marin")
-    parser.add_argument("--transcription-model", default="gpt-live-transcribe")
+    parser.add_argument("--transcription-model", default="gpt-realtime-whisper")
     parser.add_argument("--idle-timeout-seconds", type=float, default=120.0)
     parser.add_argument("--max-session-seconds", type=float, default=2700.0)
     parser.add_argument("--event-poll-seconds", type=float, default=0.5)
     parser.add_argument("--allowed-origin", action="append", default=[])
+    parser.add_argument(
+        "--announce-major-events",
+        action="store_true",
+        help="Announce ENTRY/LEAVE transitions; query-driven mode is silent by default.",
+    )
     parser.add_argument(
         "--disable-transcript-retention",
         action="store_true",
@@ -65,6 +70,7 @@ def main() -> None:
         event_poll_seconds=args.event_poll_seconds,
         allowed_origins=tuple(args.allowed_origin),
         retain_transcripts=not args.disable_transcript_retention,
+        announce_major_events=args.announce_major_events,
     )
     uvicorn.run(create_voice_app(config), host=args.host, port=args.port, log_level="info")
 

@@ -17,6 +17,10 @@ PHYSICAL_ANNOTATION_TYPES = {
     "note",
     "system_event_correct",
     "system_event_incorrect",
+    "world_state_claim_correct",
+    "world_state_claim_incorrect",
+    "physical_subject_state",
+    "subject_visit_mapping",
 }
 
 OBSERVATION_ANNOTATION_TYPES = {

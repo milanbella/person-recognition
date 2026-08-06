@@ -7,8 +7,6 @@ from typing import Any, Mapping
 VOICE_EVENT_TYPES = {
     "entry_accepted",
     "leave_accepted",
-    "shelf_approach",
-    "shelf_departure",
 }
 
 
@@ -104,12 +102,4 @@ def event_summary(event: Mapping[str, Any]) -> str:
         return f"ENTRY detected for visit {visit_id} on {camera}. Is that correct?"
     if event_type == "leave_accepted":
         return f"LEAVE detected for visit {visit_id} on {camera}. Is that correct?"
-    payload = event.get("payload")
-    details = payload if isinstance(payload, Mapping) else {}
-    shelf_id = details.get("shelfId")
-    if event_type == "shelf_approach":
-        return f"Visit {visit_id} approached shelf {shelf_id}. Is that correct?"
-    if event_type == "shelf_departure":
-        return f"Visit {visit_id} left shelf {shelf_id}. Is that correct?"
     return f"{event_type.replace('_', ' ')} for visit {visit_id}. Is that correct?"
-
