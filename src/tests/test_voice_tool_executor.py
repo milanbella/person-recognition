@@ -87,6 +87,8 @@ class FakeOperatorClient:
                 "shelfPositionFreshness": "current",
                 "inside": True,
                 "visibleOnCameraIndexes": [0, 4],
+                "productId": "001",
+                "productLabel": "cola",
             },
             "visit": {
                 "visitId": 4,
@@ -110,6 +112,15 @@ class FakeOperatorClient:
 
     def shelf_world_state(self, shelf_id):
         return {"shelf": {"shelfId": shelf_id}}
+
+    def product_world_state(self, visit_id):
+        return {
+            "visitId": visit_id,
+            "freshness": "current",
+            "productRecognition": {
+                "bestCandidate": {"productId": "001", "label": "cola"}
+            },
+        }
 
     def camera_world_state(self, camera_index):
         self.requested_camera_state_indexes.append(camera_index)
@@ -193,6 +204,14 @@ class VoiceToolExecutorTests(unittest.TestCase):
         self.assertEqual(annotation["annotationType"], "world_state_claim_correct")
         self.assertEqual(annotation["worldStateRef"]["snapshotId"], "snapshot-1")
         self.assertEqual(annotation["systemValue"], 3)
+
+    def test_product_query_resolves_current_subject_visit(self) -> None:
+        result = self.executor.execute("get_product_state", {})
+
+        product = result.payload["productState"]["productRecognition"]
+        self.assertEqual(product["bestCandidate"]["productId"], "001")
+        definitions = {item["name"] for item in realtime_tool_definitions()}
+        self.assertIn("get_product_state", definitions)
 
     def test_subject_state_payload_omits_unbounded_face_and_track_history(self) -> None:
         result = self.executor.execute(

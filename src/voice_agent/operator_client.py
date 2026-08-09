@@ -54,6 +54,9 @@ class OperatorApiClient:
     def shelf_world_state(self, shelf_id: int) -> dict[str, Any]:
         return self._request("GET", f"/world-state/shelves/{shelf_id}")
 
+    def product_world_state(self, visit_id: int) -> dict[str, Any]:
+        return self._request("GET", f"/world-state/visits/{visit_id}/products")
+
     def camera_world_state(self, camera_index: int) -> dict[str, Any]:
         return self._request("GET", f"/world-state/cameras/{camera_index}")
 

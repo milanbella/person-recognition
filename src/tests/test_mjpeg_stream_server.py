@@ -1,12 +1,14 @@
 import threading
 import time
 import unittest
+from dataclasses import replace
 
 import numpy as np
 from fastapi import HTTPException
 
 from pipeline.mjpeg_stream_server import MjpegStreamServer
 from pipeline.observer_api import ObserverCameraSnapshot
+from pipeline.product_detection import ProductDetection, ProductRecognitionResult
 from pipeline.shelf_api import ShelfCameraSnapshot
 from pipeline.shelf_config import ShelfDefinition
 
@@ -59,6 +61,155 @@ class MjpegStreamServerTests(unittest.TestCase):
         reader.join(timeout=1.0)
         self.assertFalse(reader.is_alive())
         self.assertEqual(len(result), 1)
+
+    def test_product_recognition_publishes_payload_and_crop(self) -> None:
+        result = ProductRecognitionResult(
+            camera_index=0,
+            device_id="camera-a",
+            track_id=2,
+            scope="person",
+            rgb_sequence_number=10,
+            host_synced_seconds=2.0,
+            observed_at_unix_milliseconds=time.time_ns() // 1_000_000,
+            inference_milliseconds=30,
+            crop_box=(1, 2, 100, 200),
+            person_box_in_crop=(10, 20, 80, 180),
+            detections=(
+                ProductDetection(20, 30, 40, 60, 0.9, 1, "001_cola"),
+            ),
+            crop_jpeg=b"jpeg-data",
+        )
+
+        self.server.publish_product_recognition(
+            result,
+            visit_id=7,
+            customer_id=None,
+            max_age_seconds=3.0,
+        )
+
+        payload = self.server.product_recognition_payload(7)
+        self.assertEqual(payload["bestCandidate"]["productId"], "001")
+        route = next(
+            route
+            for route in self.server.app.routes
+            if getattr(route, "path", None)
+            == "/world-state/visits/{visit_id}/product-crop.jpg"
+        )
+        response = route.endpoint(7)
+        self.assertEqual(response.body, b"jpeg-data")
+
+        observations = self.server.product_camera_observations_payload(7)
+        self.assertEqual(len(observations["cameras"]), 2)
+        camera_a = observations["cameras"][0]
+        self.assertEqual(camera_a["status"], "recognized")
+        self.assertEqual(camera_a["trackId"], 2)
+        self.assertTrue(camera_a["cropAvailable"])
+        self.assertEqual(camera_a["candidates"][0]["label"], "cola")
+        camera_b = observations["cameras"][1]
+        self.assertEqual(camera_b["status"], "unknown")
+        self.assertFalse(camera_b["cropAvailable"])
+
+        observations_route = next(
+            route
+            for route in self.server.app.routes
+            if getattr(route, "path", None)
+            == "/world-state/visits/{visit_id}/product-observations"
+        )
+        self.assertEqual(
+            observations_route.endpoint(7)["cameras"][0]["cameraIndex"],
+            0,
+        )
+        crop_route = next(
+            route
+            for route in self.server.app.routes
+            if getattr(route, "path", None)
+            == (
+                "/world-state/visits/{visit_id}/product-observations/"
+                "{camera_index}/crop.jpg"
+            )
+        )
+        self.assertEqual(crop_route.endpoint(7, 0).body, b"jpeg-data")
+        with self.assertRaises(HTTPException) as missing_crop:
+            crop_route.endpoint(7, 1)
+        self.assertEqual(missing_crop.exception.status_code, 404)
+
+        snapshot_route = next(
+            route
+            for route in self.server.app.routes
+            if getattr(route, "path", None)
+            == (
+                "/world-state/visits/{visit_id}/product-observations/"
+                "{camera_index}/snapshot"
+            )
+        )
+        snapshot = snapshot_route.endpoint(7, 0)
+        self.assertEqual(snapshot["camera"]["trackId"], 2)
+        self.assertEqual(snapshot["requestedVisitId"], 7)
+
+        self.server.publish_product_recognition(
+            replace(
+                result,
+                observed_at_unix_milliseconds=(
+                    result.observed_at_unix_milliseconds + 1
+                ),
+                crop_jpeg=b"new-jpeg-data",
+            ),
+            visit_id=7,
+            customer_id=None,
+            max_age_seconds=3.0,
+        )
+        snapshot_crop_route = next(
+            route
+            for route in self.server.app.routes
+            if getattr(route, "path", None)
+            == "/product-observation-snapshots/{snapshot_id}/crop.jpg"
+        )
+        self.assertEqual(
+            snapshot_crop_route.endpoint(snapshot["snapshotId"]).body,
+            b"jpeg-data",
+        )
+
+    def test_full_frame_product_evidence_is_visible_without_visit_belief(self) -> None:
+        observed_ms = time.time_ns() // 1_000_000
+        result = ProductRecognitionResult(
+            camera_index=1,
+            device_id="camera-b",
+            track_id=None,
+            scope="full_frame",
+            rgb_sequence_number=20,
+            host_synced_seconds=3.0,
+            observed_at_unix_milliseconds=observed_ms,
+            inference_milliseconds=40,
+            crop_box=(0, 0, 1920, 1080),
+            person_box_in_crop=(0, 0, 1920, 1080),
+            detections=(
+                ProductDetection(100, 200, 300, 500, 0.8, 10, "010_mirinda"),
+            ),
+            crop_jpeg=b"full-frame-jpeg",
+        )
+
+        self.server.publish_camera_product_recognition(
+            result,
+            max_age_seconds=3.0,
+        )
+
+        visit_payload = self.server.product_recognition_payload(7)
+        self.assertEqual(visit_payload["status"], "unknown")
+        cameras = self.server.product_camera_observations_payload(7)["cameras"]
+        self.assertEqual(cameras[1]["scope"], "full_frame")
+        self.assertIsNone(cameras[1]["visitId"])
+        self.assertEqual(cameras[1]["bestCandidate"]["productId"], "010")
+
+        crop_route = next(
+            route
+            for route in self.server.app.routes
+            if getattr(route, "path", None)
+            == (
+                "/world-state/visits/{visit_id}/product-observations/"
+                "{camera_index}/crop.jpg"
+            )
+        )
+        self.assertEqual(crop_route.endpoint(7, 1).body, b"full-frame-jpeg")
 
     def test_rejects_unknown_camera_index(self) -> None:
         with self.assertRaises(KeyError):

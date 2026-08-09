@@ -82,6 +82,8 @@ class WorldStateProjector:
             visit["shelfCandidates"] = []
             visit["shelfMeasurements"] = []
             visit["shelfEngagementState"] = "stale"
+            visit["productRecognition"] = None
+            visit["productRecognitionHistory"] = []
             visit["visibility"] = "unknown"
             visit["freshness"] = "stale"
             visit["restoredFromPersistence"] = True
@@ -445,6 +447,8 @@ class WorldStateProjector:
                 visit["shelfCandidates"] = []
                 visit["shelfMeasurements"] = []
                 visit["shelfEngagementState"] = "none"
+                visit["productRecognition"] = None
+                visit["productRecognitionHistory"] = []
             self._next_revision()
             change_type = event_type or "visit_state_changed"
             self._persist(
@@ -457,6 +461,74 @@ class WorldStateProjector:
                         copy.deepcopy(visit),
                         now_ms,
                         host_synced_seconds=host_synced_seconds,
+                    )
+                ]
+            )
+
+    def publish_product_recognition(self, payload: Mapping[str, Any]) -> None:
+        visit_id = int(payload["visitId"])
+        now_ms = int(payload["observedAtUnixMilliseconds"])
+        with self._lock:
+            visit = self._visits.setdefault(
+                visit_id,
+                {"visitId": visit_id, "currentTracks": [], "freshness": "unknown"},
+            )
+            previous = visit.get("productRecognition")
+            history = [
+                dict(item)
+                for item in visit.get("productRecognitionHistory", [])
+                if now_ms - int(item["observedAtUnixMilliseconds"])
+                <= int(payload["maxAgeMilliseconds"])
+            ]
+            history.append(dict(payload))
+            candidate_evidence: dict[str, dict[str, Any]] = {}
+            for observation in history:
+                confirmed_labels: set[str] = set()
+                for candidate in observation.get("candidates", []):
+                    model_label = str(candidate["modelLabel"])
+                    evidence = candidate_evidence.setdefault(
+                        model_label,
+                        {
+                            **candidate,
+                            "confirmations": 0,
+                            "bestScore": 0.0,
+                            "latestScore": 0.0,
+                        },
+                    )
+                    if model_label not in confirmed_labels:
+                        evidence["confirmations"] += 1
+                        confirmed_labels.add(model_label)
+                    evidence["bestScore"] = max(
+                        float(evidence["bestScore"]), float(candidate["score"])
+                    )
+                    evidence["latestScore"] = float(candidate["score"])
+            candidates = sorted(
+                candidate_evidence.values(),
+                key=lambda item: (
+                    -int(item["confirmations"]),
+                    -float(item["bestScore"]),
+                    int(item["classId"]),
+                ),
+            )
+            recognition = {
+                **dict(payload),
+                "status": "recognized" if candidates else "no_product",
+                "bestCandidate": None if not candidates else candidates[0],
+                "candidates": candidates,
+            }
+            visit["productRecognitionHistory"] = history
+            visit["productRecognition"] = recognition
+            self._next_revision()
+            self._persist(
+                [
+                    self._change(
+                        "visit",
+                        visit_id,
+                        "product_recognition_updated",
+                        previous,
+                        copy.deepcopy(recognition),
+                        now_ms,
+                        host_synced_seconds=float(payload["hostSyncedSeconds"]),
                     )
                 ]
             )
@@ -637,6 +709,24 @@ class WorldStateProjector:
             )
             tracks.append(track)
         visit["currentTracks"] = tracks
+        recognition = visit.get("productRecognition")
+        if recognition is not None:
+            recognition = dict(recognition)
+            observed_ms = recognition.get("observedAtUnixMilliseconds")
+            age_ms = (
+                None
+                if observed_ms is None
+                else max(0, now_ms - int(observed_ms))
+            )
+            recognition["ageMilliseconds"] = age_ms
+            recognition["freshness"] = (
+                "unknown"
+                if age_ms is None
+                else "current"
+                if age_ms <= int(recognition.get("maxAgeMilliseconds", 3000))
+                else "stale"
+            )
+            visit["productRecognition"] = recognition
         candidates = [
             self._fresh_shelf_reference(dict(item), now_ms)
             for item in visit.get("shelfCandidates", [])

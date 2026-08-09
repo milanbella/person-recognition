@@ -12,6 +12,11 @@
     eventFeedback: new Map(),
     report: null,
     worldState: null,
+    productCameraEvidence: null,
+    frozenProductCameras: new Map(),
+    productFreezePending: new Set(),
+    productSnapshotVisitId: null,
+    visitProposals: new Map(),
     lastWorldPollAt: 0,
     pollTimer: null,
     runTimer: null,
@@ -191,6 +196,31 @@
 
   function selectedSubjectId() {
     return el("subject-select").value || null;
+  }
+
+  function subjectProposalKey() {
+    const runId = app.state?.activeRun?.runId;
+    const subjectId = selectedSubjectId();
+    return runId && subjectId ? `${runId}:${subjectId}` : null;
+  }
+
+  function visitMappingState(payload = app.worldState) {
+    const key = subjectProposalKey();
+    const resolution = payload?.resolution || {};
+    const visitId = resolution.visitId;
+    if (resolution.status === "confirmed" && Number.isInteger(visitId)) {
+      return {visitId, status: "confirmed", current: true};
+    }
+    if (
+      ["single_candidate", "single_observer_candidate"].includes(resolution.status)
+      && Number.isInteger(visitId)
+    ) {
+      const proposal = {visitId, status: resolution.status, current: true};
+      if (key) app.visitProposals.set(key, proposal);
+      return proposal;
+    }
+    const remembered = key ? app.visitProposals.get(key) : null;
+    return remembered ? {...remembered, current: false} : null;
   }
 
   function startPolling() {
@@ -503,10 +533,8 @@
     el("world-correct").disabled = !active || !app.worldState;
     const mapButton = el("map-subject-visit");
     if (mapButton) {
-      const resolution = app.worldState?.resolution || {};
-      const canMap = active
-        && ["single_candidate", "single_observer_candidate"].includes(resolution.status)
-        && Number.isInteger(resolution.visitId);
+      const mapping = visitMappingState();
+      const canMap = active && mapping && mapping.status !== "confirmed";
       mapButton.disabled = !canMap;
     }
   }
@@ -517,6 +545,8 @@
     const subjectId = selectedSubjectId();
     if (!run || !subjectId) {
       app.worldState = null;
+      app.productCameraEvidence = null;
+      resetProductSnapshots();
       renderWorldState();
       return;
     }
@@ -524,6 +554,22 @@
       app.worldState = await api(
         `/operator/api/test-runs/${encodeURIComponent(run.runId)}/subjects/${encodeURIComponent(subjectId)}/world-state?captureQuery=true&persistQuery=false`
       );
+      const visitId = app.worldState?.claims?.visitId;
+      if (Number.isInteger(visitId)) {
+        if (
+          Number.isInteger(app.productSnapshotVisitId)
+          && app.productSnapshotVisitId !== visitId
+        ) {
+          resetProductSnapshots();
+        }
+        app.productSnapshotVisitId = visitId;
+        app.productCameraEvidence = await api(
+          `/world-state/visits/${visitId}/product-observations`
+        );
+      } else {
+        app.productCameraEvidence = null;
+        resetProductSnapshots();
+      }
       renderWorldState();
     } catch (error) {
       el("world-state-summary").textContent = error.message;
@@ -540,6 +586,7 @@
       el("world-state-summary").textContent = "Start a test run to query subject state.";
       el("map-subject-visit").hidden = true;
       renderShelfPositionEvidence(null);
+      renderProductRecognition(null);
       setActionAvailability();
       return;
     }
@@ -556,10 +603,15 @@
       ? `Likely observer-only visit ${resolution.visitId}. The system sees this person but did not observe an entrance. Confirm if this is you.`
       : `Revision ${payload.revision} · ${claims.visibility || "unknown visibility"}`;
     const mapButton = el("map-subject-visit");
-    const canMap = ["single_candidate", "single_observer_candidate"].includes(resolution.status)
-      && Number.isInteger(resolution.visitId);
-    mapButton.hidden = !canMap;
-    mapButton.textContent = canMap ? `Use visit ${resolution.visitId} for me` : "Use proposed visit";
+    const mapping = visitMappingState(payload);
+    mapButton.hidden = !mapping;
+    mapButton.textContent = !mapping
+      ? "Use proposed visit"
+      : mapping.status === "confirmed"
+      ? `Using visit ${mapping.visitId} for me`
+      : mapping.current
+      ? `Use visit ${mapping.visitId} for me`
+      : `Use last proposed visit ${mapping.visitId} for me`;
     const rows = [
       ["Inside", displayWorldValue(claims.inside)],
       ["Entrance", displayWorldValue(claims.entranceConfirmed)],
@@ -567,6 +619,8 @@
       ["Visible cameras", (claims.visibleOnCameraIndexes || []).map((index) => index + 1).join(", ") || "none"],
       ["Shelf position", `${displayWorldValue(claims.shelfPositionId)} · ${claims.shelfPositionFreshness || "unknown"}`],
       ["Shelf distance", claims.shelfPositionDistanceMm == null ? "unknown" : `${Math.round(claims.shelfPositionDistanceMm)} mm`],
+      ["Product", claims.productLabel == null ? "unknown" : `${claims.productLabel} (${claims.productId})`],
+      ["Product freshness", claims.productRecognitionFreshness || "unknown"],
     ];
     rows.forEach(([key, value]) => {
       const dt = document.createElement("dt");
@@ -576,8 +630,167 @@
       details.append(dt, dd);
     });
     renderShelfPositionEvidence(payload);
+    renderProductRecognition(payload);
     setActionAvailability();
   }
+
+  function renderProductRecognition(payload) {
+    const recognition = payload?.visit?.productRecognition;
+    const summary = el("product-recognition-summary");
+    const evidence = el("product-camera-evidence");
+    evidence.replaceChildren();
+    const cameraEvidence = app.productCameraEvidence;
+    if (!payload || !cameraEvidence) {
+      summary.textContent = "No product evidence for this visit.";
+      updateProductFreezeAllControl([]);
+      return;
+    }
+    const best = recognition?.bestCandidate;
+    const cameras = cameraEvidence.cameras || [];
+    const fullFrameDebug = cameras.some(
+      (camera) => camera.scope === "full_frame"
+    );
+    const frozenCount = cameras.filter(
+      (camera) => app.frozenProductCameras.has(camera.cameraIndex)
+    ).length;
+    const beliefSummary = fullFrameDebug
+      ? "Full-frame debug mode: camera detections are shown but are not treated as products held by this visit."
+      : best
+      ? `Visit belief: ${best.label} · ${(100 * (best.bestScore ?? best.score ?? 0)).toFixed(0)}% · ${best.confirmations ?? 1} confirmation(s)`
+      : "Visit belief: no product detected.";
+    summary.textContent = frozenCount
+      ? `${beliefSummary} ${frozenCount} camera snapshot(s) frozen.`
+      : beliefSummary;
+    updateProductFreezeAllControl(cameras);
+    cameras.forEach((camera) => {
+      const snapshot = app.frozenProductCameras.get(camera.cameraIndex);
+      const displayedCamera = snapshot?.camera || camera;
+      const frozen = Boolean(snapshot);
+      const card = document.createElement("article");
+      card.className = `product-camera-card ${displayedCamera.freshness || "unknown"} ${frozen ? "frozen" : ""}`;
+
+      const heading = document.createElement("div");
+      heading.className = "product-camera-heading";
+      const title = document.createElement("strong");
+      title.textContent = `Camera ${camera.cameraIndex + 1}`;
+      const actions = document.createElement("div");
+      actions.className = "product-camera-heading-actions";
+      const state = document.createElement("span");
+      state.className = frozen ? "product-camera-frozen-label" : "";
+      state.textContent = frozen ? "FROZEN" : displayedCamera.freshness || "unknown";
+      const freeze = document.createElement("button");
+      freeze.type = "button";
+      freeze.className = "button product-camera-freeze";
+      freeze.textContent = frozen ? "Resume" : "Freeze";
+      freeze.disabled = (
+        !displayedCamera.cropAvailable
+        || app.productFreezePending.has(camera.cameraIndex)
+      );
+      freeze.addEventListener("click", () => {
+        if (frozen) {
+          app.frozenProductCameras.delete(camera.cameraIndex);
+          renderProductRecognition(app.worldState);
+        } else {
+          void freezeProductCamera(camera.cameraIndex);
+        }
+      });
+      actions.append(state, freeze);
+      heading.append(title, actions);
+      card.append(heading);
+
+      const metadata = document.createElement("p");
+      metadata.className = "product-camera-metadata";
+      const captured = snapshot
+        ? `frozen ${new Date(snapshot.capturedAtUnixMilliseconds).toLocaleTimeString()}`
+        : `${displayedCamera.ageMilliseconds} ms old`;
+      metadata.textContent = displayedCamera.cropAvailable
+        ? `${displayedCamera.scope === "full_frame" ? "full frame" : `track ${displayedCamera.trackId}`} · frame ${displayedCamera.rgbSequenceNumber} · ${captured} · ${displayedCamera.inferenceMilliseconds} ms inference`
+        : "No person crop has been processed for this visit.";
+      card.append(metadata);
+
+      if (displayedCamera.cropAvailable) {
+        const image = document.createElement("img");
+        image.loading = "lazy";
+        image.alt = `Camera ${camera.cameraIndex + 1} product detections for visit ${cameraEvidence.visitId}`;
+        image.src = snapshot?.imageUrl
+          || `/world-state/visits/${cameraEvidence.visitId}/product-observations/${camera.cameraIndex}/crop.jpg?observed=${displayedCamera.observedAtUnixMilliseconds}`;
+        card.append(image);
+      }
+
+      const list = document.createElement("ul");
+      list.className = "product-candidate-list";
+      (displayedCamera.candidates || []).forEach((candidate) => {
+        const item = document.createElement("li");
+        item.textContent = `${candidate.productId} · ${candidate.label} · ${(100 * (candidate.score ?? 0)).toFixed(0)}%`;
+        list.append(item);
+      });
+      if (!list.childElementCount && displayedCamera.cropAvailable) {
+        const item = document.createElement("li");
+        item.textContent = displayedCamera.scope === "full_frame"
+          ? "No products detected in this frame."
+          : "No products detected in this crop.";
+        list.append(item);
+      }
+      card.append(list);
+      evidence.append(card);
+    });
+  }
+
+  function resetProductSnapshots() {
+    app.frozenProductCameras.clear();
+    app.productFreezePending.clear();
+    app.productSnapshotVisitId = null;
+  }
+
+  function updateProductFreezeAllControl(cameras) {
+    const button = el("freeze-all-products");
+    const available = cameras.filter((camera) => camera.cropAvailable);
+    const allFrozen = (
+      available.length > 0
+      && available.every((camera) => app.frozenProductCameras.has(camera.cameraIndex))
+    );
+    button.disabled = !available.length || app.productFreezePending.size > 0;
+    button.textContent = allFrozen ? "Resume all" : "Freeze all";
+  }
+
+  async function freezeProductCamera(cameraIndex, render = true) {
+    const visitId = app.productCameraEvidence?.visitId;
+    if (!Number.isInteger(visitId) || app.productFreezePending.has(cameraIndex)) return;
+    app.productFreezePending.add(cameraIndex);
+    if (render) renderProductRecognition(app.worldState);
+    try {
+      const snapshot = await api(
+        `/world-state/visits/${visitId}/product-observations/${cameraIndex}/snapshot`,
+        {method: "POST"}
+      );
+      if (app.productCameraEvidence?.visitId === visitId) {
+        app.frozenProductCameras.set(cameraIndex, snapshot);
+      }
+    } catch (error) {
+      showToast(error.message);
+    } finally {
+      app.productFreezePending.delete(cameraIndex);
+      if (render) renderProductRecognition(app.worldState);
+    }
+  }
+
+  el("freeze-all-products").addEventListener("click", async () => {
+    const cameras = (app.productCameraEvidence?.cameras || []).filter(
+      (camera) => camera.cropAvailable
+    );
+    if (!cameras.length) return;
+    if (cameras.every((camera) => app.frozenProductCameras.has(camera.cameraIndex))) {
+      app.frozenProductCameras.clear();
+      renderProductRecognition(app.worldState);
+      return;
+    }
+    await Promise.all(
+      cameras
+        .filter((camera) => !app.frozenProductCameras.has(camera.cameraIndex))
+        .map((camera) => freezeProductCamera(camera.cameraIndex, false))
+    );
+    renderProductRecognition(app.worldState);
+  });
 
   function renderShelfPositionEvidence(payload) {
     const container = el("shelf-position-evidence");
@@ -680,12 +893,15 @@
   el("world-confirm").addEventListener("click", () => annotateWorldClaim(true));
   el("world-correct").addEventListener("click", () => annotateWorldClaim(false));
   el("map-subject-visit").addEventListener("click", async () => {
-    const visitId = app.worldState?.resolution?.visitId;
+    const visitId = visitMappingState()?.visitId;
     if (!Number.isInteger(visitId)) return showToast("No single proposed visit is available.");
     const response = await annotate("subject_visit_mapping", {visitId});
     if (response) await pollWorldState();
   });
-  el("subject-select").addEventListener("change", () => void pollWorldState());
+  el("subject-select").addEventListener("change", () => {
+    resetProductSnapshots();
+    void pollWorldState();
+  });
 
   async function annotate(annotationType, extra = {}, withObservation = false) {
     const run = app.state?.activeRun;

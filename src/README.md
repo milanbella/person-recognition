@@ -141,6 +141,7 @@ The old on-device `RVC2` experiment scripts were intentionally removed.
   - the operator console reuses raw MJPEG plus observer JSON and draws selectable person boxes in the browser; it does not run another detector
   - accepted entry/leave, visit assignment, customer binding, track, and camera transitions are available through `/operator/api/events`; current shelf position is exposed through world state
   - continuously materializes system-believed shop state in the same SQLite DB and exposes it through `/world-state`; this read API is available whenever MJPEG streaming is enabled, even when the operator console is disabled
+  - optionally runs `../models/best.onnx` asynchronously on expanded full-resolution person crops with `--enable-product-recognition`; fixed batch-three inference never blocks person tracking and stale crop jobs are replaced by newer ones
 
 ## System-Believed World State
 
@@ -163,6 +164,10 @@ Entity endpoints:
 ```text
 GET /world-state/visits/{visit_id}
 GET /world-state/visits/{visit_id}/shelf-position
+GET /world-state/visits/{visit_id}/products
+GET /world-state/visits/{visit_id}/product-crop.jpg
+GET /world-state/visits/{visit_id}/product-observations
+GET /world-state/visits/{visit_id}/product-observations/{camera_index}/crop.jpg
 GET /world-state/shelves/{shelf_id}
 GET /world-state/cameras/{camera_index}
 GET /world-state/revisions/{revision}
@@ -178,6 +183,36 @@ The response includes the selected `position` plus `measurements` for every
 camera/marker distance that participated in the decision. Camera indexes in the
 API are zero-based; the operator console displays them as Camera 1, Camera 2,
 and so on.
+
+Enable product recognition and query the latest result associated with a
+visit:
+
+```bash
+python ./live_synced_rgbd_streams.py ... \
+  --enable-product-recognition \
+  --log-product-recognition
+
+curl -s http://127.0.0.1:8002/world-state/visits/1/products | jq
+```
+
+Product inference uses the synchronized raw RGB image, expands each active
+person rectangle by 30%, letterboxes that crop to the model's fixed
+`1280x1280` input, and batches up to three crops. The result means a product
+was recognized near the person; it does not by itself prove the product is
+physically held.
+
+For detector debugging, disable person cropping and scan every complete raw
+camera frame:
+
+```bash
+python ./live_synced_rgbd_streams.py ... \
+  --enable-product-recognition \
+  --product-full-frame \
+  --log-product-recognition
+```
+
+Full-frame results appear in the operator console's per-camera product cards,
+but are deliberately not promoted to a visit's held-product belief.
 
 Current rows are checkpointed asynchronously in `state/shop_state.sqlite`.
 Observation writes are coalesced so camera processing does not wait for SQLite.

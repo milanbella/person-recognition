@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import copy
 import threading
 import time
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterator
@@ -10,12 +12,16 @@ import cv2
 import numpy as np
 import uvicorn
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 
 from pipeline.observer_api import ObserverCameraSnapshot, observer_snapshot_payload
 from pipeline.operator_api import create_operator_router
 from pipeline.operator_state import OperatorState
 from pipeline.operator_test_store import OperatorTestStore
+from pipeline.product_detection import (
+    ProductRecognitionResult,
+    product_recognition_payload,
+)
 from pipeline.shelf_api import (
     ShelfCameraSnapshot,
     shelf_camera_snapshot_payload,
@@ -89,6 +95,18 @@ class MjpegStreamServer:
         self._server_error: BaseException | None = None
         self._shelf_statuses: tuple[ShelfProximityStatus, ...] = ()
         self._shelf_event_payloads: dict[int, dict[str, object]] = {}
+        self._product_payloads_by_visit: dict[int, dict[str, object]] = {}
+        self._product_crop_jpegs_by_visit: dict[int, bytes] = {}
+        self._product_payloads_by_visit_camera: dict[
+            tuple[int, int], dict[str, object]
+        ] = {}
+        self._product_crop_jpegs_by_visit_camera: dict[tuple[int, int], bytes] = {}
+        self._product_payloads_by_camera: dict[int, dict[str, object]] = {}
+        self._product_crop_jpegs_by_camera: dict[int, bytes] = {}
+        self._product_camera_snapshots: dict[
+            str, tuple[dict[str, object], bytes]
+        ] = {}
+        self._max_product_camera_snapshots = 100
         effective_world_state_db = (
             operator_state_db if world_state_db is None else world_state_db
         )
@@ -197,6 +215,92 @@ class MjpegStreamServer:
             with self._condition:
                 statuses = self._shelf_statuses
             return shelf_status_payload(statuses)
+
+        @app.get("/world-state/visits/{visit_id}/product-crop.jpg")
+        def visit_product_crop(visit_id: int) -> Response:
+            with self._condition:
+                jpeg = self._product_crop_jpegs_by_visit.get(visit_id)
+            if jpeg is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"No product crop is available for visit {visit_id}.",
+                )
+            return Response(
+                content=jpeg,
+                media_type="image/jpeg",
+                headers={"Cache-Control": "no-store, max-age=0"},
+            )
+
+        @app.get("/world-state/visits/{visit_id}/product-observations")
+        def visit_product_observations(visit_id: int) -> dict[str, object]:
+            return self.product_camera_observations_payload(visit_id)
+
+        @app.get(
+            "/world-state/visits/{visit_id}/product-observations/"
+            "{camera_index}/crop.jpg"
+        )
+        def visit_camera_product_crop(visit_id: int, camera_index: int) -> Response:
+            if camera_index not in self._cameras:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Camera index {camera_index} is not configured.",
+                )
+            with self._condition:
+                evidence = self._latest_camera_product_evidence_locked(
+                    visit_id,
+                    camera_index,
+                )
+                jpeg = None if evidence is None else evidence[1]
+            if jpeg is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail=(
+                        "No product crop is available for visit "
+                        f"{visit_id} on camera {camera_index}."
+                    ),
+                )
+            return Response(
+                content=jpeg,
+                media_type="image/jpeg",
+                headers={"Cache-Control": "no-store, max-age=0"},
+            )
+
+        @app.post(
+            "/world-state/visits/{visit_id}/product-observations/"
+            "{camera_index}/snapshot"
+        )
+        def create_visit_camera_product_snapshot(
+            visit_id: int,
+            camera_index: int,
+        ) -> dict[str, object]:
+            if camera_index not in self._cameras:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Camera index {camera_index} is not configured.",
+                )
+            try:
+                return self.create_product_camera_snapshot(
+                    visit_id=visit_id,
+                    camera_index=camera_index,
+                )
+            except KeyError as error:
+                raise HTTPException(status_code=404, detail=str(error)) from error
+
+        @app.get("/product-observation-snapshots/{snapshot_id}/crop.jpg")
+        def product_camera_snapshot_crop(snapshot_id: str) -> Response:
+            with self._condition:
+                snapshot = self._product_camera_snapshots.get(snapshot_id)
+                jpeg = None if snapshot is None else snapshot[1]
+            if jpeg is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Product snapshot {snapshot_id} is not available.",
+                )
+            return Response(
+                content=jpeg,
+                media_type="image/jpeg",
+                headers={"Cache-Control": "private, max-age=31536000, immutable"},
+            )
 
         @app.get("/shelf-events")
         def shelf_events(
@@ -344,6 +448,193 @@ class MjpegStreamServer:
             self.operator_state.publish_observer_snapshot(snapshot)
         if self.world_state is not None:
             self.world_state.publish_observer_snapshot(snapshot)
+
+    def publish_product_recognition(
+        self,
+        result: ProductRecognitionResult,
+        *,
+        visit_id: int,
+        customer_id: str | None,
+        max_age_seconds: float,
+    ) -> None:
+        payload = product_recognition_payload(
+            result,
+            visit_id=visit_id,
+            customer_id=customer_id,
+            max_age_seconds=max_age_seconds,
+        )
+        with self._condition:
+            self._product_payloads_by_visit[visit_id] = payload
+            self._product_crop_jpegs_by_visit[visit_id] = result.crop_jpeg
+            camera_key = (visit_id, result.camera_index)
+            self._product_payloads_by_visit_camera[camera_key] = payload
+            self._product_crop_jpegs_by_visit_camera[camera_key] = result.crop_jpeg
+        if self.world_state is not None:
+            self.world_state.publish_product_recognition(payload)
+
+    def publish_camera_product_recognition(
+        self,
+        result: ProductRecognitionResult,
+        *,
+        max_age_seconds: float,
+    ) -> None:
+        payload = product_recognition_payload(
+            result,
+            visit_id=None,
+            customer_id=None,
+            max_age_seconds=max_age_seconds,
+        )
+        with self._condition:
+            self._product_payloads_by_camera[result.camera_index] = payload
+            self._product_crop_jpegs_by_camera[result.camera_index] = (
+                result.crop_jpeg
+            )
+
+    def product_recognition_payload(self, visit_id: int) -> dict[str, object]:
+        now_ms = time.time_ns() // 1_000_000
+        with self._condition:
+            payload = copy.deepcopy(self._product_payloads_by_visit.get(visit_id))
+        if payload is None:
+            return {
+                "status": "unknown",
+                "freshness": "unknown",
+                "visitId": visit_id,
+                "bestCandidate": None,
+                "candidates": [],
+            }
+        observed_ms = int(payload["observedAtUnixMilliseconds"])
+        age_ms = max(0, now_ms - observed_ms)
+        payload["ageMilliseconds"] = age_ms
+        payload["freshness"] = (
+            "current"
+            if age_ms <= int(payload["maxAgeMilliseconds"])
+            else "stale"
+        )
+        return payload
+
+    def product_camera_observations_payload(
+        self,
+        visit_id: int,
+    ) -> dict[str, object]:
+        now_ms = time.time_ns() // 1_000_000
+        with self._condition:
+            observations: dict[int, dict[str, object]] = {}
+            for camera_index in self._cameras:
+                evidence = self._latest_camera_product_evidence_locked(
+                    visit_id,
+                    camera_index,
+                )
+                if evidence is not None:
+                    observations[camera_index] = copy.deepcopy(evidence[0])
+
+        cameras: list[dict[str, object]] = []
+        for camera_index, camera in self._cameras.items():
+            payload = observations.get(camera_index)
+            if payload is None:
+                cameras.append(
+                    {
+                        "cameraIndex": camera_index,
+                        "deviceId": camera.device_id,
+                        "cameraRole": camera.camera_role,
+                        "visitId": visit_id,
+                        "status": "unknown",
+                        "freshness": "unknown",
+                        "cropAvailable": False,
+                        "bestCandidate": None,
+                        "candidates": [],
+                    }
+                )
+                continue
+            observed_ms = int(payload["observedAtUnixMilliseconds"])
+            age_ms = max(0, now_ms - observed_ms)
+            payload["ageMilliseconds"] = age_ms
+            payload["freshness"] = (
+                "current"
+                if age_ms <= int(payload["maxAgeMilliseconds"])
+                else "stale"
+            )
+            payload["cameraRole"] = camera.camera_role
+            payload["cropAvailable"] = True
+            cameras.append(payload)
+        return {
+            "visitId": visit_id,
+            "generatedAtUnixMilliseconds": now_ms,
+            "cameras": cameras,
+        }
+
+    def create_product_camera_snapshot(
+        self,
+        *,
+        visit_id: int,
+        camera_index: int,
+    ) -> dict[str, object]:
+        if camera_index not in self._cameras:
+            raise KeyError(f"Camera index {camera_index} is not configured.")
+        snapshot_id = uuid.uuid4().hex
+        captured_ms = time.time_ns() // 1_000_000
+        with self._condition:
+            evidence = self._latest_camera_product_evidence_locked(
+                visit_id,
+                camera_index,
+            )
+            if evidence is None:
+                raise KeyError(
+                    "No product evidence is available for visit "
+                    f"{visit_id} on camera {camera_index}."
+                )
+            payload = copy.deepcopy(evidence[0])
+            jpeg = evidence[1]
+            observed_ms = int(payload["observedAtUnixMilliseconds"])
+            age_ms = max(0, captured_ms - observed_ms)
+            payload["ageMilliseconds"] = age_ms
+            payload["freshness"] = (
+                "current"
+                if age_ms <= int(payload["maxAgeMilliseconds"])
+                else "stale"
+            )
+            payload["cameraRole"] = self._cameras[camera_index].camera_role
+            payload["cropAvailable"] = True
+            self._product_camera_snapshots[snapshot_id] = (payload, jpeg)
+            while (
+                len(self._product_camera_snapshots)
+                > self._max_product_camera_snapshots
+            ):
+                oldest_snapshot_id = next(iter(self._product_camera_snapshots))
+                del self._product_camera_snapshots[oldest_snapshot_id]
+        return {
+            "snapshotId": snapshot_id,
+            "requestedVisitId": visit_id,
+            "capturedAtUnixMilliseconds": captured_ms,
+            "camera": payload,
+            "imageUrl": (
+                f"/product-observation-snapshots/{snapshot_id}/crop.jpg"
+            ),
+        }
+
+    def _latest_camera_product_evidence_locked(
+        self,
+        visit_id: int,
+        camera_index: int,
+    ) -> tuple[dict[str, object], bytes] | None:
+        candidates: list[tuple[dict[str, object], bytes]] = []
+        visit_payload = self._product_payloads_by_visit_camera.get(
+            (visit_id, camera_index)
+        )
+        visit_jpeg = self._product_crop_jpegs_by_visit_camera.get(
+            (visit_id, camera_index)
+        )
+        if visit_payload is not None and visit_jpeg is not None:
+            candidates.append((visit_payload, visit_jpeg))
+        camera_payload = self._product_payloads_by_camera.get(camera_index)
+        camera_jpeg = self._product_crop_jpegs_by_camera.get(camera_index)
+        if camera_payload is not None and camera_jpeg is not None:
+            candidates.append((camera_payload, camera_jpeg))
+        if not candidates:
+            return None
+        return max(
+            candidates,
+            key=lambda item: int(item[0]["observedAtUnixMilliseconds"]),
+        )
 
     def observer_snapshot_payload(self, camera_index: int) -> dict[str, object]:
         if camera_index not in self._cameras:

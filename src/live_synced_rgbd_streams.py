@@ -72,6 +72,13 @@ from pipeline.face_identity import (
 from pipeline.mjpeg_stream_server import MjpegStreamServer
 from pipeline.observer_api import ObserverCameraSnapshot, build_observer_camera_snapshot
 from pipeline.performance import LivePerformanceLogger
+from pipeline.product_detection import (
+    DEFAULT_PRODUCT_MODEL,
+    ProductCropRequest,
+    ProductRecognitionWorker,
+    YoloOnnxProductDetector,
+    expanded_person_crop,
+)
 from pipeline.rgbd_recording import DEFAULT_PLANE_CALIBRATIONS_DIR
 from pipeline.shelf_anchors import (
     ShelfAnchorManager,
@@ -121,6 +128,9 @@ DEFAULT_LIVE_FRAME_WIDTH = 1920
 DEFAULT_LIVE_FRAME_HEIGHT = 1080
 DEFAULT_LIVE_PROCESSING_WIDTH = 1280
 DEFAULT_LIVE_PROCESSING_HEIGHT = 720
+CAMERA_CONNECT_ATTEMPTS = 5
+CAMERA_CONNECT_RETRY_DELAY_SECONDS = 2.0
+CAMERA_START_DELAY_SECONDS = 1.0
 
 
 @dataclass
@@ -475,6 +485,56 @@ def build_argparser() -> argparse.ArgumentParser:
         action="store_true",
         help="Log detailed shelf person-distance diagnostics.",
     )
+    parser.add_argument(
+        "--enable-product-recognition",
+        action="store_true",
+        help="Recognize products near active person tracks using expanded raw RGB crops.",
+    )
+    parser.add_argument(
+        "--product-model",
+        type=Path,
+        default=DEFAULT_PRODUCT_MODEL,
+        help="Custom product YOLO ONNX model. Default: ../models/best.onnx.",
+    )
+    parser.add_argument(
+        "--product-full-frame",
+        action="store_true",
+        help=(
+            "Debug product recognition on each complete raw camera frame instead "
+            "of person crops. Results are camera evidence, not held-product claims."
+        ),
+    )
+    parser.add_argument("--product-score-threshold", type=float, default=0.15)
+    parser.add_argument("--product-nms-threshold", type=float, default=0.45)
+    parser.add_argument(
+        "--product-scan-interval-seconds",
+        type=float,
+        default=1.0,
+        help="Minimum interval between product scans for one camera track.",
+    )
+    parser.add_argument(
+        "--product-crop-margin",
+        type=float,
+        default=0.30,
+        help="Expansion around the raw-frame person rectangle. Default: 0.30.",
+    )
+    parser.add_argument(
+        "--product-association-margin",
+        type=float,
+        default=0.10,
+        help="Allowed product-center margin outside the person rectangle.",
+    )
+    parser.add_argument(
+        "--product-result-max-age-seconds",
+        type=float,
+        default=3.0,
+        help="Age after which a product result is reported stale.",
+    )
+    parser.add_argument(
+        "--log-product-recognition",
+        action="store_true",
+        help="Log product inference timing and recognized candidates.",
+    )
     parser.add_argument("--detector-backend", choices=DETECTOR_BACKEND_CHOICES, default=DEFAULT_PERSON_DETECTOR_BACKEND)
     parser.add_argument("--model", type=Path, default=DEFAULT_PERSON_DETECTOR_MODEL)
     parser.add_argument("--input-width", type=int, default=DEFAULT_DETECTION_INPUT_WIDTH)
@@ -554,14 +614,54 @@ def resolve_camera_roles(args: argparse.Namespace) -> list[str]:
 
 
 def resolve_live_device(device_id: str) -> dai.Device:
-    available = list_available_devices()
-    matching = [info for info in available if device_identifier(info) == device_id]
-    if not matching:
-        available_ids = ", ".join(device_identifier(info) for info in available) or "none"
-        raise RuntimeError(f"Requested device-id '{device_id}' not found. Available device ids: {available_ids}")
-    device = dai.Device(device_id)
-    configure_live_device(device)
-    return device
+    last_error: Exception | None = None
+    for attempt in range(1, CAMERA_CONNECT_ATTEMPTS + 1):
+        device: dai.Device | None = None
+        try:
+            # Enumeration is intentionally repeated because OAK devices can be
+            # temporarily absent while another camera starts or USB resets.
+            available = list_available_devices()
+            matching = [
+                info for info in available if device_identifier(info) == device_id
+            ]
+            if not matching:
+                available_ids = (
+                    ", ".join(device_identifier(info) for info in available)
+                    or "none"
+                )
+                raise RuntimeError(
+                    f"Requested device-id '{device_id}' not found. "
+                    f"Available device ids: {available_ids}"
+                )
+            device = dai.Device(device_id)
+            configure_live_device(device)
+            if attempt > 1:
+                print(
+                    f"CAMERA_CONNECT_RECOVERED device_id={device_id} "
+                    f"attempt={attempt}/{CAMERA_CONNECT_ATTEMPTS}"
+                )
+            return device
+        except Exception as exc:
+            last_error = exc
+            if device is not None:
+                try:
+                    device.close()
+                except Exception:
+                    pass
+            if attempt >= CAMERA_CONNECT_ATTEMPTS:
+                break
+            print(
+                f"CAMERA_CONNECT_RETRY device_id={device_id} "
+                f"attempt={attempt}/{CAMERA_CONNECT_ATTEMPTS} "
+                f"retry_in_seconds={CAMERA_CONNECT_RETRY_DELAY_SECONDS:.1f} "
+                f"error={exc}"
+            )
+            time.sleep(CAMERA_CONNECT_RETRY_DELAY_SECONDS)
+
+    raise RuntimeError(
+        f"Failed to connect to device '{device_id}' after "
+        f"{CAMERA_CONNECT_ATTEMPTS} attempts. Last error: {last_error}"
+    ) from last_error
 
 
 def drain_latest_message(queue: dai.MessageQueue) -> Any | None:
@@ -942,10 +1042,12 @@ def rgb_depth_pair_is_synchronized(
 
 def process_latest_rgb_pair(
     *,
+    camera_index: int,
     state: LiveSyncedStreamState,
     detector: PersonDetector,
     face_matcher: FaceRecognizer | None,
     body_evidence_extractor: BodyEvidenceExtractor,
+    product_worker: ProductRecognitionWorker | None,
     args: argparse.Namespace,
     performance: LivePerformanceLogger,
 ) -> bool:
@@ -1023,6 +1125,65 @@ def process_latest_rgb_pair(
         target_height=raw_rgb_frame.shape[0],
     )
     performance.record_duration("tracking", tracking_started)
+
+    if product_worker is not None:
+        product_crop_started = performance.start()
+        if args.product_full_frame:
+            if product_worker.is_due(
+                camera_index,
+                None,
+                processing_rgb_host_synced_seconds,
+            ):
+                raw_height, raw_width = raw_rgb_frame.shape[:2]
+                product_worker.submit(
+                    ProductCropRequest(
+                        camera_index=camera_index,
+                        device_id=state.device_id,
+                        track_id=None,
+                        scope="full_frame",
+                        rgb_sequence_number=rgb_sequence,
+                        host_synced_seconds=processing_rgb_host_synced_seconds,
+                        submitted_at_unix_milliseconds=time.time_ns()
+                        // 1_000_000,
+                        crop_box=(0, 0, raw_width, raw_height),
+                        person_box_in_crop=(0, 0, raw_width, raw_height),
+                        crop=raw_rgb_frame.copy(),
+                    )
+                )
+        else:
+            for track in display_tracks:
+                if track.status not in {"NEW", "TRACKED"}:
+                    continue
+                if not product_worker.is_due(
+                    camera_index,
+                    track.track_id,
+                    processing_rgb_host_synced_seconds,
+                ):
+                    continue
+                try:
+                    crop, crop_box, person_box_in_crop = expanded_person_crop(
+                        raw_rgb_frame,
+                        (track.x1, track.y1, track.x2, track.y2),
+                        margin_fraction=args.product_crop_margin,
+                    )
+                except ValueError:
+                    continue
+                product_worker.submit(
+                    ProductCropRequest(
+                        camera_index=camera_index,
+                        device_id=state.device_id,
+                        track_id=track.track_id,
+                        scope="person",
+                        rgb_sequence_number=rgb_sequence,
+                        host_synced_seconds=processing_rgb_host_synced_seconds,
+                        submitted_at_unix_milliseconds=time.time_ns()
+                        // 1_000_000,
+                        crop_box=crop_box,
+                        person_box_in_crop=person_box_in_crop,
+                        crop=crop,
+                    )
+                )
+        performance.record_duration("product_crop", product_crop_started)
     performance.record_processed_frame(
         detection_count=len(detections),
         track_count=len(processing_tracks),
@@ -1850,6 +2011,16 @@ def main() -> None:
         raise ValueError("--frame-width and --frame-height must be greater than zero.")
     if args.performance_log_interval_seconds <= 0:
         raise ValueError("--performance-log-interval-seconds must be greater than zero.")
+    if not 0.0 <= args.product_score_threshold <= 1.0:
+        raise ValueError("--product-score-threshold must be between zero and one.")
+    if not 0.0 <= args.product_nms_threshold <= 1.0:
+        raise ValueError("--product-nms-threshold must be between zero and one.")
+    if args.product_scan_interval_seconds <= 0.0:
+        raise ValueError("--product-scan-interval-seconds must be greater than zero.")
+    if args.product_crop_margin < 0.0 or args.product_association_margin < 0.0:
+        raise ValueError("Product crop and association margins must not be negative.")
+    if args.product_result_max_age_seconds <= 0.0:
+        raise ValueError("--product-result-max-age-seconds must be greater than zero.")
 
     stop_requested = threading.Event()
     performance = LivePerformanceLogger(
@@ -1881,6 +2052,18 @@ def main() -> None:
             f"shelves={len(shelf_config.shelves)} mode=nearest_distance"
         )
     detector = build_person_detector(args)
+    product_worker: ProductRecognitionWorker | None = None
+    if args.enable_product_recognition:
+        product_worker = ProductRecognitionWorker(
+            YoloOnnxProductDetector(
+                args.product_model,
+                score_threshold=args.product_score_threshold,
+                nms_threshold=args.product_nms_threshold,
+            ),
+            scan_interval_seconds=args.product_scan_interval_seconds,
+            association_margin_fraction=args.product_association_margin,
+            log_results=args.log_product_recognition,
+        )
     face_matcher = build_face_recognizer(args)
     body_evidence_extractor = build_body_evidence_extractor(args)
     visit_registry = VisitRegistry(
@@ -1922,6 +2105,8 @@ def main() -> None:
     stream_server: MjpegStreamServer | None = None
     states: list[LiveSyncedStreamState] = []
     try:
+        if product_worker is not None:
+            product_worker.start()
         if not args.disable_streaming:
             stream_server = MjpegStreamServer(
                 camera_device_ids=list(args.device_id),
@@ -1950,16 +2135,30 @@ def main() -> None:
                 )
 
         with ExitStack() as stack:
-            states = [
-                create_live_stream_state(
-                    device_id=device_id,
-                    camera_role=camera_role,
-                    args=args,
-                    stack=stack,
-                    shelf_config=shelf_config,
+            camera_specs = list(zip(args.device_id, camera_roles))
+            for camera_position, (device_id, camera_role) in enumerate(
+                camera_specs,
+                start=1,
+            ):
+                if stop_requested.is_set():
+                    break
+                states.append(
+                    create_live_stream_state(
+                        device_id=device_id,
+                        camera_role=camera_role,
+                        args=args,
+                        stack=stack,
+                        shelf_config=shelf_config,
+                    )
                 )
-                for device_id, camera_role in zip(args.device_id, camera_roles)
-            ]
+                if camera_position < len(camera_specs):
+                    print(
+                        f"CAMERA_START_DELAY completed={camera_position}/"
+                        f"{len(camera_specs)} delay_seconds="
+                        f"{CAMERA_START_DELAY_SECONDS:.1f}"
+                    )
+                    if stop_requested.wait(CAMERA_START_DELAY_SECONDS):
+                        break
             print(
                 "Camera roles: "
                 + ", ".join(f"{state.device_id}={state.camera_role}" for state in states)
@@ -1982,10 +2181,12 @@ def main() -> None:
                     previous_raw_rgb_sequence = state.last_raw_rgb_sequence
                     previous_processed_rgb_sequence = state.last_processed_rgb_sequence
                     process_latest_rgb_pair(
+                        camera_index=camera_index,
                         state=state,
                         detector=detector,
                         face_matcher=face_matcher,
                         body_evidence_extractor=body_evidence_extractor,
+                        product_worker=product_worker,
                         args=args,
                         performance=performance,
                     )
@@ -2042,6 +2243,35 @@ def main() -> None:
                             )
                         performance.record_duration("stream_publish", stream_started)
                     performance.record_duration("camera_iteration", camera_iteration_started)
+
+                if product_worker is not None:
+                    for product_result in product_worker.drain_results():
+                        if stream_server is None:
+                            continue
+                        if product_result.scope == "full_frame":
+                            stream_server.publish_camera_product_recognition(
+                                product_result,
+                                max_age_seconds=(
+                                    args.product_result_max_age_seconds
+                                ),
+                            )
+                            continue
+                        if product_result.track_id is None:
+                            continue
+                        assignment = visit_registry.assignment_for_track(
+                            device_id=product_result.device_id,
+                            track_id=product_result.track_id,
+                        )
+                        if assignment is None:
+                            continue
+                        stream_server.publish_product_recognition(
+                            product_result,
+                            visit_id=assignment.visit_id,
+                            customer_id=customer_ids_by_visit.get(
+                                assignment.visit_id
+                            ),
+                            max_age_seconds=args.product_result_max_age_seconds,
+                        )
 
                 if not args.headless:
                     gui_started = performance.start()
@@ -2106,6 +2336,8 @@ def main() -> None:
     except KeyboardInterrupt:
         print("Interrupted by user.")
     finally:
+        if product_worker is not None:
+            product_worker.stop()
         if stream_server is not None:
             stream_server.stop()
         artifact_writer.write_final_visits(visit_registry)

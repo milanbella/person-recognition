@@ -161,6 +161,43 @@ class WorldStateProjectorTests(unittest.TestCase):
         tracks = state["visits"][0]["currentTracks"]
         self.assertEqual([item["trackId"] for item in tracks], [5])
 
+    def test_product_recognition_is_attached_to_visit_and_exposed_as_claim(self) -> None:
+        now_ms = time.time_ns() // 1_000_000
+        self.projector.publish_observer_snapshot(_snapshot(1, _person(4, 7)))
+        self.projector.publish_product_recognition(
+            {
+                "visitId": 7,
+                "customerId": None,
+                "cameraIndex": 0,
+                "deviceId": "camera-a",
+                "trackId": 4,
+                "rgbSequenceNumber": 1,
+                "hostSyncedSeconds": 1.0,
+                "observedAtUnixMilliseconds": now_ms,
+                "inferenceMilliseconds": 25,
+                "maxAgeMilliseconds": 3000,
+                "status": "recognized",
+                "freshness": "current",
+                "bestCandidate": None,
+                "candidates": [
+                    {
+                        "productId": "001",
+                        "label": "cola",
+                        "modelLabel": "001_cola",
+                        "classId": 1,
+                        "score": 0.8,
+                    }
+                ],
+            }
+        )
+
+        visit = self.projector.snapshot()["visits"][0]
+        recognition = visit["productRecognition"]
+
+        self.assertEqual(recognition["bestCandidate"]["productId"], "001")
+        self.assertEqual(recognition["bestCandidate"]["confirmations"], 1)
+        self.assertEqual(_visit_claims(visit)["productLabel"], "cola")
+
     def test_entry_leave_and_restart_preserve_lifecycle_but_stale_ephemeral_state(self) -> None:
         self.projector.publish_visit_state(
             9,

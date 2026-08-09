@@ -39,6 +39,11 @@ def _visit_claims(visit: Mapping[str, Any] | None) -> dict[str, Any]:
             "engagedShelfDistanceMm": None,
             "engagedShelfFreshness": "unknown",
             "shelfEngagementState": "none",
+            "productRecognitionStatus": "unknown",
+            "productRecognitionFreshness": "unknown",
+            "productId": None,
+            "productLabel": None,
+            "productScore": None,
             "freshness": "unknown",
         }
     tracks = [
@@ -47,6 +52,8 @@ def _visit_claims(visit: Mapping[str, Any] | None) -> dict[str, Any]:
         if item.get("freshness") in {"current", "aging"}
     ]
     position = visit.get("shelfPosition") or visit.get("nearestShelfCandidate")
+    product_recognition = visit.get("productRecognition") or {}
+    product = product_recognition.get("bestCandidate") or {}
     status = visit.get("status", "unknown")
     inside = True if status == "inside" else False if status == "left" else None
     return {
@@ -74,6 +81,13 @@ def _visit_claims(visit: Mapping[str, Any] | None) -> dict[str, Any]:
         "engagedShelfDistanceMm": None if position is None else position.get("distanceMm"),
         "engagedShelfFreshness": "unknown" if position is None else position.get("freshness", "unknown"),
         "shelfEngagementState": visit.get("shelfEngagementState", "none"),
+        "productRecognitionStatus": product_recognition.get("status", "unknown"),
+        "productRecognitionFreshness": product_recognition.get(
+            "freshness", "unknown"
+        ),
+        "productId": product.get("productId"),
+        "productLabel": product.get("label"),
+        "productScore": product.get("bestScore", product.get("score")),
         "freshness": visit.get("freshness", "unknown"),
     }
 
@@ -228,6 +242,28 @@ def create_world_state_router(
             "freshness": "unknown"
             if position is None
             else position.get("freshness", "unknown"),
+        }
+
+    @router.get("/world-state/visits/{visit_id}/products")
+    def world_state_visit_products(visit_id: int) -> dict[str, Any]:
+        snapshot = projector.snapshot()
+        visit = _entity(snapshot["visits"], "visitId", visit_id)
+        recognition = visit.get("productRecognition")
+        return {
+            "schemaVersion": snapshot["schemaVersion"],
+            "revision": snapshot["revision"],
+            "processInstanceId": snapshot["processInstanceId"],
+            "generatedAtUnixMilliseconds": snapshot[
+                "generatedAtUnixMilliseconds"
+            ],
+            "visitId": visit_id,
+            "customerId": visit.get("customerId"),
+            "productRecognition": recognition,
+            "freshness": (
+                "unknown"
+                if recognition is None
+                else recognition.get("freshness", "unknown")
+            ),
         }
 
     @router.get("/world-state/shelves/{shelf_id}")

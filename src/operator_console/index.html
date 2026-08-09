@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#102f2b">
   <title>Shop Walk Test</title>
-  <link rel="stylesheet" href="/operator/assets/operator.css?v=shelf-evidence-2">
+  <link rel="stylesheet" href="/operator/assets/operator.css?v=product-recognition-1">
 </head>
 <body>
   <header class="masthead">
@@ -78,6 +78,14 @@
             <h3 id="shelf-position-evidence-title">Shelf distance evidence</h3>
             <div id="shelf-position-evidence"></div>
           </section>
+          <section class="product-recognition" aria-labelledby="product-recognition-title">
+            <div class="product-recognition-heading">
+              <h3 id="product-recognition-title">Products by camera</h3>
+              <button id="freeze-all-products" class="button compact" type="button" disabled>Freeze all</button>
+            </div>
+            <p id="product-recognition-summary" class="world-state-summary">No product result.</p>
+            <div id="product-camera-evidence" class="product-camera-grid"></div>
+          </section>
           <div class="world-claim-controls">
             <label for="world-claim">Check claim
               <select id="world-claim">
@@ -88,6 +96,8 @@
                 <option value="visibility">Visibility</option>
                 <option value="shelfPositionId">Shelf position</option>
                 <option value="shelfPositionDistanceMm">Shelf distance</option>
+                <option value="productId">Product ID</option>
+                <option value="productLabel">Product label</option>
               </select>
             </label>
             <label for="physical-value">Physical value when wrong
@@ -223,6 +233,6 @@
   </dialog>
 
   <div id="toast" class="toast" role="status"></div>
-  <script src="/operator/assets/operator.js?v=shelf-evidence-2"></script>
+  <script src="/operator/assets/operator.js?v=product-freeze-1"></script>
 </body>
 </html>

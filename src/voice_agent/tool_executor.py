@@ -64,6 +64,7 @@ def _compact_subject_state(state: Mapping[str, Any]) -> dict[str, Any]:
                 "customerBindingStatus",
                 "freshness",
                 "shelfPosition",
+                "productRecognition",
                 "observedAtUnixMilliseconds",
                 "lastCameraIndex",
                 "lastTrackId",
@@ -127,6 +128,7 @@ class VoiceToolExecutor:
             "get_subject_state": self._get_subject_state,
             "get_visit_state": self._get_visit_state,
             "get_shelf_state": self._get_shelf_state,
+            "get_product_state": self._get_product_state,
             "get_camera_state": self._get_camera_state,
             "confirm_last_state_claim": self._confirm_last_state_claim,
             "correct_last_state_claim": self._correct_last_state_claim,
@@ -468,6 +470,32 @@ class VoiceToolExecutor:
             }
         )
 
+    def _get_product_state(self, _arguments: Mapping[str, Any]) -> VoiceToolResult:
+        run_id, subject_id, _context = self._active_context()
+        subject_state = self.client.subject_world_state(run_id, subject_id)
+        claims = subject_state.get("claims")
+        visit_id = None if not isinstance(claims, Mapping) else claims.get("visitId")
+        if not isinstance(visit_id, int) or isinstance(visit_id, bool):
+            raise VoiceToolError(
+                "unresolved_subject",
+                "The test subject is not currently resolved to one visit.",
+            )
+        self._last_state_claim = {
+            "runId": run_id,
+            "subjectId": subject_id,
+            "worldStateRef": subject_state["worldStateRef"],
+            "claim": "productId",
+            "systemValue": claims.get("productId"),
+        }
+        return VoiceToolResult(
+            {
+                "ok": True,
+                "productState": _camera_numbers_for_voice(
+                    self.client.product_world_state(visit_id)
+                ),
+            }
+        )
+
     @staticmethod
     def _camera_index(arguments: Mapping[str, Any]) -> int:
         camera_number = arguments.get("camera_number")
@@ -650,6 +678,11 @@ def realtime_tool_definitions() -> list[dict[str, Any]]:
         "shelfPositionId",
         "shelfPositionDistanceMm",
         "shelfPositionFreshness",
+        "productRecognitionStatus",
+        "productRecognitionFreshness",
+        "productId",
+        "productLabel",
+        "productScore",
         "freshness",
     ]
     return [
@@ -682,6 +715,12 @@ def realtime_tool_definitions() -> list[dict[str, Any]]:
         {
             "type": "function", "name": "get_shelf_state", "description": "Read one shelf and its current nearby visits.",
             "parameters": {"type": "object", "properties": {"shelf_id": {"type": "integer", "minimum": 1}}, "required": ["shelf_id"], "additionalProperties": False},
+        },
+        {
+            "type": "function",
+            "name": "get_product_state",
+            "description": "Read the latest product recognized near the current physical test subject. Use this before answering what product the operator is holding.",
+            "parameters": no_arguments,
         },
         {
             "type": "function", "name": "get_camera_state", "description": "Read one camera's health and visible tracks. Camera numbers are one-based, matching the operator UI.",
