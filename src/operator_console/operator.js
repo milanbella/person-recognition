@@ -16,20 +16,13 @@
     frozenProductCameras: new Map(),
     productFreezePending: new Set(),
     productSnapshotVisitId: null,
+    openShopPending: false,
     visitProposals: new Map(),
+    automaticVisitMappings: new Set(),
     lastWorldPollAt: 0,
     pollTimer: null,
     runTimer: null,
     token: localStorage.getItem("shopOperatorToken") || "",
-    voice: {
-      peerConnection: null,
-      localStream: null,
-      dataChannel: null,
-      sessionId: null,
-      statusTimer: null,
-      muted: false,
-      starting: false,
-    },
   };
 
   const el = (id) => document.getElementById(id);
@@ -39,7 +32,13 @@
   const MONITORED_EVENT_TYPES = new Set([
     "entry_accepted",
     "leave_accepted",
+    "shop_entry_bound",
+    "shop_entry_bind_skipped",
+    "shop_entry_bind_failed",
+    "shop_leave_persisted",
+    "shop_leave_persist_failed",
   ]);
+  const VERIFIABLE_EVENT_TYPES = new Set(["entry_accepted", "leave_accepted"]);
 
   async function api(path, options = {}) {
     const headers = new Headers(options.headers || {});
@@ -86,7 +85,6 @@
     renderRun();
     renderCameras();
     renderSubjects();
-    renderShelves();
     mergeTimeline(app.state?.recentEvents || []);
     setActionAvailability();
     void pollWorldState();
@@ -96,10 +94,9 @@
     const run = app.state?.activeRun;
     el("run-name").textContent = run ? `${run.scenario} · ${run.runId}` : "No active test";
     el("start-run").disabled = Boolean(run);
-    el("analyze-run").disabled = !run;
+    el("open-shop").disabled = !run || app.openShopPending;
+    el("open-shop").textContent = app.openShopPending ? "Opening…" : "Open shop";
     el("stop-run").disabled = !run;
-    el("start-voice").disabled = !run || app.voice.starting || Boolean(app.voice.peerConnection);
-    if (!run && app.voice.peerConnection) void disconnectVoice(true, "Test run ended");
     if (app.runTimer) clearInterval(app.runTimer);
     if (!run) {
       el("run-clock").textContent = "Start a run before recording physical facts.";
@@ -175,25 +172,6 @@
     }
   }
 
-  function renderShelves() {
-    const select = el("missing-shelf");
-    const current = select.value;
-    const shelves = app.state?.shelves || [];
-    const shelfIds = [...new Set(shelves.map((shelf) => shelf.shelfId))]
-      .sort((left, right) => left - right);
-    select.replaceChildren();
-    shelfIds.forEach((shelfId) => {
-      const option = document.createElement("option");
-      option.value = String(shelfId);
-      option.textContent = `Shelf ${shelfId}`;
-      select.append(option);
-    });
-    if (shelfIds.some((shelfId) => String(shelfId) === current)) {
-      select.value = current;
-    }
-    select.disabled = !shelfIds.length;
-  }
-
   function selectedSubjectId() {
     return el("subject-select").value || null;
   }
@@ -208,19 +186,64 @@
     const key = subjectProposalKey();
     const resolution = payload?.resolution || {};
     const visitId = resolution.visitId;
+    const selectedVisitId = app.selectedObservation?.person?.visitId;
     if (resolution.status === "confirmed" && Number.isInteger(visitId)) {
+      if (Number.isInteger(selectedVisitId) && selectedVisitId !== visitId) {
+        return {visitId: selectedVisitId, status: "manual_override", current: true};
+      }
       return {visitId, status: "confirmed", current: true};
     }
-    if (
-      ["single_candidate", "single_observer_candidate"].includes(resolution.status)
-      && Number.isInteger(visitId)
-    ) {
+    if (resolution.status === "single_candidate" && Number.isInteger(visitId)) {
+      return {visitId, status: "automatic", current: true};
+    }
+    if (resolution.status === "single_observer_candidate" && Number.isInteger(visitId)) {
       const proposal = {visitId, status: resolution.status, current: true};
       if (key) app.visitProposals.set(key, proposal);
       return proposal;
     }
+    if (
+      ["ambiguous", "ambiguous_observer_candidates"].includes(resolution.status)
+      && Number.isInteger(selectedVisitId)
+    ) {
+      return {visitId: selectedVisitId, status: "manual_candidate", current: true};
+    }
     const remembered = key ? app.visitProposals.get(key) : null;
     return remembered ? {...remembered, current: false} : null;
+  }
+
+  async function autoMapSingleEntranceCandidate(payload) {
+    const run = app.state?.activeRun;
+    const subjectId = selectedSubjectId();
+    const resolution = payload?.resolution || {};
+    const visitId = resolution.visitId;
+    if (
+      !run
+      || !subjectId
+      || resolution.status !== "single_candidate"
+      || !Number.isInteger(visitId)
+    ) {
+      return false;
+    }
+    const mappingKey = `${run.runId}:${subjectId}:${visitId}`;
+    if (app.automaticVisitMappings.has(mappingKey)) return false;
+    app.automaticVisitMappings.add(mappingKey);
+    try {
+      await api(`/operator/api/test-runs/${encodeURIComponent(run.runId)}/annotations`, {
+        method: "POST",
+        body: JSON.stringify({
+          annotationType: "subject_visit_mapping",
+          subjectId,
+          visitId,
+          mappingSource: "automatic_single_entrance_candidate",
+          clientRecordedAtUnixMilliseconds: Date.now(),
+        }),
+      });
+      return true;
+    } catch (error) {
+      app.automaticVisitMappings.delete(mappingKey);
+      showToast(`Automatic visit selection failed: ${error.message}`);
+      return false;
+    }
   }
 
   function startPolling() {
@@ -527,14 +550,12 @@
     const selected = active && Boolean(observationReference());
     annotationButtons.forEach((button) => { button.disabled = !selected; });
     physicalButtons.forEach((button) => { button.disabled = !active; });
-    el("record-shelf-position").disabled = !active || !app.worldState;
     el("add-note").disabled = !active;
-    el("world-confirm").disabled = !active || !app.worldState;
-    el("world-correct").disabled = !active || !app.worldState;
     const mapButton = el("map-subject-visit");
     if (mapButton) {
       const mapping = visitMappingState();
-      const canMap = active && mapping && mapping.status !== "confirmed";
+      const canMap = active && mapping
+        && !["confirmed", "automatic"].includes(mapping.status);
       mapButton.disabled = !canMap;
     }
   }
@@ -551,9 +572,15 @@
       return;
     }
     try {
-      app.worldState = await api(
+      let worldState = await api(
         `/operator/api/test-runs/${encodeURIComponent(run.runId)}/subjects/${encodeURIComponent(subjectId)}/world-state?captureQuery=true&persistQuery=false`
       );
+      if (await autoMapSingleEntranceCandidate(worldState)) {
+        worldState = await api(
+          `/operator/api/test-runs/${encodeURIComponent(run.runId)}/subjects/${encodeURIComponent(subjectId)}/world-state?captureQuery=true&persistQuery=false`
+        );
+      }
+      app.worldState = worldState;
       const visitId = app.worldState?.claims?.visitId;
       if (Number.isInteger(visitId)) {
         if (
@@ -604,11 +631,15 @@
       : `Revision ${payload.revision} · ${claims.visibility || "unknown visibility"}`;
     const mapButton = el("map-subject-visit");
     const mapping = visitMappingState(payload);
-    mapButton.hidden = !mapping;
+    const mappingActionable = mapping
+      && !["confirmed", "automatic"].includes(mapping.status);
+    mapButton.hidden = !mappingActionable;
     mapButton.textContent = !mapping
       ? "Use proposed visit"
-      : mapping.status === "confirmed"
-      ? `Using visit ${mapping.visitId} for me`
+      : mapping.status === "manual_override"
+      ? `Use selected visit ${mapping.visitId} instead`
+      : mapping.status === "manual_candidate"
+      ? `Use selected visit ${mapping.visitId} for me`
       : mapping.current
       ? `Use visit ${mapping.visitId} for me`
       : `Use last proposed visit ${mapping.visitId} for me`;
@@ -850,48 +881,6 @@
     return String(value);
   }
 
-  function parsePhysicalValue(value) {
-    const normalized = value.trim();
-    if (normalized.toLowerCase() === "true") return true;
-    if (normalized.toLowerCase() === "false") return false;
-    if (normalized.toLowerCase() === "null" || normalized.toLowerCase() === "unknown") return null;
-    if (normalized !== "" && Number.isFinite(Number(normalized))) return Number(normalized);
-    return normalized;
-  }
-
-  async function annotateWorldClaim(correct) {
-    const payload = app.worldState;
-    if (!payload?.worldStateRef) return showToast("No current subject-state query is available.");
-    const claim = el("world-claim").value;
-    const systemValue = payload.claims?.[claim];
-    const extra = {
-      worldStateRef: payload.worldStateRef,
-      claim,
-      systemValue,
-    };
-    if (claim === "shelfPositionId" && Number.isInteger(systemValue)) {
-      extra.shelfId = systemValue;
-    }
-    if (!correct) {
-      const input = el("physical-value");
-      if (!input.value.trim()) return showToast("Enter the physical value first.");
-      extra.physicalValue = parsePhysicalValue(input.value);
-      if (claim === "shelfPositionId" && Number.isInteger(extra.physicalValue)) {
-        extra.shelfId = extra.physicalValue;
-      }
-    }
-    const response = await annotate(
-      correct ? "world_state_claim_correct" : "world_state_claim_incorrect",
-      extra
-    );
-    if (response) {
-      el("physical-value").value = "";
-      await pollWorldState();
-    }
-  }
-
-  el("world-confirm").addEventListener("click", () => annotateWorldClaim(true));
-  el("world-correct").addEventListener("click", () => annotateWorldClaim(false));
   el("map-subject-visit").addEventListener("click", async () => {
     const visitId = visitMappingState()?.visitId;
     if (!Number.isInteger(visitId)) return showToast("No single proposed visit is available.");
@@ -929,9 +918,6 @@
       app.report = response.report;
       renderReport();
       showToast(`Recorded: ${annotationType.replaceAll("_", " ")}`);
-      if (annotationType === "physical_entry" || annotationType === "physical_leave") {
-        await refreshState();
-      }
       return response;
     } catch (error) {
       showToast(error.message);
@@ -952,14 +938,6 @@
     });
   });
 
-  el("record-shelf-position").addEventListener("click", () => {
-    const shelfId = Number.parseInt(el("missing-shelf").value, 10);
-    if (!Number.isInteger(shelfId)) return showToast("Shelf ID must be an integer.");
-    el("world-claim").value = "shelfPositionId";
-    el("physical-value").value = String(shelfId);
-    annotateWorldClaim(app.worldState?.claims?.shelfPositionId === shelfId);
-  });
-
   el("add-note").addEventListener("click", () => {
     const input = el("note-text");
     const note = input.value.trim();
@@ -968,23 +946,41 @@
     input.value = "";
   });
 
-  el("start-run").addEventListener("click", () => el("start-dialog").showModal());
+  el("start-run").addEventListener("click", () => {
+    el("start-form").elements.token.value = app.token;
+    el("start-dialog").showModal();
+  });
+  el("open-shop").addEventListener("click", async () => {
+    if (!app.state?.activeRun) return showToast("Start a test run first.");
+    if (!confirm("Physically unlock the shop and create a test shopping customer?")) return;
+    app.openShopPending = true;
+    renderRun();
+    try {
+      const response = await api("/operator/api/shop/open", {method: "POST"});
+      showToast(`Shop opened · customer ${response.customerId}`);
+      await refreshState();
+    } catch (error) {
+      showToast(error.message);
+    } finally {
+      app.openShopPending = false;
+      renderRun();
+    }
+  });
   el("cancel-start").addEventListener("click", () => el("start-dialog").close());
   el("start-form").addEventListener("submit", async (event) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    app.token = String(form.get("token") || "").trim();
+    app.token = String(form.get("token") || app.token).trim();
     if (app.token) localStorage.setItem("shopOperatorToken", app.token);
-    const expected = String(form.get("expectedCustomerId") || "").trim();
     const payload = {
-      scenario: String(form.get("scenario")),
-      verifier: String(form.get("verifier")),
+      scenario: "shop-walk",
+      verifier: "Milan",
       subjects: [{
-        subjectId: String(form.get("subjectId")),
-        displayName: String(form.get("displayName")),
-        expectedCustomerId: expected || null,
+        subjectId: "milan",
+        displayName: "Milan",
+        expectedCustomerId: null,
       }],
-      notes: String(form.get("notes") || ""),
+      notes: "",
     };
     try {
       await api("/operator/api/test-runs", {method: "POST", body: JSON.stringify(payload)});
@@ -1000,23 +996,11 @@
     const run = app.state?.activeRun;
     if (!run || !confirm("Stop and analyze this test run?")) return;
     try {
-      await disconnectVoice(true, "Test run stopped");
       const response = await api(`/operator/api/test-runs/${run.runId}/stop`, {method: "POST"});
       app.report = response.report;
       renderReport();
       await refreshState();
       showToast("Test stopped and exported.");
-    } catch (error) {
-      showToast(error.message);
-    }
-  });
-
-  el("analyze-run").addEventListener("click", async () => {
-    const run = app.state?.activeRun;
-    if (!run) return;
-    try {
-      app.report = await api(`/operator/api/test-runs/${run.runId}/analyze`, {method: "POST"});
-      renderReport();
     } catch (error) {
       showToast(error.message);
     }
@@ -1037,6 +1021,8 @@
     const types = [
       "track_appeared", "track_disappeared", "visit_assignment_changed",
       "customer_binding_changed", "entry_accepted", "leave_accepted",
+      "shop_entry_bound", "shop_entry_bind_skipped", "shop_entry_bind_failed",
+      "shop_leave_persisted", "shop_leave_persist_failed",
       "human_annotation_created",
       "test_run_started", "test_run_stopped", "resync_required",
     ];
@@ -1051,11 +1037,11 @@
     let event;
     try { event = JSON.parse(message.data); } catch (_) { return; }
     appendTimeline(event);
-    if (shouldSpeakEvent(event)) speak(eventSummary(event));
     if ([
       "test_run_started", "test_run_stopped", "customer_binding_changed",
       "entry_accepted", "leave_accepted", "track_appeared",
-      "track_disappeared",
+      "track_disappeared", "shop_entry_bound", "shop_entry_bind_skipped",
+      "shop_entry_bind_failed", "shop_leave_persisted", "shop_leave_persist_failed",
     ].includes(event.eventType)) {
       refreshState();
     }
@@ -1120,7 +1106,16 @@
       const actions = document.createElement("div");
       actions.className = "event-verdict-actions";
       const feedback = app.eventFeedback.get(item.eventId);
-      if (feedback) {
+      if (!VERIFIABLE_EVENT_TYPES.has(item.eventType)) {
+        const result = document.createElement("strong");
+        const successful = ["shop_entry_bound", "shop_leave_persisted"].includes(item.eventType);
+        const skipped = item.eventType === "shop_entry_bind_skipped";
+        result.className = `event-verdict ${successful ? "correct" : "wrong"}`;
+        result.textContent = successful
+          ? "Database confirmed"
+          : skipped ? "Customer not bound" : "Database update failed";
+        actions.append(result);
+      } else if (feedback) {
         const result = document.createElement("strong");
         result.className = `event-verdict ${feedback}`;
         result.textContent = feedback === "correct" ? "Confirmed correct" : "Marked wrong";
@@ -1162,13 +1157,19 @@
 
   function eventCardClass(eventType) {
     if (eventType === "entry_accepted") return "entry";
-    if (eventType === "leave_accepted") return "leave";
+    if (["leave_accepted", "shop_leave_persist_failed", "shop_entry_bind_failed"].includes(eventType)) return "leave";
+    if (["shop_entry_bound", "shop_leave_persisted"].includes(eventType)) return "entry";
     return "transition";
   }
 
   function eventTitle(event) {
     if (event.eventType === "entry_accepted") return "ENTRY";
     if (event.eventType === "leave_accepted") return "LEAVE";
+    if (event.eventType === "shop_entry_bound") return "SERVER ENTRY BOUND";
+    if (event.eventType === "shop_entry_bind_skipped") return "SERVER ENTRY NOT BOUND";
+    if (event.eventType === "shop_entry_bind_failed") return "SERVER ENTRY FAILED";
+    if (event.eventType === "shop_leave_persisted") return "SERVER DEPARTURE SAVED";
+    if (event.eventType === "shop_leave_persist_failed") return "SERVER DEPARTURE FAILED";
     return "TRANSITION";
   }
 
@@ -1177,6 +1178,11 @@
     switch (event.eventType) {
       case "entry_accepted": return `Visit ${event.visitId} entered on camera ${event.cameraIndex + 1}.`;
       case "leave_accepted": return `Visit ${event.visitId} left on camera ${event.cameraIndex + 1}.`;
+      case "shop_entry_bound": return `Visit ${event.visitId} was bound to customer ${payload.customerId}.`;
+      case "shop_entry_bind_skipped": return `Visit ${event.visitId} was not bound: ${formatReason(payload.reason)}.`;
+      case "shop_entry_bind_failed": return `Visit ${event.visitId} binding failed: ${payload.error ?? formatReason(payload.reason)}.`;
+      case "shop_leave_persisted": return `Visit ${event.visitId} · customer ${payload.customerId ?? "unknown"} · shopLeftAt ${formatServerTime(payload.shopLeftAt)}.`;
+      case "shop_leave_persist_failed": return `Visit ${event.visitId} was not marked left: ${payload.error ?? "unknown server error"}`;
       case "track_appeared": return `Track ${event.trackId} appeared · visit ${event.visitId ?? "unassigned"}`;
       case "track_disappeared": return `Track ${event.trackId} disappeared`;
       case "visit_assignment_changed": return `Track ${event.trackId} moved to visit ${event.visitId ?? "unassigned"}`;
@@ -1184,6 +1190,16 @@
       case "human_annotation_created": return String(payload.annotationType || "Human annotation").replaceAll("_", " ");
       default: return event.eventType.replaceAll("_", " ");
     }
+  }
+
+  function formatServerTime(value) {
+    if (!value) return "missing";
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? String(value) : parsed.toLocaleString();
+  }
+
+  function formatReason(value) {
+    return String(value || "unknown reason").replaceAll("_", " ");
   }
 
   function updateSystemAnswer() {
@@ -1202,190 +1218,6 @@
     el("system-answer").textContent = `Camera ${app.selectedCamera + 1} sees ${observations.length} ${observations.length === 1 ? "person" : "people"}: ${descriptions.join("; ")}.`;
   }
 
-  el("speak-state").addEventListener("click", () => speak(el("system-answer").textContent));
-  function shouldSpeakEvent(event) {
-    return !app.voice.peerConnection && el("speak-events").checked && [
-      "visit_assignment_changed", "customer_binding_changed", "entry_accepted",
-      "leave_accepted",
-    ].includes(event.eventType);
-  }
-  function speak(text) {
-    if (!("speechSynthesis" in window)) return showToast("Speech output is not supported.");
-    speechSynthesis.cancel();
-    speechSynthesis.speak(new SpeechSynthesisUtterance(text));
-  }
-
-  el("start-voice").addEventListener("click", startRealtimeVoice);
-  el("mute-voice").addEventListener("click", toggleVoiceMute);
-  el("disconnect-voice").addEventListener("click", () => disconnectVoice(true));
-
-  async function startRealtimeVoice() {
-    if (!app.state?.activeRun) return showToast("Start a test run first.");
-    if (!app.token) return showToast("Enter the operator token when starting the test run.");
-    if (!window.isSecureContext) {
-      return showToast("Microphone access requires HTTPS.");
-    }
-    if (!navigator.mediaDevices?.getUserMedia || !window.RTCPeerConnection) {
-      return showToast("This browser does not support WebRTC microphone sessions.");
-    }
-    app.voice.starting = true;
-    setVoiceStatus("starting", "Requesting microphone access");
-    renderRun();
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {echoCancellation: true, noiseSuppression: true, autoGainControl: true},
-      });
-      const peerConnection = new RTCPeerConnection();
-      app.voice.localStream = stream;
-      app.voice.peerConnection = peerConnection;
-      stream.getAudioTracks().forEach((track) => peerConnection.addTrack(track, stream));
-      peerConnection.ontrack = (event) => {
-        const audio = el("voice-audio");
-        audio.srcObject = event.streams[0];
-        void audio.play().catch(() => {
-          setVoiceStatus("connected", "Tap Start voice test again to enable audio playback");
-        });
-      };
-      peerConnection.onconnectionstatechange = () => {
-        const state = peerConnection.connectionState;
-        if (state === "connected") setVoiceStatus("connected", "Microphone active · listening for shop events");
-        if (["failed", "closed", "disconnected"].includes(state) && app.voice.peerConnection) {
-          void disconnectVoice(false, `WebRTC ${state}`);
-        }
-      };
-      const dataChannel = peerConnection.createDataChannel("oai-events");
-      app.voice.dataChannel = dataChannel;
-      dataChannel.addEventListener("message", receiveRealtimeBrowserEvent);
-      dataChannel.addEventListener("open", () => {
-        setVoiceStatus("connected", "Microphone active · listening for shop events");
-      });
-      dataChannel.addEventListener("close", () => {
-        if (app.voice.peerConnection) setVoiceStatus("error", "Realtime control channel closed");
-      });
-
-      const offer = await peerConnection.createOffer();
-      await peerConnection.setLocalDescription(offer);
-      const response = await fetch("/operator/voice/sessions", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${app.token}`,
-          "Content-Type": "application/sdp",
-          "X-Operator-Id": app.state.activeRun.verifier || "mobile-operator",
-        },
-        body: offer.sdp,
-      });
-      if (!response.ok) throw new Error(await voiceHttpError(response));
-      app.voice.sessionId = response.headers.get("X-Voice-Session-Id");
-      if (!app.voice.sessionId) throw new Error("Voice service returned no session ID.");
-      await peerConnection.setRemoteDescription({type: "answer", sdp: await response.text()});
-      app.voice.statusTimer = setInterval(pollVoiceStatus, 2000);
-      setVoiceStatus("connected", "Connecting audio and server controls");
-    } catch (error) {
-      await disconnectVoice(false, error.message);
-      showToast(error.message);
-    } finally {
-      app.voice.starting = false;
-      renderRun();
-    }
-  }
-
-  async function voiceHttpError(response) {
-    try {
-      const payload = await response.json();
-      return payload.detail || `${response.status} ${response.statusText}`;
-    } catch (_) {
-      return `${response.status} ${response.statusText}`;
-    }
-  }
-
-  function receiveRealtimeBrowserEvent(message) {
-    let event;
-    try { event = JSON.parse(message.data); } catch (_) { return; }
-    if (event.type === "input_audio_buffer.speech_started") {
-      setVoiceStatus("listening", "Hearing you…");
-    } else if (event.type === "input_audio_buffer.speech_stopped") {
-      setVoiceStatus("thinking", "Checking your feedback…");
-    } else if (event.type === "response.output_audio_transcript.done" && event.transcript) {
-      setVoiceStatus("connected", event.transcript);
-    } else if (event.type === "conversation.item.input_audio_transcription.completed" && event.transcript) {
-      setVoiceStatus("thinking", `Heard: ${event.transcript}`);
-    } else if (event.type === "error") {
-      setVoiceStatus("error", event.error?.message || "Realtime API error");
-    }
-  }
-
-  async function pollVoiceStatus() {
-    if (!app.voice.sessionId) return;
-    try {
-      const status = await api(`/operator/voice/sessions/${app.voice.sessionId}`);
-      if (status.status === "ended") {
-        await disconnectVoice(false, status.disconnectReason || "Voice session ended");
-      } else if (status.durationSeconds >= 10 && status.operatorTranscriptCount === 0) {
-        setVoiceStatus("error", "No operator speech transcribed. Check microphone permission, input device, and noise suppression.");
-      } else if (status.operatorTranscriptCount > 0 && status.toolCallCount === 0) {
-        setVoiceStatus("thinking", `Heard: ${status.lastOperatorTranscript || "speech"} · no shop-state tool called yet`);
-      }
-    } catch (error) {
-      setVoiceStatus("error", error.message);
-    }
-  }
-
-  function toggleVoiceMute() {
-    const track = app.voice.localStream?.getAudioTracks()[0];
-    if (!track) return;
-    app.voice.muted = !app.voice.muted;
-    track.enabled = !app.voice.muted;
-    el("mute-voice").textContent = app.voice.muted ? "Unmute" : "Mute";
-    setVoiceStatus(
-      app.voice.muted ? "muted" : "connected",
-      app.voice.muted ? "Microphone muted" : "Microphone active · listening for shop events"
-    );
-  }
-
-  async function disconnectVoice(notifyServer = true, detail = "Voice test is off") {
-    const sessionId = app.voice.sessionId;
-    app.voice.sessionId = null;
-    if (app.voice.statusTimer) clearInterval(app.voice.statusTimer);
-    app.voice.statusTimer = null;
-    app.voice.dataChannel?.close();
-    app.voice.peerConnection?.close();
-    app.voice.localStream?.getTracks().forEach((track) => track.stop());
-    el("voice-audio").srcObject = null;
-    app.voice.peerConnection = null;
-    app.voice.localStream = null;
-    app.voice.dataChannel = null;
-    app.voice.muted = false;
-    el("mute-voice").textContent = "Mute";
-    setVoiceStatus("disconnected", detail);
-    renderRun();
-    if (notifyServer && sessionId) {
-      try {
-        await api(`/operator/voice/sessions/${sessionId}`, {method: "DELETE"});
-      } catch (_) {
-        // Closing the peer connection still terminates browser audio immediately.
-      }
-    }
-  }
-
-  function setVoiceStatus(state, detail) {
-    el("voice-bar").className = `voice-bar ${state}`;
-    const labels = {
-      disconnected: "Voice test is off",
-      starting: "Starting voice test",
-      connected: "Voice test connected",
-      listening: "Listening",
-      thinking: "Processing feedback",
-      muted: "Voice test muted",
-      error: "Voice unavailable",
-    };
-    el("voice-status").textContent = labels[state] || "Voice test";
-    el("voice-detail").textContent = detail;
-    const active = Boolean(app.voice.peerConnection);
-    el("mute-voice").disabled = !active;
-    el("disconnect-voice").disabled = !active;
-    el("start-voice").disabled = !app.state?.activeRun || active || app.voice.starting;
-  }
-
   function renderReport() {
     if (!app.report) return;
     const summary = app.report.summary;
@@ -1402,9 +1234,5 @@
   }
 
   window.addEventListener("resize", drawOverlay);
-  window.addEventListener("beforeunload", () => {
-    app.voice.localStream?.getTracks().forEach((track) => track.stop());
-    app.voice.peerConnection?.close();
-  });
   bootstrap();
 })();

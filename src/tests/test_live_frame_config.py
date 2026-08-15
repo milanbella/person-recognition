@@ -6,6 +6,7 @@ from live_synced_rgbd_streams import (
     CAMERA_CONNECT_ATTEMPTS,
     CAMERA_CONNECT_RETRY_DELAY_SECONDS,
     CAMERA_START_DELAY_SECONDS,
+    ShopApiClient,
     build_argparser,
     placeholder_frame,
     resolve_live_device,
@@ -14,6 +15,83 @@ from live_synced_rgbd_streams import (
 
 
 class LiveFrameConfigTests(unittest.TestCase):
+    def test_shop_api_bind_visit_reports_bound_customer(self) -> None:
+        client = ShopApiClient(
+            base_url="https://shop.example",
+            api_key="key",
+            shop_id=7,
+            max_age_seconds=30,
+            timeout_seconds=2.0,
+        )
+        with patch.object(
+            client,
+            "_post",
+            side_effect=[{"customerId": "customer-a"}, {"visitId": 12}],
+        ) as post:
+            result = client.bind_visit(12)
+
+        self.assertEqual(result.status, "bound")
+        self.assertEqual(result.customer_id, "customer-a")
+        self.assertEqual(post.call_count, 2)
+
+    def test_shop_api_bind_visit_reports_missing_recent_customer(self) -> None:
+        client = ShopApiClient(
+            base_url="https://shop.example",
+            api_key="key",
+            shop_id=7,
+            max_age_seconds=30,
+            timeout_seconds=2.0,
+        )
+        with patch.object(client, "_post", return_value=None):
+            result = client.bind_visit(12)
+
+        self.assertEqual(result.status, "skipped")
+        self.assertEqual(result.reason, "no_recent_unbound_customer")
+
+    def test_shop_api_mark_left_returns_persisted_departure(self) -> None:
+        client = ShopApiClient(
+            base_url="https://shop.example",
+            api_key="key",
+            shop_id=7,
+            max_age_seconds=30,
+            timeout_seconds=2.0,
+        )
+        expected = {
+            "shopId": 7,
+            "customerId": "customer-a",
+            "visitId": 12,
+            "shopLeftAt": "2026-08-12T12:00:00Z",
+        }
+        with patch.object(client, "_post", return_value=expected) as post:
+            response = client.mark_left(12)
+
+        self.assertEqual(response, expected)
+        post.assert_called_once_with(
+            "/shop-api/shopping-customer/mark-left",
+            {"shopId": 7, "visitId": 12},
+        )
+
+    def test_shop_api_open_shop_uses_configured_shop(self) -> None:
+        client = ShopApiClient(
+            base_url="https://shop.example",
+            api_key="key",
+            shop_id=7,
+            max_age_seconds=30,
+            timeout_seconds=2.0,
+        )
+        with patch.object(
+            client,
+            "_post",
+            return_value={"shopId": 7, "customerId": "customer-a"},
+        ) as post:
+            response = client.open_shop()
+
+        self.assertEqual(response["customerId"], "customer-a")
+        post.assert_called_once_with(
+            "/shop-api/shopping-customer/open-shop",
+            {"shopId": 7},
+        )
+
     def test_camera_startup_safeguard_defaults(self) -> None:
         self.assertEqual(CAMERA_CONNECT_ATTEMPTS, 5)
         self.assertEqual(CAMERA_CONNECT_RETRY_DELAY_SECONDS, 2.0)
@@ -121,6 +199,9 @@ class LiveFrameConfigTests(unittest.TestCase):
         self.assertFalse(args.enable_operator_console)
         self.assertIsNone(args.operator_api_token)
         self.assertEqual(args.operator_runs_root, Path("test-runs"))
+        self.assertFalse(args.capture_plane_crossing_evidence)
+        self.assertEqual(args.plane_crossing_evidence_frame_count, 5)
+        self.assertEqual(args.plane_crossing_evidence_jpeg_quality, 85)
 
     def test_operator_console_can_be_enabled_with_cli_token(self) -> None:
         args = build_argparser().parse_args(
@@ -134,6 +215,12 @@ class LiveFrameConfigTests(unittest.TestCase):
         self.assertTrue(args.enable_operator_console)
         self.assertEqual(args.operator_api_token, "test-secret")
         validate_operator_console_args(args)
+
+    def test_plane_crossing_evidence_requires_operator_console(self) -> None:
+        args = build_argparser().parse_args(["--capture-plane-crossing-evidence"])
+
+        with self.assertRaisesRegex(ValueError, "requires --enable-operator-console"):
+            validate_operator_console_args(args)
 
     def test_operator_console_requires_enable_flag_and_token_together(self) -> None:
         parser = build_argparser()

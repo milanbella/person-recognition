@@ -72,6 +72,11 @@ from pipeline.face_identity import (
 from pipeline.mjpeg_stream_server import MjpegStreamServer
 from pipeline.observer_api import ObserverCameraSnapshot, build_observer_camera_snapshot
 from pipeline.performance import LivePerformanceLogger
+from pipeline.plane_crossing_evidence import (
+    PlaneEvidenceFrame,
+    render_plane_crossing_contact_sheet,
+    select_plane_evidence_frames,
+)
 from pipeline.product_detection import (
     DEFAULT_PRODUCT_MODEL,
     ProductCropRequest,
@@ -175,6 +180,7 @@ class LiveSyncedStreamState:
     recent_raw_rgb_messages: deque[Any] = field(default_factory=deque)
     recent_processing_rgb_messages: deque[Any] = field(default_factory=deque)
     recent_rgb_track_snapshots: deque[LiveRgbTrackSnapshot] = field(default_factory=deque)
+    recent_plane_evidence_frames: deque[PlaneEvidenceFrame] = field(default_factory=deque)
     plane: object | None = None
     plane_enter_direction: str | None = None
     cached_rgb_raw: np.ndarray | None = None
@@ -194,6 +200,13 @@ class LiveSyncedStreamState:
 class NoRedirectHandler(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):  # type: ignore[no-untyped-def]
         return None
+
+
+@dataclass(frozen=True)
+class ShopVisitBindingResult:
+    status: str
+    customer_id: str | None = None
+    reason: str | None = None
 
 
 class ShopApiClient:
@@ -221,9 +234,13 @@ class ShopApiClient:
         if self.enabled and self.shop_id is None:
             raise ValueError("--shop-id is required when --shop-api-base-url is set.")
 
-    def bind_visit(self, visit_id: int | None) -> str | None:
-        if not self.enabled or visit_id is None or visit_id in self.bound_visit_ids:
-            return None
+    def bind_visit(self, visit_id: int | None) -> ShopVisitBindingResult:
+        if not self.enabled:
+            return ShopVisitBindingResult(status="skipped", reason="shop_api_disabled")
+        if visit_id is None:
+            return ShopVisitBindingResult(status="skipped", reason="missing_visit_id")
+        if visit_id in self.bound_visit_ids:
+            return ShopVisitBindingResult(status="skipped", reason="visit_already_bound")
         latest = self._post(
             "/shop-api/shopping-customer/latest-without-visit-id",
             {
@@ -237,12 +254,15 @@ class ShopApiClient:
                 f"SHOP_API_BIND_SKIPPED visit_id={visit_id} "
                 f"reason=no_recent_unbound_customer max_age_seconds={self.max_age_seconds}"
             )
-            return None
+            return ShopVisitBindingResult(
+                status="skipped",
+                reason="no_recent_unbound_customer",
+            )
 
         customer_id = latest.get("customerId")
         if not customer_id:
             print(f"SHOP_API_BIND_FAILED visit_id={visit_id} reason=missing_customer_id")
-            return None
+            return ShopVisitBindingResult(status="failed", reason="missing_customer_id")
 
         self._post(
             "/shop-api/shopping-customer/set-visit-id",
@@ -254,12 +274,12 @@ class ShopApiClient:
         )
         self.bound_visit_ids.add(visit_id)
         print(f"SHOP_API_VISIT_BOUND visit_id={visit_id} customer_id={customer_id}")
-        return str(customer_id)
+        return ShopVisitBindingResult(status="bound", customer_id=str(customer_id))
 
-    def mark_left(self, visit_id: int | None) -> bool:
+    def mark_left(self, visit_id: int | None) -> dict[str, Any] | None:
         if not self.enabled or visit_id is None or visit_id in self.left_visit_ids:
-            return False
-        self._post(
+            return None
+        response = self._post(
             "/shop-api/shopping-customer/mark-left",
             {
                 "shopId": self.shop_id,
@@ -267,8 +287,28 @@ class ShopApiClient:
             },
         )
         self.left_visit_ids.add(visit_id)
-        print(f"SHOP_API_VISIT_LEFT visit_id={visit_id}")
-        return True
+        result = {} if response is None else response
+        print(
+            f"SHOP_API_VISIT_LEFT visit_id={visit_id} "
+            f"customer_id={result.get('customerId')} "
+            f"shop_left_at={result.get('shopLeftAt')}"
+        )
+        return result
+
+    def open_shop(self) -> dict[str, Any]:
+        if not self.enabled or self.shop_id is None:
+            raise RuntimeError("Shop API is not configured for operator shop opening.")
+        response = self._post(
+            "/shop-api/shopping-customer/open-shop",
+            {"shopId": self.shop_id},
+        )
+        if response is None:
+            raise RuntimeError("Shop API returned no open-shop response.")
+        print(
+            f"SHOP_API_TEST_SHOP_OPENED shop_id={self.shop_id} "
+            f"customer_id={response.get('customerId')}"
+        )
+        return response
 
     def _post(
         self,
@@ -427,6 +467,26 @@ def build_argparser() -> argparse.ArgumentParser:
             "Bearer token for the operator console and test-run API. "
             "Used only with --enable-operator-console."
         ),
+    )
+    parser.add_argument(
+        "--capture-plane-crossing-evidence",
+        action="store_true",
+        help=(
+            "Save an annotated, bounded RGB contact sheet and JSON metadata for "
+            "each plane crossing while an operator test run is active."
+        ),
+    )
+    parser.add_argument(
+        "--plane-crossing-evidence-frame-count",
+        type=int,
+        default=5,
+        help="Frames included in each plane-crossing contact sheet. Default: 5.",
+    )
+    parser.add_argument(
+        "--plane-crossing-evidence-jpeg-quality",
+        type=int,
+        default=85,
+        help="JPEG quality for plane-crossing evidence. Default: 85.",
     )
     parser.add_argument(
         "--hide-depth-window",
@@ -603,6 +663,10 @@ def validate_operator_console_args(args: argparse.Namespace) -> None:
         raise ValueError(
             "--enable-operator-console cannot be used with --disable-streaming."
         )
+    if args.capture_plane_crossing_evidence and not args.enable_operator_console:
+        raise ValueError(
+            "--capture-plane-crossing-evidence requires --enable-operator-console."
+        )
 
 
 def resolve_camera_roles(args: argparse.Namespace) -> list[str]:
@@ -747,6 +811,9 @@ def create_live_stream_state(
         recent_raw_rgb_messages=deque(maxlen=8),
         recent_processing_rgb_messages=deque(maxlen=8),
         recent_rgb_track_snapshots=deque(maxlen=processing_buffer_frames),
+        recent_plane_evidence_frames=deque(
+            maxlen=max(8, args.plane_crossing_evidence_frame_count * 3)
+        ),
     )
     if shelf_config is not None and is_observer_enabled(camera_role):
         shelf_anchor_manager = load_saved_shelf_anchor_manager(
@@ -1223,17 +1290,25 @@ def process_latest_rgb_pair(
     performance.record_duration("body", body_started)
 
     rgb_host_synced_seconds = processing_rgb_host_synced_seconds
-    state.recent_rgb_track_snapshots.append(
-        LiveRgbTrackSnapshot(
-            sequence_num=rgb_sequence,
-            host_synced_seconds=rgb_host_synced_seconds,
-            processing_frame=processing_rgb_frame,
-            processing_tracks=tuple(processing_tracks),
-            display_tracks=tuple(display_tracks),
-            recognized_faces=tuple(recognized_faces),
-            body_evidence_by_track=body_evidence_by_track,
-        )
+    rgb_track_snapshot = LiveRgbTrackSnapshot(
+        sequence_num=rgb_sequence,
+        host_synced_seconds=rgb_host_synced_seconds,
+        processing_frame=processing_rgb_frame,
+        processing_tracks=tuple(processing_tracks),
+        display_tracks=tuple(display_tracks),
+        recognized_faces=tuple(recognized_faces),
+        body_evidence_by_track=body_evidence_by_track,
     )
+    state.recent_rgb_track_snapshots.append(rgb_track_snapshot)
+    if args.capture_plane_crossing_evidence:
+        state.recent_plane_evidence_frames.append(
+            PlaneEvidenceFrame(
+                sequence_num=rgb_sequence,
+                host_synced_seconds=rgb_host_synced_seconds,
+                frame=processing_rgb_frame,
+                tracks=tuple(processing_tracks),
+            )
+        )
     performance.record_rgb_frame()
     state.last_raw_rgb_host_synced_seconds = raw_rgb_host_synced_seconds
     state.last_rgb_host_synced_seconds = rgb_host_synced_seconds
@@ -1359,6 +1434,88 @@ def _compact_float_tuple(values: tuple[float, ...]) -> str:
 
 def _optional_float(value: float | None) -> str:
     return "none" if value is None else f"{value:.0f}"
+
+
+def capture_plane_crossing_evidence(
+    *,
+    camera_index: int,
+    state: LiveSyncedStreamState,
+    rgb_snapshot: LiveRgbTrackSnapshot,
+    track_id: int,
+    visit_id: int | None,
+    event_type: str,
+    sample: DepthSample,
+    plane_signed_distance_mm: float | None,
+    depth_packet: LiveDepthPacket,
+    stream_server: MjpegStreamServer | None,
+    args: argparse.Namespace,
+) -> str | None:
+    if (
+        not args.capture_plane_crossing_evidence
+        or args.depth_trigger_mode != "plane"
+        or stream_server is None
+    ):
+        return None
+    try:
+        selected_frames = select_plane_evidence_frames(
+            tuple(state.recent_plane_evidence_frames),
+            crossing_sequence_num=rgb_snapshot.sequence_num,
+            frame_count=args.plane_crossing_evidence_frame_count,
+        )
+        if not selected_frames:
+            return None
+        contact_sheet, frame_metadata = render_plane_crossing_contact_sheet(
+            selected_frames,
+            crossing_sequence_num=rgb_snapshot.sequence_num,
+            track_id=track_id,
+            visit_id=visit_id,
+            event_type=event_type,
+            plane_signed_distance_mm=plane_signed_distance_mm,
+            depth_mm=sample.depth_mm,
+            depth_roi=sample.roi,
+        )
+        metadata = {
+            "eventType": event_type,
+            "cameraIndex": camera_index,
+            "deviceId": state.device_id,
+            "trackId": track_id,
+            "visitId": visit_id,
+            "rgbSequenceNumber": rgb_snapshot.sequence_num,
+            "depthSequenceNumber": depth_packet.sequence_num,
+            "hostSyncedSeconds": rgb_snapshot.host_synced_seconds,
+            "matchedDepthDeltaMilliseconds": (
+                depth_packet.host_synced_seconds - rgb_snapshot.host_synced_seconds
+            )
+            * 1000.0,
+            "planeSignedDistanceMillimeters": plane_signed_distance_mm,
+            "depthMillimeters": sample.depth_mm,
+            "depthRoi": sample.roi,
+            "depthAnchorPixel": sample.anchor_px,
+            "depthValidPixelCount": sample.valid_pixel_count,
+            "frames": frame_metadata,
+        }
+        filename_stem = (
+            f"plane-{event_type}-camera-{camera_index + 1}-track-{track_id}-"
+            f"sequence-{rgb_snapshot.sequence_num}"
+        )
+        evidence_path = stream_server.save_plane_crossing_evidence(
+            filename_stem=filename_stem,
+            image=contact_sheet,
+            jpeg_quality=args.plane_crossing_evidence_jpeg_quality,
+            metadata=metadata,
+        )
+    except Exception as exc:
+        print(
+            f"PLANE_CROSSING_EVIDENCE_ERROR event={event_type} "
+            f"device_id={state.device_id} track_id={track_id} error={exc}"
+        )
+        return None
+    if evidence_path is not None:
+        print(
+            f"PLANE_CROSSING_EVIDENCE event={event_type} device_id={state.device_id} "
+            f"track_id={track_id} visit_id={visit_id} path={evidence_path}"
+        )
+    return evidence_path
 
 
 def build_shelf_camera_observations(
@@ -1556,6 +1713,27 @@ def build_processed_live_rgb_frame(
     for track_id, track_evidence in track_visit_evidence_by_id.items():
         decision = visit_registry.resolve_existing_track(track_evidence)
         resolution = "existing_track"
+        signed_distance_mm = signed_distances_mm.get(track_id)
+        if (
+            decision is None
+            and args.depth_trigger_mode == "plane"
+            and entrance_enabled
+            and track_id not in entered_track_ids
+            and signed_distance_mm is not None
+            and _visit_plane_inside(
+                signed_distance_mm,
+                plane_enter_direction=str(state.plane_enter_direction),
+            )
+        ):
+            decision = visit_registry.resolve_plane_inside_track(
+                track_evidence,
+                entered_visit_ids=[
+                    visit_id
+                    for visit_id, plane_state in state.visit_plane_states.items()
+                    if plane_state.entered
+                ],
+            )
+            resolution = "plane_inside_track"
         if decision is None and observer_enabled:
             decision = visit_registry.resolve_observer_track(track_evidence)
             resolution = "observer_track"
@@ -1588,6 +1766,19 @@ def build_processed_live_rgb_frame(
         visit_id = None if visit_assignment is None else visit_assignment.visit_id
         if visit_assignment is not None:
             entered_visit_ids_this_frame.add(visit_assignment.visit_id)
+        crossing_evidence_path = capture_plane_crossing_evidence(
+            camera_index=camera_index,
+            state=state,
+            rgb_snapshot=rgb_snapshot,
+            track_id=track_id,
+            visit_id=visit_id,
+            event_type="entry",
+            sample=sample,
+            plane_signed_distance_mm=signed_distances_mm.get(track_id),
+            depth_packet=depth_packet,
+            stream_server=stream_server,
+            args=args,
+        )
         event_payload = {
             "type": "live_depth_plane_entry_event"
             if args.depth_trigger_mode == "plane"
@@ -1606,6 +1797,7 @@ def build_processed_live_rgb_frame(
             else None,
             "entry_reason": entry_reasons_by_track.get(track_id, "direct_crossing"),
             "recovered_entry_source_track_id": recovered_entry_source_track_ids.get(track_id),
+            "crossing_evidence_path": crossing_evidence_path,
         }
         artifact_writer.write_entrance_event(event_payload)
         shop_state_store.record_entry(
@@ -1654,11 +1846,13 @@ def build_processed_live_rgb_frame(
                 f"host_synced_seconds={rgb_host_synced_seconds:.3f} depth_mm={sample.depth_mm:.0f}"
             )
         try:
-            shopping_customer_id = shop_api_client.bind_visit(visit_id)
-            shop_state_store.record_shop_customer_binding(
-                visit_id=visit_id,
-                shopping_customer_id=shopping_customer_id,
-            )
+            binding_result = shop_api_client.bind_visit(visit_id)
+            shopping_customer_id = binding_result.customer_id
+            if shopping_customer_id is not None:
+                shop_state_store.record_shop_customer_binding(
+                    visit_id=visit_id,
+                    shopping_customer_id=shopping_customer_id,
+                )
             if visit_id is not None and shopping_customer_id is not None:
                 customer_ids_by_visit[visit_id] = shopping_customer_id
                 if stream_server is not None:
@@ -1670,8 +1864,38 @@ def build_processed_live_rgb_frame(
                         device_id=state.device_id,
                         track_id=track_id,
                     )
+            if stream_server is not None:
+                event_type = {
+                    "bound": "shop_entry_bound",
+                    "skipped": "shop_entry_bind_skipped",
+                    "failed": "shop_entry_bind_failed",
+                }[binding_result.status]
+                stream_server.publish_shop_api_entry_result(
+                    event_type=event_type,
+                    camera_index=camera_index,
+                    device_id=state.device_id,
+                    track_id=track_id,
+                    visit_id=visit_id,
+                    host_synced_seconds=rgb_host_synced_seconds,
+                    payload={
+                        "shopId": shop_api_client.shop_id,
+                        "visitId": visit_id,
+                        "customerId": shopping_customer_id,
+                        "reason": binding_result.reason,
+                    },
+                )
         except RuntimeError as exc:
             print(f"SHOP_API_BIND_ERROR visit_id={visit_id} error={exc}")
+            if stream_server is not None:
+                stream_server.publish_shop_api_entry_result(
+                    event_type="shop_entry_bind_failed",
+                    camera_index=camera_index,
+                    device_id=state.device_id,
+                    track_id=track_id,
+                    visit_id=visit_id,
+                    host_synced_seconds=rgb_host_synced_seconds,
+                    payload={"visitId": visit_id, "error": str(exc)},
+                )
 
     visit_plane_leave_track_ids: list[int] = []
     if args.depth_trigger_mode == "plane" and entrance_enabled:
@@ -1727,6 +1951,19 @@ def build_processed_live_rgb_frame(
         visit_id = None if visit_assignment is None else visit_assignment.visit_id
         if visit_id is not None and visit_id in closed_visit_ids_this_frame:
             continue
+        crossing_evidence_path = capture_plane_crossing_evidence(
+            camera_index=camera_index,
+            state=state,
+            rgb_snapshot=rgb_snapshot,
+            track_id=track_id,
+            visit_id=visit_id,
+            event_type="leave",
+            sample=sample,
+            plane_signed_distance_mm=signed_distances_mm.get(track_id),
+            depth_packet=depth_packet,
+            stream_server=stream_server,
+            args=args,
+        )
         event_payload = {
             "type": "live_depth_plane_leave_event"
             if args.depth_trigger_mode == "plane"
@@ -1745,6 +1982,7 @@ def build_processed_live_rgb_frame(
             else None,
             "leave_reason": leave_reasons_by_track.get(track_id, "direct_crossing"),
             "recovered_leave_source_track_id": recovered_source_track_id,
+            "crossing_evidence_path": crossing_evidence_path,
         }
         artifact_writer.write_entrance_event(event_payload)
         shop_state_store.record_leave(
@@ -1796,9 +2034,34 @@ def build_processed_live_rgb_frame(
                 f"host_synced_seconds={rgb_host_synced_seconds:.3f} depth_mm={sample.depth_mm:.0f}"
             )
         try:
-            shop_api_client.mark_left(visit_id)
+            mark_left_response = shop_api_client.mark_left(visit_id)
+            if stream_server is not None and mark_left_response is not None:
+                stream_server.publish_shop_api_leave_result(
+                    event_type="shop_leave_persisted",
+                    camera_index=camera_index,
+                    device_id=state.device_id,
+                    track_id=track_id,
+                    visit_id=visit_id,
+                    host_synced_seconds=rgb_host_synced_seconds,
+                    payload={
+                        "shopId": mark_left_response.get("shopId"),
+                        "customerId": mark_left_response.get("customerId"),
+                        "visitId": mark_left_response.get("visitId", visit_id),
+                        "shopLeftAt": mark_left_response.get("shopLeftAt"),
+                    },
+                )
         except RuntimeError as exc:
             print(f"SHOP_API_MARK_LEFT_ERROR visit_id={visit_id} error={exc}")
+            if stream_server is not None:
+                stream_server.publish_shop_api_leave_result(
+                    event_type="shop_leave_persist_failed",
+                    camera_index=camera_index,
+                    device_id=state.device_id,
+                    track_id=track_id,
+                    visit_id=visit_id,
+                    host_synced_seconds=rgb_host_synced_seconds,
+                    payload={"visitId": visit_id, "error": str(exc)},
+                )
 
     shelf_snapshot = None
     if state.shelf_anchor_manager is not None:
@@ -1996,6 +2259,14 @@ def main() -> None:
         raise ValueError("--max-rgb-depth-delta-ms must be zero or greater.")
     if args.processing_buffer_seconds <= 0.0:
         raise ValueError("--processing-buffer-seconds must be greater than zero.")
+    if args.plane_crossing_evidence_frame_count <= 0:
+        raise ValueError(
+            "--plane-crossing-evidence-frame-count must be greater than zero."
+        )
+    if not 1 <= args.plane_crossing_evidence_jpeg_quality <= 100:
+        raise ValueError(
+            "--plane-crossing-evidence-jpeg-quality must be between 1 and 100."
+        )
     if args.list_devices:
         print_available_devices()
         return
@@ -2124,6 +2395,11 @@ def main() -> None:
                 operator_runtime_configuration=operator_runtime_configuration(
                     args=args,
                     camera_roles=camera_roles,
+                ),
+                shop_opener=(
+                    shop_api_client.open_shop
+                    if shop_api_client.enabled
+                    else None
                 ),
             )
             stream_server.start()

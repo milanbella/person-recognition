@@ -6,7 +6,7 @@ import time
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterator
+from typing import Any, Callable, Iterator, Mapping
 
 import cv2
 import numpy as np
@@ -64,6 +64,7 @@ class MjpegStreamServer:
         operator_runs_root: Path = Path("test-runs"),
         operator_api_token: str | None = None,
         operator_runtime_configuration: dict[str, object] | None = None,
+        shop_opener: Callable[[], Mapping[str, Any]] | None = None,
     ) -> None:
         if not camera_device_ids:
             raise ValueError("At least one camera device id is required for streaming.")
@@ -165,6 +166,7 @@ class MjpegStreamServer:
                     world_state_store=self.world_state_store,
                     assets_root=Path(__file__).resolve().parent.parent
                     / "operator_console",
+                    shop_opener=shop_opener,
                 )
             )
 
@@ -860,6 +862,103 @@ class MjpegStreamServer:
                 device_id=device_id,
                 track_id=track_id,
                 event_type=event_type,
+            )
+
+    def save_plane_crossing_evidence(
+        self,
+        *,
+        filename_stem: str,
+        image: np.ndarray,
+        jpeg_quality: int,
+        metadata: Mapping[str, Any],
+    ) -> str | None:
+        if self.operator_store is None or self.operator_store.active_run() is None:
+            return None
+        encoded, buffer = cv2.imencode(
+            ".jpg",
+            image,
+            [cv2.IMWRITE_JPEG_QUALITY, jpeg_quality],
+        )
+        if not encoded:
+            raise RuntimeError("Failed to encode plane-crossing evidence JPEG.")
+        return self.operator_store.save_plane_crossing_evidence(
+            filename_stem=filename_stem,
+            jpeg=buffer.tobytes(),
+            metadata=metadata,
+        )
+
+    def publish_shop_api_leave_result(
+        self,
+        *,
+        event_type: str,
+        camera_index: int,
+        device_id: str,
+        track_id: int,
+        visit_id: int | None,
+        host_synced_seconds: float,
+        payload: dict[str, object],
+    ) -> None:
+        if event_type not in {"shop_leave_persisted", "shop_leave_persist_failed"}:
+            raise ValueError(f"Unsupported shop leave result event: {event_type}")
+        occurred_at_unix_milliseconds = time.time_ns() // 1_000_000
+        if self.operator_state is not None:
+            self.operator_state.publish_event(
+                event_type=event_type,
+                occurred_at_unix_milliseconds=occurred_at_unix_milliseconds,
+                host_synced_seconds=host_synced_seconds,
+                camera_index=camera_index,
+                device_id=device_id,
+                track_id=track_id,
+                visit_id=visit_id,
+                payload=payload,
+            )
+        if self.world_state is not None and visit_id is not None:
+            self.world_state.publish_transition(
+                event_type=event_type,
+                entity_type="visit",
+                entity_id=visit_id,
+                payload=payload,
+                occurred_at_unix_milliseconds=occurred_at_unix_milliseconds,
+                host_synced_seconds=host_synced_seconds,
+            )
+
+    def publish_shop_api_entry_result(
+        self,
+        *,
+        event_type: str,
+        camera_index: int,
+        device_id: str,
+        track_id: int,
+        visit_id: int | None,
+        host_synced_seconds: float,
+        payload: dict[str, object],
+    ) -> None:
+        if event_type not in {
+            "shop_entry_bound",
+            "shop_entry_bind_skipped",
+            "shop_entry_bind_failed",
+        }:
+            raise ValueError(f"Unsupported shop entry result event: {event_type}")
+        occurred_at_unix_milliseconds = time.time_ns() // 1_000_000
+        if self.operator_state is not None:
+            self.operator_state.publish_event(
+                event_type=event_type,
+                occurred_at_unix_milliseconds=occurred_at_unix_milliseconds,
+                host_synced_seconds=host_synced_seconds,
+                camera_index=camera_index,
+                device_id=device_id,
+                track_id=track_id,
+                visit_id=visit_id,
+                payload=payload,
+            )
+        if self.world_state is not None and visit_id is not None:
+            self.world_state.publish_transition(
+                event_type=event_type,
+                entity_type="visit",
+                entity_id=visit_id,
+                payload=payload,
+                occurred_at_unix_milliseconds=occurred_at_unix_milliseconds,
+                host_synced_seconds=host_synced_seconds,
             )
 
     def publish_customer_binding(

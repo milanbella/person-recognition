@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import time
 from pathlib import Path
-from typing import Any, Iterator, Mapping
+from typing import Any, Callable, Iterator, Mapping
 
 from fastapi import APIRouter, Body, Header, HTTPException, Query
 from fastapi.responses import FileResponse, Response, StreamingResponse
@@ -22,6 +22,7 @@ def create_operator_router(
     api_token: str | None,
     world_state_store: WorldStateStore | None,
     assets_root: Path,
+    shop_opener: Callable[[], Mapping[str, Any]] | None = None,
 ) -> APIRouter:
     router = APIRouter()
 
@@ -101,6 +102,31 @@ def create_operator_router(
     def operator_state() -> dict[str, Any]:
         return current_state()
 
+    @router.post("/operator/api/shop/open")
+    def open_shop(
+        authorization: str | None = Header(default=None),
+    ) -> dict[str, Any]:
+        require_mutation_auth(authorization)
+        if shop_opener is None:
+            raise HTTPException(
+                status_code=503,
+                detail="Shop opening is disabled because the shop API is not configured.",
+            )
+        try:
+            response = dict(shop_opener())
+        except RuntimeError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        state.publish_event(
+            event_type="test_shop_opened",
+            source="operator",
+            payload={
+                "shopId": response.get("shopId"),
+                "customerId": response.get("customerId"),
+                "shopEnteredAt": response.get("shopEnteredAt"),
+            },
+        )
+        return response
+
     @router.get("/operator/api/events")
     def operator_events(
         afterEventId: int = Query(default=0, ge=0),
@@ -157,33 +183,6 @@ def create_operator_router(
         if run is None:
             raise HTTPException(status_code=404, detail=f"Unknown test run: {run_id}")
         return run
-
-    @router.get("/operator/api/test-runs/{run_id}/voice-context")
-    def test_run_voice_context(run_id: str) -> dict[str, Any]:
-        run = store.get_run(run_id)
-        if run is None:
-            raise HTTPException(status_code=404, detail=f"Unknown test run: {run_id}")
-        store.flush_events()
-        annotations, events = store.run_rows(run_id)
-        verdicts = {
-            int(annotation["payload"]["systemEventId"]): annotation
-            for annotation in annotations
-            if annotation["annotationType"] in {
-                "system_event_correct",
-                "system_event_incorrect",
-            }
-            and isinstance(annotation.get("payload", {}).get("systemEventId"), int)
-        }
-        return {
-            "run": run,
-            "subjects": store.subjects(run_id),
-            "physicalVisits": store.physical_visits(run_id),
-            "events": events,
-            "verdicts": {
-                str(event_id): annotation
-                for event_id, annotation in verdicts.items()
-            },
-        }
 
     @router.post("/operator/api/test-runs/{run_id}/stop")
     def stop_test_run(

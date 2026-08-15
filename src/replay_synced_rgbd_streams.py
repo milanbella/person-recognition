@@ -1032,6 +1032,27 @@ def build_processed_rgb_frame(
     for track_id, track_evidence in track_visit_evidence_by_id.items():
         decision = visit_registry.resolve_existing_track(track_evidence)
         resolution = "existing_track"
+        signed_distance_mm = signed_distances_mm.get(track_id)
+        if (
+            decision is None
+            and args.depth_trigger_mode == "plane"
+            and entrance_enabled
+            and track_id not in entered_track_ids
+            and signed_distance_mm is not None
+            and _visit_plane_inside(
+                signed_distance_mm,
+                plane_enter_direction=str(state.plane_enter_direction),
+            )
+        ):
+            decision = visit_registry.resolve_plane_inside_track(
+                track_evidence,
+                entered_visit_ids=[
+                    visit_id
+                    for visit_id, plane_state in state.visit_plane_states.items()
+                    if plane_state.entered
+                ],
+            )
+            resolution = "plane_inside_track"
         if decision is None and observer_enabled:
             decision = visit_registry.resolve_observer_track(track_evidence)
             resolution = "observer_track"

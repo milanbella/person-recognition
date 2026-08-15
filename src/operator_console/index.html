@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#102f2b">
   <title>Shop Walk Test</title>
-  <link rel="stylesheet" href="/operator/assets/operator.css?v=product-recognition-1">
+  <link rel="stylesheet" href="/operator/assets/operator.css?v=visual-testing-2">
 </head>
 <body>
   <header class="masthead">
@@ -28,23 +28,9 @@
       </div>
       <div class="run-actions">
         <button id="start-run" class="button primary">Start</button>
+        <button id="open-shop" class="button" disabled>Open shop</button>
         <button id="stop-run" class="button danger" disabled>Stop</button>
-        <button id="analyze-run" class="button" disabled>Analyze</button>
       </div>
-    </section>
-
-    <section id="voice-bar" class="voice-bar disconnected">
-      <div class="voice-status-copy">
-        <span class="label">Hands-free verification</span>
-        <strong id="voice-status">Voice test is off</strong>
-        <span id="voice-detail">Audio is sent to OpenAI only while voice mode is connected.</span>
-      </div>
-      <div class="voice-actions">
-        <button id="start-voice" class="button voice-start" disabled>Start voice test</button>
-        <button id="mute-voice" class="button" disabled>Mute</button>
-        <button id="disconnect-voice" class="button danger" disabled>Disconnect</button>
-      </div>
-      <audio id="voice-audio" autoplay playsinline></audio>
     </section>
 
     <section class="walk-layout">
@@ -86,28 +72,6 @@
             <p id="product-recognition-summary" class="world-state-summary">No product result.</p>
             <div id="product-camera-evidence" class="product-camera-grid"></div>
           </section>
-          <div class="world-claim-controls">
-            <label for="world-claim">Check claim
-              <select id="world-claim">
-                <option value="visitId">Visit ID</option>
-                <option value="inside">Inside shop</option>
-                <option value="entranceConfirmed">Entrance confirmed</option>
-                <option value="customerId">Customer ID</option>
-                <option value="visibility">Visibility</option>
-                <option value="shelfPositionId">Shelf position</option>
-                <option value="shelfPositionDistanceMm">Shelf distance</option>
-                <option value="productId">Product ID</option>
-                <option value="productLabel">Product label</option>
-              </select>
-            </label>
-            <label for="physical-value">Physical value when wrong
-              <input id="physical-value" placeholder="Example: 1, true, or unknown">
-            </label>
-          </div>
-          <div class="action-grid state-verdict-actions">
-            <button id="world-confirm" class="button primary" disabled>Current claim is correct</button>
-            <button id="world-correct" class="button danger-soft" disabled>Record correction</button>
-          </div>
         </section>
 
         <details class="timeline-panel event-monitor event-diagnostics">
@@ -127,26 +91,6 @@
           </div>
         </details>
 
-        <section class="panel missing-panel">
-          <div class="panel-heading">
-            <div>
-              <span class="label">Physical reality</span>
-              <h2>What is true right now?</h2>
-            </div>
-          </div>
-          <p class="event-help">Record missing shop transitions or correct the current shelf position.</p>
-          <div class="action-grid missing-actions">
-            <button data-physical="physical_entry" class="button primary" disabled>Missing ENTRY</button>
-            <button data-physical="physical_leave" class="button danger" disabled>Missing LEAVE</button>
-          </div>
-          <label class="shelf-picker" for="missing-shelf">
-            Physical shelf position
-            <select id="missing-shelf"></select>
-          </label>
-          <div class="action-grid missing-actions">
-            <button id="record-shelf-position" class="button" disabled>I am at this shelf</button>
-          </div>
-        </section>
       </div>
     </section>
 
@@ -181,10 +125,6 @@
         <section class="panel">
           <span class="label">Current machine state</span>
           <p id="system-answer">Waiting for live state.</p>
-          <div class="speech-controls">
-            <button id="speak-state" class="button compact">Read state</button>
-            <label><input id="speak-events" type="checkbox"> Speak events</label>
-          </div>
           <div class="action-grid secondary-physical-actions">
             <button data-physical="subject_stationary" class="button" disabled>I am stationary</button>
             <button data-physical="subject_visible_but_not_detected" class="button danger-soft" disabled>Not detected</button>
@@ -204,26 +144,8 @@
     <form id="start-form" method="dialog">
       <span class="label">New walk test</span>
       <h2>Start recording feedback</h2>
-      <label>Scenario
-        <input name="scenario" value="shop-walk" required>
-      </label>
-      <label>Verifier
-        <input name="verifier" value="Milan" required>
-      </label>
-      <label>Subject ID
-        <input name="subjectId" value="milan" required>
-      </label>
-      <label>Subject name
-        <input name="displayName" value="Milan" required>
-      </label>
-      <label>Expected customer ID
-        <input name="expectedCustomerId" placeholder="Optional">
-      </label>
-      <label>Notes
-        <textarea name="notes" rows="2" placeholder="Optional route notes"></textarea>
-      </label>
       <label>Operator token
-        <input name="token" type="password" placeholder="Required for recording feedback">
+        <input name="token" type="password" autocomplete="current-password" placeholder="Required for recording feedback">
       </label>
       <div class="dialog-actions">
         <button id="cancel-start" type="button" class="button">Cancel</button>
@@ -233,6 +155,6 @@
   </dialog>
 
   <div id="toast" class="toast" role="status"></div>
-  <script src="/operator/assets/operator.js?v=product-freeze-1"></script>
+  <script src="/operator/assets/operator.js?v=visual-testing-2"></script>
 </body>
 </html>

@@ -133,64 +133,11 @@ main {
 }
 
 .run-actions,
-.dialog-actions,
-.speech-controls,
-.voice-actions {
+.dialog-actions {
   display: flex;
   align-items: center;
   gap: 0.55rem;
   flex-wrap: wrap;
-}
-
-.voice-bar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 1rem;
-  margin-top: 0.7rem;
-  padding: 0.9rem 1.2rem;
-  color: var(--paper-bright);
-  background: var(--ink);
-  border-left: 6px solid #738b86;
-  box-shadow: var(--shadow);
-}
-
-.voice-bar.connected,
-.voice-bar.listening {
-  border-left-color: #67d38d;
-}
-
-.voice-bar.starting,
-.voice-bar.thinking {
-  border-left-color: #e7b04b;
-}
-
-.voice-bar.muted,
-.voice-bar.error {
-  border-left-color: var(--signal);
-}
-
-.voice-status-copy strong,
-.voice-status-copy span {
-  display: block;
-}
-
-#voice-detail {
-  max-width: 52rem;
-  margin-top: 0.2rem;
-  color: rgba(255, 250, 240, 0.76);
-  font-size: 0.88rem;
-}
-
-.voice-actions .button {
-  color: var(--paper-bright);
-  border-color: rgba(255, 250, 240, 0.7);
-}
-
-.voice-actions .voice-start {
-  color: var(--ink);
-  background: #67d38d;
-  border-color: #67d38d;
 }
 
 .button {
@@ -410,39 +357,6 @@ main {
   border: 1px dashed var(--line);
 }
 
-.world-claim-controls {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.7rem;
-}
-
-.world-claim-controls label,
-.world-claim-controls input,
-.world-claim-controls select {
-  width: 100%;
-}
-
-.world-claim-controls label {
-  font-size: 0.78rem;
-  font-weight: 800;
-  text-transform: uppercase;
-}
-
-.world-claim-controls input,
-.world-claim-controls select {
-  display: block;
-  min-height: 2.6rem;
-  margin-top: 0.3rem;
-  padding: 0.5rem;
-  color: var(--ink);
-  background: var(--paper-bright);
-  border: 1px solid var(--line);
-}
-
-.state-verdict-actions {
-  margin-top: 0.7rem;
-}
-
 .event-diagnostics > summary {
   padding: 0.9rem 1rem;
   cursor: pointer;
@@ -452,12 +366,6 @@ main {
 
 .event-diagnostics-body {
   padding: 0 1rem 1rem;
-}
-
-@media (max-width: 640px) {
-  .world-claim-controls {
-    grid-template-columns: 1fr;
-  }
 }
 
 .camera-column {
@@ -614,14 +522,6 @@ main {
   max-width: 60ch;
   margin: 0;
   line-height: 1.45;
-}
-
-.speech-controls {
-  justify-content: flex-end;
-}
-
-.speech-controls label {
-  font-size: 0.82rem;
 }
 
 .verification-column {
@@ -848,22 +748,6 @@ textarea {
   background: #f8dede;
 }
 
-.missing-panel {
-  border-top: 5px solid var(--danger);
-}
-
-.missing-actions .button {
-  min-height: 3.5rem;
-}
-
-.shelf-picker {
-  display: grid;
-  gap: 0.35rem;
-  margin: 0.85rem 0 0.55rem;
-  font-size: 0.82rem;
-  font-weight: 800;
-}
-
 .advanced-tools {
   margin-top: 1rem;
   background: rgba(255, 250, 240, 0.72);
@@ -994,7 +878,6 @@ dialog label {
 @media (max-width: 650px) {
   .masthead,
   .run-bar,
-  .voice-bar,
   .camera-foot {
     align-items: stretch;
     flex-direction: column;
@@ -1006,15 +889,6 @@ dialog label {
 
   .run-actions .button {
     flex: 1;
-  }
-
-  .voice-actions {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .voice-actions .voice-start {
-    grid-column: 1 / -1;
   }
 
   .camera-stage {
@@ -1034,8 +908,7 @@ dialog label {
     gap: 0.7rem;
   }
 
-  .event-monitor,
-  .missing-panel {
+  .event-monitor {
     padding: 0.8rem;
   }
 
@@ -1049,10 +922,6 @@ dialog label {
 
   .camera-foot {
     display: flex;
-  }
-
-  .speech-controls {
-    justify-content: flex-start;
   }
 
   .verification-column {

@@ -309,6 +309,64 @@ class VisitRegistry:
             origin=visit.origin,
         )
 
+    def resolve_plane_inside_track(
+        self,
+        track_evidence: TrackVisitEvidence,
+        *,
+        entered_visit_ids: Sequence[int],
+    ) -> VisitRegistryDecision | None:
+        """Bind an inside entrance-camera track to the sole entered visit.
+
+        This recovers visit identity when the tracker replaces a person track
+        after ENTRY but before that person crosses back outside for LEAVE.
+        """
+        observation = track_evidence
+        existing = self.resolve_existing_track(observation)
+        if existing is not None:
+            return existing
+        if not is_entrance_enabled(observation.camera_role):
+            return None
+
+        candidate_visits = []
+        for visit_id in set(entered_visit_ids):
+            visit = self.visits.get(visit_id)
+            if (
+                visit is not None
+                and not self._is_visit_closed(visit)
+                and visit.origin == VISIT_ORIGIN_ENTRANCE
+            ):
+                candidate_visits.append(visit)
+        if len(candidate_visits) != 1:
+            return None
+
+        visit = candidate_visits[0]
+        face_matches = self._find_exact_face_matches(observation)
+        if face_matches and any(match.visit_id != visit.visit_id for match in face_matches):
+            return None
+        observed_face_ids = set(observation.face_identity_ids)
+        if (
+            observed_face_ids
+            and visit.face_identity_ids
+            and observed_face_ids.isdisjoint(visit.face_identity_ids)
+        ):
+            return None
+
+        self.pending_observer_tracks.pop(
+            (observation.device_id, observation.track_id),
+            None,
+        )
+        self._bind_track(observation, visit)
+        self._update_visit(visit, observation)
+        visit.observer_observation_count += 1
+        return self._decision(
+            observation=observation,
+            visit=visit,
+            decision="plane_inside_track_reused",
+            reason="single_active_entered_visit_plane_state",
+            score=None,
+            matched_visit_id=visit.visit_id,
+        )
+
     def resolve_entrance_track(self, track_evidence: TrackVisitEvidence) -> VisitRegistryDecision:
         observation = track_evidence
         existing = self.resolve_existing_track(observation)

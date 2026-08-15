@@ -853,6 +853,25 @@ class OperatorTestStore:
         directory.mkdir(parents=True, exist_ok=True)
         return directory
 
+    def save_plane_crossing_evidence(
+        self,
+        *,
+        filename_stem: str,
+        jpeg: bytes,
+        metadata: Mapping[str, Any],
+    ) -> str | None:
+        run = self.active_run()
+        if run is None:
+            return None
+        run_id = str(run["runId"])
+        safe_stem = re.sub(r"[^a-zA-Z0-9_.-]+", "-", filename_stem).strip("-")
+        directory = self.evidence_directory(run_id)
+        image_path = directory / f"{safe_stem}.jpg"
+        metadata_path = directory / f"{safe_stem}.json"
+        image_path.write_bytes(jpeg)
+        self._write_json(metadata_path, metadata)
+        return image_path.relative_to(self.runs_root / run_id).as_posix()
+
     @staticmethod
     def _run_payload(
         connection: sqlite3.Connection,

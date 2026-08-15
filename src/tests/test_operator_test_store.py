@@ -102,6 +102,30 @@ class OperatorTestStoreTests(unittest.TestCase):
         _annotations, events = self.store.run_rows(run["runId"])
         self.assertEqual([event["eventId"] for event in events], [2])
 
+    def test_plane_crossing_evidence_is_saved_only_for_active_run(self) -> None:
+        self.assertIsNone(
+            self.store.save_plane_crossing_evidence(
+                filename_stem="entry-before-run",
+                jpeg=b"jpeg",
+                metadata={"eventType": "entry"},
+            )
+        )
+        run = self.start_run()
+
+        relative_path = self.store.save_plane_crossing_evidence(
+            filename_stem="entry camera 1",
+            jpeg=b"jpeg-data",
+            metadata={"eventType": "entry", "trackId": 3},
+        )
+
+        self.assertEqual(relative_path, "evidence/entry-camera-1.jpg")
+        run_directory = self.store.runs_root / run["runId"]
+        self.assertEqual(
+            (run_directory / relative_path).read_bytes(),
+            b"jpeg-data",
+        )
+        self.assertTrue((run_directory / "evidence/entry-camera-1.json").exists())
+
     def test_enqueued_events_are_durable_after_flush(self) -> None:
         run = self.start_run()
         self.store.enqueue_event(

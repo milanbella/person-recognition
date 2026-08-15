@@ -53,6 +53,133 @@ def registry() -> VisitRegistry:
 
 
 class VisitRegistryProvisionalTests(unittest.TestCase):
+    def test_plane_inside_track_reuses_sole_entered_visit(self) -> None:
+        visits = registry()
+        entrance = visits.resolve_entrance_track(
+            evidence(
+                device_id="entrance",
+                track_id=1,
+                host_seconds=0.0,
+                body=appearance([1.0, 0.0]),
+                camera_role=CAMERA_ROLE_ENTRANCE_OBSERVER,
+            )
+        )
+
+        decision = visits.resolve_plane_inside_track(
+            evidence(
+                device_id="entrance",
+                track_id=2,
+                host_seconds=20.0,
+                body=appearance([0.0, 1.0]),
+                camera_role=CAMERA_ROLE_ENTRANCE_OBSERVER,
+            ),
+            entered_visit_ids=[entrance.assignment.visit_id],
+        )
+
+        self.assertIsNotNone(decision)
+        assert decision is not None
+        self.assertEqual(decision.assignment.visit_id, entrance.assignment.visit_id)
+        self.assertEqual(decision.decision, "plane_inside_track_reused")
+        self.assertEqual(len(visits.visits), 1)
+
+    def test_plane_inside_track_remains_ambiguous_for_multiple_entered_visits(self) -> None:
+        visits = registry()
+        first = visits.resolve_entrance_track(
+            evidence(
+                device_id="entrance-a",
+                track_id=1,
+                host_seconds=0.0,
+                body=appearance([1.0, 0.0]),
+                camera_role=CAMERA_ROLE_ENTRANCE_OBSERVER,
+            )
+        )
+        second = visits.resolve_entrance_track(
+            evidence(
+                device_id="entrance-b",
+                track_id=2,
+                host_seconds=10.0,
+                body=appearance([0.0, 1.0]),
+                camera_role=CAMERA_ROLE_ENTRANCE_OBSERVER,
+            )
+        )
+
+        decision = visits.resolve_plane_inside_track(
+            evidence(
+                device_id="entrance-a",
+                track_id=3,
+                host_seconds=20.0,
+                body=None,
+                camera_role=CAMERA_ROLE_ENTRANCE_OBSERVER,
+            ),
+            entered_visit_ids=[first.assignment.visit_id, second.assignment.visit_id],
+        )
+
+        self.assertIsNone(decision)
+
+    def test_plane_inside_track_rejects_conflicting_face(self) -> None:
+        visits = registry()
+        first = visits.resolve_entrance_track(
+            evidence(
+                device_id="entrance-a",
+                track_id=1,
+                host_seconds=0.0,
+                body=None,
+                faces=("face-a",),
+                camera_role=CAMERA_ROLE_ENTRANCE_OBSERVER,
+            )
+        )
+        visits.resolve_entrance_track(
+            evidence(
+                device_id="entrance-b",
+                track_id=2,
+                host_seconds=10.0,
+                body=None,
+                faces=("face-b",),
+                camera_role=CAMERA_ROLE_ENTRANCE_OBSERVER,
+            )
+        )
+
+        decision = visits.resolve_plane_inside_track(
+            evidence(
+                device_id="entrance-a",
+                track_id=3,
+                host_seconds=20.0,
+                body=None,
+                faces=("face-b",),
+                camera_role=CAMERA_ROLE_ENTRANCE_OBSERVER,
+            ),
+            entered_visit_ids=[first.assignment.visit_id],
+        )
+
+        self.assertIsNone(decision)
+
+    def test_plane_inside_track_rejects_unmapped_disjoint_face(self) -> None:
+        visits = registry()
+        entrance = visits.resolve_entrance_track(
+            evidence(
+                device_id="entrance",
+                track_id=1,
+                host_seconds=0.0,
+                body=None,
+                faces=("face-a",),
+                camera_role=CAMERA_ROLE_ENTRANCE_OBSERVER,
+            )
+        )
+
+        decision = visits.resolve_plane_inside_track(
+            evidence(
+                device_id="entrance",
+                track_id=2,
+                host_seconds=20.0,
+                body=None,
+                faces=("unmapped-face-b",),
+                camera_role=CAMERA_ROLE_ENTRANCE_OBSERVER,
+            ),
+            entered_visit_ids=[entrance.assignment.visit_id],
+        )
+
+        self.assertIsNone(decision)
+
     def test_single_eligible_entrance_visit_uses_lower_fallback_threshold(self) -> None:
         visits = registry()
         entrance = visits.resolve_entrance_track(
