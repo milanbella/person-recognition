@@ -444,6 +444,88 @@ class VisitRegistryProvisionalTests(unittest.TestCase):
             )
         )
 
+    def test_entrance_promotes_qualified_provisional_observer_candidate(self) -> None:
+        visits = registry()
+        observer = visits.resolve_observer_track(
+            evidence(
+                device_id="shop-observer",
+                track_id=1,
+                host_seconds=0.0,
+                body=appearance([1.0, 0.0]),
+            )
+        )
+        self.assertIsNone(observer)
+        observer = visits.resolve_observer_track(
+            evidence(
+                device_id="shop-observer",
+                track_id=1,
+                host_seconds=3.1,
+                body=appearance([1.0, 0.0]),
+                track_status="TRACKED",
+            )
+        )
+        assert observer is not None
+        observer_visit_id = observer.assignment.visit_id
+
+        entrance_observation = evidence(
+            device_id="entrance",
+            track_id=2,
+            host_seconds=20.0,
+            body=appearance([0.1, 0.995]),
+            camera_role=CAMERA_ROLE_ENTRANCE_OBSERVER,
+        )
+        self.assertIsNone(visits.resolve_observer_track(entrance_observation))
+
+        entrance = visits.resolve_entrance_track(entrance_observation)
+
+        self.assertEqual(entrance.assignment.visit_id, observer_visit_id)
+        self.assertEqual(entrance.assignment.origin, "entrance_confirmed")
+        self.assertEqual(entrance.decision, "entrance_merged")
+        self.assertEqual(
+            entrance.reason,
+            "provisional_observer_candidate_promoted_to_entrance",
+        )
+        self.assertEqual(len(visits.visits), 1)
+        self.assertFalse(
+            visits.is_observer_track_provisional(device_id="entrance", track_id=2)
+        )
+
+    def test_entrance_does_not_promote_weak_provisional_observer_candidate(self) -> None:
+        visits = registry()
+        visits.resolve_observer_track(
+            evidence(
+                device_id="shop-observer",
+                track_id=1,
+                host_seconds=0.0,
+                body=appearance([1.0, 0.0]),
+            )
+        )
+        observer = visits.resolve_observer_track(
+            evidence(
+                device_id="shop-observer",
+                track_id=1,
+                host_seconds=3.1,
+                body=appearance([1.0, 0.0]),
+                track_status="TRACKED",
+            )
+        )
+        assert observer is not None
+
+        entrance_observation = evidence(
+            device_id="entrance",
+            track_id=2,
+            host_seconds=20.0,
+            body=None,
+            camera_role=CAMERA_ROLE_ENTRANCE_OBSERVER,
+        )
+        self.assertIsNone(visits.resolve_observer_track(entrance_observation))
+
+        entrance = visits.resolve_entrance_track(entrance_observation)
+
+        self.assertNotEqual(entrance.assignment.visit_id, observer.assignment.visit_id)
+        self.assertEqual(entrance.decision, "new_entrance_visit")
+        self.assertEqual(len(visits.visits), 2)
+
     def test_provisional_timeout_creates_observer_only_visit(self) -> None:
         visits = registry()
         self.assertIsNone(

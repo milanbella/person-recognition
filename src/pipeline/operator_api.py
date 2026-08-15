@@ -23,6 +23,7 @@ def create_operator_router(
     world_state_store: WorldStateStore | None,
     assets_root: Path,
     shop_opener: Callable[[], Mapping[str, Any]] | None = None,
+    shop_shelf_sync_provider: Callable[[int], Mapping[str, Any]] | None = None,
 ) -> APIRouter:
     router = APIRouter()
 
@@ -101,6 +102,22 @@ def create_operator_router(
     @router.get("/operator/api/state")
     def operator_state() -> dict[str, Any]:
         return current_state()
+
+    @router.get("/operator/api/shop-shelf-sync/{visit_id}")
+    def shop_shelf_sync(visit_id: int) -> dict[str, Any]:
+        if visit_id <= 0:
+            raise HTTPException(status_code=422, detail="visit_id must be greater than zero.")
+        if shop_shelf_sync_provider is None:
+            return {
+                "enabled": False,
+                "visitId": visit_id,
+                "status": "disabled",
+                "local": None,
+                "cloud": None,
+                "pendingCount": 0,
+                "lastError": None,
+            }
+        return dict(shop_shelf_sync_provider(visit_id))
 
     @router.post("/operator/api/shop/open")
     def open_shop(

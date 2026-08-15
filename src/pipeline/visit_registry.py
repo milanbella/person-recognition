@@ -424,6 +424,21 @@ class VisitRegistry:
                 matched_visit_id=visit.visit_id,
             )
 
+        visit, provisional_score = self._find_pending_observer_entrance_candidate(observation)
+        if visit is not None:
+            self._bind_track(observation, visit)
+            self._update_visit(visit, observation)
+            visit.origin = VISIT_ORIGIN_ENTRANCE
+            visit.entrance_observation_times.append(observation.host_seconds)
+            return self._decision(
+                observation=observation,
+                visit=visit,
+                decision="entrance_merged",
+                reason="provisional_observer_candidate_promoted_to_entrance",
+                score=provisional_score,
+                matched_visit_id=visit.visit_id,
+            )
+
         visit = self._create_visit(observation, origin=VISIT_ORIGIN_ENTRANCE)
         visit.entrance_observation_times.append(observation.host_seconds)
         return self._decision(
@@ -434,6 +449,34 @@ class VisitRegistry:
             score=None,
             matched_visit_id=None,
         )
+
+    def _find_pending_observer_entrance_candidate(
+        self,
+        observation: TrackVisitEvidence,
+    ) -> tuple[ShopVisit | None, float | None]:
+        pending = self.pending_observer_tracks.get(
+            (observation.device_id, observation.track_id)
+        )
+        if (
+            pending is None
+            or pending.best_candidate_visit_id is None
+            or pending.best_score is None
+            or pending.best_score < self.observer_bootstrap_match_threshold
+        ):
+            return None, None
+
+        visit = self.visits.get(pending.best_candidate_visit_id)
+        if (
+            visit is None
+            or self._is_visit_closed(visit)
+            or visit.origin != VISIT_ORIGIN_OBSERVER
+        ):
+            return None, None
+
+        age_seconds = observation.host_seconds - visit.last_seen_host_seconds
+        if age_seconds < 0.0 or age_seconds > self.observer_visit_max_age_seconds:
+            return None, None
+        return visit, pending.best_score
 
     def resolve_observer_track(self, track_evidence: TrackVisitEvidence) -> VisitRegistryDecision | None:
         observation = track_evidence

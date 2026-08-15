@@ -59,12 +59,14 @@ class MjpegStreamServer:
         port: int = 8002,
         jpeg_quality: int = 70,
         camera_timeout_seconds: float = 3.0,
+        enable_mjpeg_streaming: bool = True,
         world_state_db: Path | None = None,
         operator_state_db: Path | None = None,
         operator_runs_root: Path = Path("test-runs"),
         operator_api_token: str | None = None,
         operator_runtime_configuration: dict[str, object] | None = None,
         shop_opener: Callable[[], Mapping[str, Any]] | None = None,
+        shop_shelf_sync_provider: Callable[[int], Mapping[str, Any]] | None = None,
     ) -> None:
         if not camera_device_ids:
             raise ValueError("At least one camera device id is required for streaming.")
@@ -85,6 +87,7 @@ class MjpegStreamServer:
         self.port = port
         self.jpeg_quality = jpeg_quality
         self.camera_timeout_seconds = camera_timeout_seconds
+        self.enable_mjpeg_streaming = enable_mjpeg_streaming
         self._cameras = {
             index: _CameraFrame(device_id=device_id, camera_role=camera_roles[index])
             for index, device_id in enumerate(camera_device_ids)
@@ -167,6 +170,7 @@ class MjpegStreamServer:
                     assets_root=Path(__file__).resolve().parent.parent
                     / "operator_console",
                     shop_opener=shop_opener,
+                    shop_shelf_sync_provider=shop_shelf_sync_provider,
                 )
             )
 
@@ -177,6 +181,8 @@ class MjpegStreamServer:
         def stream(cam_index: int) -> StreamingResponse:
             if cam_index not in self._cameras:
                 raise HTTPException(status_code=404, detail=f"Camera index {cam_index} is not configured.")
+            if not self.enable_mjpeg_streaming:
+                raise HTTPException(status_code=503, detail="MJPEG streaming is disabled.")
             return StreamingResponse(
                 self._generate_stream(cam_index),
                 media_type="multipart/x-mixed-replace; boundary=frame",
@@ -360,7 +366,12 @@ class MjpegStreamServer:
         deadline = time.monotonic() + startup_timeout_seconds
         while time.monotonic() < deadline:
             if self._server.started:
-                print(f"MJPEG streaming API listening on http://{self.host}:{self.port}")
+                api_name = (
+                    "MJPEG streaming API"
+                    if self.enable_mjpeg_streaming
+                    else "Operator/world-state API"
+                )
+                print(f"{api_name} listening on http://{self.host}:{self.port}")
                 return
             if not self._thread.is_alive():
                 error = self._server_error or RuntimeError("Uvicorn stopped during startup.")
@@ -379,6 +390,8 @@ class MjpegStreamServer:
     ) -> None:
         if camera_index not in self._cameras:
             raise KeyError(f"Camera index {camera_index} is not configured.")
+        if not self.enable_mjpeg_streaming:
+            raise RuntimeError("MJPEG frame publication is disabled.")
         if frame.ndim != 3 or frame.shape[2] != 3:
             raise ValueError("MJPEG frames must be BGR images with shape (height, width, 3).")
 

@@ -60,6 +60,17 @@
           <p id="world-state-summary" class="world-state-summary">Start a test run to query subject state.</p>
           <button id="map-subject-visit" class="button primary" hidden disabled>Use proposed visit</button>
           <dl id="world-state-details" class="details world-state-details"></dl>
+          <section class="cloud-shelf-sync" aria-labelledby="cloud-shelf-sync-title">
+            <div class="cloud-shelf-sync-heading">
+              <h3 id="cloud-shelf-sync-title">Cloud shelf synchronization</h3>
+              <span id="cloud-shelf-sync-status" class="pill sync-status unknown">Unknown</span>
+            </div>
+            <div class="cloud-shelf-sync-grid">
+              <div><span>Person recognition</span><strong id="local-shelf-position">Unknown</strong></div>
+              <div><span>aishopS</span><strong id="cloud-shelf-position">Unknown</strong></div>
+            </div>
+            <p id="cloud-shelf-sync-detail" class="world-state-summary">No synchronization state.</p>
+          </section>
           <section class="shelf-position-evidence" aria-labelledby="shelf-position-evidence-title">
             <h3 id="shelf-position-evidence-title">Shelf distance evidence</h3>
             <div id="shelf-position-evidence"></div>

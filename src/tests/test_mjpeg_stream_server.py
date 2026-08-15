@@ -52,6 +52,27 @@ class MjpegStreamServerTests(unittest.TestCase):
         self.assertTrue(part.startswith(b"--frame\r\nContent-Type: image/jpeg"))
         self.assertIn(b"\xff\xd8", part)
 
+    def test_mjpeg_can_be_disabled_without_disabling_http_api(self) -> None:
+        server = MjpegStreamServer(
+            camera_device_ids=["camera-a"],
+            enable_mjpeg_streaming=False,
+        )
+        try:
+            paths = {getattr(route, "path", None) for route in server.app.routes}
+            self.assertIn("/cameras-status", paths)
+            stream_route = next(
+                route
+                for route in server.app.routes
+                if getattr(route, "path", None) == "/stream/{cam_index}"
+            )
+            with self.assertRaises(HTTPException) as disabled:
+                stream_route.endpoint(0)
+            self.assertEqual(disabled.exception.status_code, 503)
+            with self.assertRaisesRegex(RuntimeError, "publication is disabled"):
+                server.publish(0, np.zeros((8, 8, 3), dtype=np.uint8))
+        finally:
+            server.stop()
+
     def test_stream_waits_for_first_frame(self) -> None:
         generator = self.server._generate_stream(0)
         result: list[bytes] = []

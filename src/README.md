@@ -184,6 +184,32 @@ camera/marker distance that participated in the decision. Camera indexes in the
 API are zero-based; the operator console displays them as Camera 1, Camera 2,
 and so on.
 
+When shelf watching and the shop API are both configured, the live service
+also pushes the stable current position to
+`PUT /shop-api/shopping-customer/shelf-position`. Updates are persisted first
+in the `shelf_position_outbox` table of `--state-db`, retried with backoff, and
+identified by a persistent `sourceRevision`. The default behavior waits 750 ms
+before accepting a shelf change, expires evidence after 2 seconds, sends a
+15-second heartbeat, and sends `shelfId: null` after the position expires.
+These intervals can be changed with
+`--shop-api-shelf-stability-seconds`, `--shop-api-shelf-stale-seconds`, and
+`--shop-api-shelf-heartbeat-seconds`.
+
+The push worker also reads the authoritative value from aishopS every five
+seconds. The operator console displays the local and cloud shelf positions
+side by side, including queued, retrying, synchronized, and mismatch states.
+The same cached diagnostic is available without exposing the shop API key:
+
+```bash
+curl -s http://127.0.0.1:8002/operator/api/shop-shelf-sync/1 | jq
+```
+
+Cloud shelf read-back runs only when `--enable-operator-console` is enabled.
+Use `--disable-mjpeg-streaming` to keep the operator and world-state APIs
+running without camera MJPEG endpoints or per-frame JPEG encoding. The older
+`--disable-streaming` option disables the complete HTTP server and therefore
+cannot be combined with the operator console.
+
 Enable product recognition and query the latest result associated with a
 visit:
 

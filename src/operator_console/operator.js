@@ -12,6 +12,7 @@
     eventFeedback: new Map(),
     report: null,
     worldState: null,
+    shelfSync: null,
     productCameraEvidence: null,
     frozenProductCameras: new Map(),
     productFreezePending: new Set(),
@@ -566,6 +567,7 @@
     const subjectId = selectedSubjectId();
     if (!run || !subjectId) {
       app.worldState = null;
+      app.shelfSync = null;
       app.productCameraEvidence = null;
       resetProductSnapshots();
       renderWorldState();
@@ -583,6 +585,19 @@
       app.worldState = worldState;
       const visitId = app.worldState?.claims?.visitId;
       if (Number.isInteger(visitId)) {
+        try {
+          app.shelfSync = await api(`/operator/api/shop-shelf-sync/${visitId}`);
+        } catch (error) {
+          app.shelfSync = {
+            enabled: true,
+            visitId,
+            status: "unavailable",
+            local: null,
+            cloud: null,
+            pendingCount: 0,
+            lastError: error.message,
+          };
+        }
         if (
           Number.isInteger(app.productSnapshotVisitId)
           && app.productSnapshotVisitId !== visitId
@@ -594,6 +609,7 @@
           `/world-state/visits/${visitId}/product-observations`
         );
       } else {
+        app.shelfSync = null;
         app.productCameraEvidence = null;
         resetProductSnapshots();
       }
@@ -613,6 +629,7 @@
       el("world-state-summary").textContent = "Start a test run to query subject state.";
       el("map-subject-visit").hidden = true;
       renderShelfPositionEvidence(null);
+      renderShelfSync(null);
       renderProductRecognition(null);
       setActionAvailability();
       return;
@@ -661,8 +678,41 @@
       details.append(dt, dd);
     });
     renderShelfPositionEvidence(payload);
+    renderShelfSync(app.shelfSync);
     renderProductRecognition(payload);
     setActionAvailability();
+  }
+
+  function renderShelfSync(sync) {
+    const status = sync?.status || "unknown";
+    const badge = el("cloud-shelf-sync-status");
+    badge.textContent = status.replaceAll("_", " ");
+    badge.className = `pill sync-status ${status}`;
+    el("local-shelf-position").textContent = formatShelfSyncPosition(sync?.local);
+    el("cloud-shelf-position").textContent = formatShelfSyncPosition(sync?.cloud);
+    if (!sync) {
+      el("cloud-shelf-sync-detail").textContent = "No synchronization state.";
+      return;
+    }
+    const details = [];
+    if (sync.cloud?.sourceRevision != null) details.push(`revision ${sync.cloud.sourceRevision}`);
+    if (sync.pendingCount) details.push(`${sync.pendingCount} queued`);
+    if (sync.attempts) details.push(`attempt ${sync.attempts}`);
+    if (sync.debounceRemainingMilliseconds) {
+      details.push(`${sync.debounceRemainingMilliseconds} ms stability wait`);
+    }
+    if (sync.lastSuccessfulSyncUnixMilliseconds) {
+      details.push(`${Math.max(0, Date.now() - sync.lastSuccessfulSyncUnixMilliseconds)} ms since push`);
+    }
+    if (sync.lastError) details.push(sync.lastError);
+    el("cloud-shelf-sync-detail").textContent = details.join(" · ") || "Waiting for shelf evidence.";
+  }
+
+  function formatShelfSyncPosition(position) {
+    if (!position) return "Unknown";
+    const shelf = position.shelfId == null ? "Cleared" : `Shelf ${position.shelfId}`;
+    const distance = position.distanceMm == null ? "" : ` · ${Math.round(position.distanceMm)} mm`;
+    return `${shelf}${distance}`;
   }
 
   function renderProductRecognition(payload) {

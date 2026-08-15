@@ -6,6 +6,7 @@ import subprocess
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from collections import deque
 from contextlib import ExitStack
@@ -104,6 +105,7 @@ from pipeline.shelf_proximity import (
     ShelfCameraObservation,
     person_to_shelf_distance_mm,
 )
+from pipeline.shelf_position_push import ShelfPositionPushService
 from pipeline.shop_state_store import DEFAULT_SHOP_STATE_DB, ShopStateStore
 from pipeline.tracking import PersonTracker, Track, build_person_tracker, draw_tracks, scale_tracks
 from pipeline.visit_identity import VisitAssignment, add_visit_identity_args, draw_visit_labels
@@ -194,6 +196,7 @@ class LiveSyncedStreamState:
     last_raw_rgb_host_synced_seconds: float | None = None
     last_rgb_host_synced_seconds: float | None = None
     last_depth_sync_warning_seconds: float | None = None
+    last_shelf_push_depth_sequence: int | None = None
     shelf_anchor_manager: ShelfAnchorManager | None = None
 
 
@@ -226,6 +229,7 @@ class ShopApiClient:
         self.max_age_seconds = max_age_seconds
         self.timeout_seconds = timeout_seconds
         self.opener = urllib.request.build_opener(NoRedirectHandler)
+        self._request_lock = threading.Lock()
         self.bound_visit_ids: set[int] = set()
         self.left_visit_ids: set[int] = set()
 
@@ -295,6 +299,27 @@ class ShopApiClient:
         )
         return result
 
+    def update_shelf_position(self, payload: dict[str, object]) -> dict[str, Any] | None:
+        if not self.enabled:
+            return None
+        return self._request(
+            "PUT",
+            "/shop-api/shopping-customer/shelf-position",
+            payload,
+        )
+
+    def get_shelf_position(self, visit_id: int) -> dict[str, Any] | None:
+        if not self.enabled or self.shop_id is None:
+            return None
+        query = urllib.parse.urlencode(
+            {"shopId": self.shop_id, "visitId": visit_id}
+        )
+        return self._request(
+            "GET",
+            f"/shop-api/shopping-customer/shelf-position?{query}",
+            None,
+        )
+
     def open_shop(self) -> dict[str, Any]:
         if not self.enabled or self.shop_id is None:
             raise RuntimeError("Shop API is not configured for operator shop opening.")
@@ -317,33 +342,44 @@ class ShopApiClient:
         *,
         not_found_ok: bool = False,
     ) -> dict[str, Any] | None:
-        body = json.dumps(payload).encode("utf-8")
+        return self._request("POST", path, payload, not_found_ok=not_found_ok)
+
+    def _request(
+        self,
+        method: str,
+        path: str,
+        payload: dict[str, object] | None,
+        *,
+        not_found_ok: bool = False,
+    ) -> dict[str, Any] | None:
+        body = None if payload is None else json.dumps(payload).encode("utf-8")
         url = self.base_url + path
         request = urllib.request.Request(
             url,
             data=body,
-            method="POST",
+            method=method,
             headers={
                 "Content-Type": "application/json",
                 "X-Api-Key": str(self.api_key),
             },
         )
         try:
-            with self.opener.open(request, timeout=self.timeout_seconds) as response:
-                response_body = response.read().decode("utf-8")
+            with self._request_lock:
+                with self.opener.open(request, timeout=self.timeout_seconds) as response:
+                    response_body = response.read().decode("utf-8")
         except urllib.error.HTTPError as exc:
             if 300 <= exc.code < 400:
                 location = exc.headers.get("Location", "")
                 raise RuntimeError(
-                    f"Shop API POST {url} was redirected to {location}. "
-                    "Use the final non-redirecting --shop-api-base-url, otherwise Python may replay POST as GET."
+                    f"Shop API {method} {url} was redirected to {location}. "
+                    "Use the final non-redirecting --shop-api-base-url."
                 ) from exc
             if not_found_ok and exc.code == 404:
                 return None
             error_body = exc.read().decode("utf-8", errors="replace")
-            raise RuntimeError(f"Shop API POST {url} failed: {exc.code} {error_body}") from exc
+            raise RuntimeError(f"Shop API {method} {url} failed: {exc.code} {error_body}") from exc
         except urllib.error.URLError as exc:
-            raise RuntimeError(f"Shop API POST {url} failed: {exc}") from exc
+            raise RuntimeError(f"Shop API {method} {url} failed: {exc}") from exc
 
         if not response_body:
             return {}
@@ -446,7 +482,19 @@ def build_argparser() -> argparse.ArgumentParser:
         default=3.0,
         help="Seconds without a published frame before a camera is reported offline.",
     )
-    parser.add_argument("--disable-streaming", action="store_true", help="Disable the MJPEG streaming API.")
+    parser.add_argument(
+        "--disable-streaming",
+        action="store_true",
+        help="Disable the complete streaming, world-state, and operator HTTP API.",
+    )
+    parser.add_argument(
+        "--disable-mjpeg-streaming",
+        action="store_true",
+        help=(
+            "Disable camera MJPEG endpoints and JPEG encoding while keeping the "
+            "world-state and operator HTTP APIs available."
+        ),
+    )
     parser.add_argument(
         "--enable-operator-console",
         action="store_true",
@@ -634,6 +682,9 @@ def build_argparser() -> argparse.ArgumentParser:
     parser.add_argument("--shop-id", type=int, default=None, help="Shop id for shop API visit binding.")
     parser.add_argument("--shop-api-max-age-seconds", type=int, default=30)
     parser.add_argument("--shop-api-timeout-seconds", type=float, default=2.0)
+    parser.add_argument("--shop-api-shelf-stability-seconds", type=float, default=0.75)
+    parser.add_argument("--shop-api-shelf-stale-seconds", type=float, default=2.0)
+    parser.add_argument("--shop-api-shelf-heartbeat-seconds", type=float, default=15.0)
     parser.add_argument(
         "--log-plane-trace",
         action="store_true",
@@ -2292,6 +2343,12 @@ def main() -> None:
         raise ValueError("Product crop and association margins must not be negative.")
     if args.product_result_max_age_seconds <= 0.0:
         raise ValueError("--product-result-max-age-seconds must be greater than zero.")
+    if args.shop_api_shelf_stability_seconds < 0.0:
+        raise ValueError("--shop-api-shelf-stability-seconds must not be negative.")
+    if args.shop_api_shelf_stale_seconds <= 0.0:
+        raise ValueError("--shop-api-shelf-stale-seconds must be greater than zero.")
+    if args.shop_api_shelf_heartbeat_seconds <= 0.0:
+        raise ValueError("--shop-api-shelf-heartbeat-seconds must be greater than zero.")
 
     stop_requested = threading.Event()
     performance = LivePerformanceLogger(
@@ -2368,6 +2425,22 @@ def main() -> None:
         max_age_seconds=args.shop_api_max_age_seconds,
         timeout_seconds=args.shop_api_timeout_seconds,
     )
+    shelf_position_push: ShelfPositionPushService | None = None
+    if shelf_config is not None and shop_api_client.enabled:
+        assert args.shop_id is not None
+        shelf_position_push = ShelfPositionPushService(
+            db_path=args.state_db,
+            shop_id=args.shop_id,
+            sender=shop_api_client.update_shelf_position,
+            reader=(
+                shop_api_client.get_shelf_position
+                if args.enable_operator_console
+                else None
+            ),
+            stability_seconds=args.shop_api_shelf_stability_seconds,
+            stale_seconds=args.shop_api_shelf_stale_seconds,
+            heartbeat_seconds=args.shop_api_shelf_heartbeat_seconds,
+        )
     artifact_writer = ReplayArtifactWriter(args.output_dir)
     write_live_config(artifact_writer=artifact_writer, args=args, camera_roles=camera_roles)
     if artifact_writer.enabled:
@@ -2376,6 +2449,12 @@ def main() -> None:
     stream_server: MjpegStreamServer | None = None
     states: list[LiveSyncedStreamState] = []
     try:
+        if shelf_position_push is not None:
+            shelf_position_push.start()
+            print(
+                "Shop API shelf-position push worker started "
+                f"reconciliation={'enabled' if args.enable_operator_console else 'disabled'}."
+            )
         if product_worker is not None:
             product_worker.start()
         if not args.disable_streaming:
@@ -2386,6 +2465,7 @@ def main() -> None:
                 port=args.stream_port,
                 jpeg_quality=args.stream_jpeg_quality,
                 camera_timeout_seconds=args.stream_camera_timeout_seconds,
+                enable_mjpeg_streaming=not args.disable_mjpeg_streaming,
                 world_state_db=args.state_db,
                 operator_state_db=(
                     args.state_db if args.enable_operator_console else None
@@ -2399,6 +2479,12 @@ def main() -> None:
                 shop_opener=(
                     shop_api_client.open_shop
                     if shop_api_client.enabled
+                    else None
+                ),
+                shop_shelf_sync_provider=(
+                    shelf_position_push.status_payload
+                    if shelf_position_push is not None
+                    and args.enable_operator_console
                     else None
                 ),
             )
@@ -2478,35 +2564,45 @@ def main() -> None:
                         args=args,
                         performance=performance,
                     )
+                    shelf_snapshot = state.cached_shelf_snapshot
+                    if (
+                        shelf_position_push is not None
+                        and shelf_snapshot is not None
+                        and shelf_snapshot.depth_sequence_number
+                        != state.last_shelf_push_depth_sequence
+                    ):
+                        shelf_position_push.publish(shelf_snapshot)
+                        state.last_shelf_push_depth_sequence = (
+                            shelf_snapshot.depth_sequence_number
+                        )
                     raw_rgb_changed = state.last_raw_rgb_sequence != previous_raw_rgb_sequence
                     processed_rgb_changed = (
                         state.last_processed_rgb_sequence != previous_processed_rgb_sequence
                     )
                     if stream_server is not None and (
-                        (args.stream_annotated and processed_rgb_changed)
-                        or (not args.stream_annotated and raw_rgb_changed)
-                        or processed_rgb_changed
+                        raw_rgb_changed or processed_rgb_changed
                     ):
                         stream_started = performance.start()
-                        stream_frame = (
-                            state.cached_rgb_overlay
-                            if args.stream_annotated
-                            else state.cached_rgb_raw
-                        )
-                        if stream_frame is not None and (
-                            (args.stream_annotated and processed_rgb_changed)
-                            or (not args.stream_annotated and raw_rgb_changed)
-                        ):
-                            stream_server.publish(
-                                camera_index,
-                                stream_frame,
-                                rgb_sequence_number=(
-                                    state.last_processed_rgb_sequence
-                                    if args.stream_annotated
-                                    else state.last_raw_rgb_sequence
-                                ),
+                        if not args.disable_mjpeg_streaming:
+                            stream_frame = (
+                                state.cached_rgb_overlay
+                                if args.stream_annotated
+                                else state.cached_rgb_raw
                             )
-                            performance.record_stream_frame()
+                            if stream_frame is not None and (
+                                (args.stream_annotated and processed_rgb_changed)
+                                or (not args.stream_annotated and raw_rgb_changed)
+                            ):
+                                stream_server.publish(
+                                    camera_index,
+                                    stream_frame,
+                                    rgb_sequence_number=(
+                                        state.last_processed_rgb_sequence
+                                        if args.stream_annotated
+                                        else state.last_raw_rgb_sequence
+                                    ),
+                                )
+                                performance.record_stream_frame()
                         if processed_rgb_changed and state.cached_observer_snapshot is not None:
                             stream_server.publish_observer_snapshot(
                                 camera_index,
@@ -2612,6 +2708,8 @@ def main() -> None:
     except KeyboardInterrupt:
         print("Interrupted by user.")
     finally:
+        if shelf_position_push is not None:
+            shelf_position_push.stop()
         if product_worker is not None:
             product_worker.stop()
         if stream_server is not None:

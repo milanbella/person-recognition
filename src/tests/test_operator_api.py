@@ -28,6 +28,13 @@ class OperatorApiTests(unittest.TestCase):
             operator_runs_root=root / "runs",
             operator_api_token="secret",
             shop_opener=open_shop,
+            shop_shelf_sync_provider=lambda visit_id: {
+                "visitId": visit_id,
+                "status": "synced",
+                "local": {"shelfId": 3, "distanceMm": 640},
+                "cloud": {"shelfId": 3, "distanceMm": 640},
+                "pendingCount": 0,
+            },
         )
 
     def tearDown(self) -> None:
@@ -82,6 +89,13 @@ class OperatorApiTests(unittest.TestCase):
         opened = self.route("/operator/api/shop/open")("Bearer secret")
         self.assertEqual(opened["customerId"], "TEST-CUSTOMER")
         self.assertEqual(self.shop_open_calls, 1)
+
+        shelf_sync = self.route(
+            "/operator/api/shop-shelf-sync/{visit_id}"
+        )(12)
+        self.assertEqual(shelf_sync["visitId"], 12)
+        self.assertEqual(shelf_sync["status"], "synced")
+        self.assertEqual(shelf_sync["cloud"]["shelfId"], 3)
 
     def test_console_assets_are_local(self) -> None:
         page = self.route("/operator/")()

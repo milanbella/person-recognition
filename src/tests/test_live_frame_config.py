@@ -92,6 +92,55 @@ class LiveFrameConfigTests(unittest.TestCase):
             {"shopId": 7},
         )
 
+    def test_shop_api_shelf_position_uses_put(self) -> None:
+        client = ShopApiClient(
+            base_url="https://shop.example",
+            api_key="key",
+            shop_id=7,
+            max_age_seconds=30,
+            timeout_seconds=2.0,
+        )
+        payload = {
+            "shopId": 7,
+            "visitId": 12,
+            "customerId": "customer-a",
+            "shelfId": 3,
+            "distanceMm": 684,
+            "observedAt": "2026-08-15T12:30:45.123Z",
+            "sourceRevision": 4,
+        }
+        with patch.object(client, "_request", return_value={"applied": True}) as request:
+            response = client.update_shelf_position(payload)
+
+        self.assertEqual(response, {"applied": True})
+        request.assert_called_once_with(
+            "PUT",
+            "/shop-api/shopping-customer/shelf-position",
+            payload,
+        )
+
+    def test_shop_api_shelf_position_read_uses_authenticated_get(self) -> None:
+        client = ShopApiClient(
+            base_url="https://shop.example",
+            api_key="key",
+            shop_id=7,
+            max_age_seconds=30,
+            timeout_seconds=2.0,
+        )
+        with patch.object(
+            client,
+            "_request",
+            return_value={"visitId": 12, "shelfId": 3},
+        ) as request:
+            response = client.get_shelf_position(12)
+
+        self.assertEqual(response, {"visitId": 12, "shelfId": 3})
+        request.assert_called_once_with(
+            "GET",
+            "/shop-api/shopping-customer/shelf-position?shopId=7&visitId=12",
+            None,
+        )
+
     def test_camera_startup_safeguard_defaults(self) -> None:
         self.assertEqual(CAMERA_CONNECT_ATTEMPTS, 5)
         self.assertEqual(CAMERA_CONNECT_RETRY_DELAY_SECONDS, 2.0)
@@ -197,6 +246,7 @@ class LiveFrameConfigTests(unittest.TestCase):
         args = build_argparser().parse_args([])
 
         self.assertFalse(args.enable_operator_console)
+        self.assertFalse(args.disable_mjpeg_streaming)
         self.assertIsNone(args.operator_api_token)
         self.assertEqual(args.operator_runs_root, Path("test-runs"))
         self.assertFalse(args.capture_plane_crossing_evidence)
@@ -214,6 +264,21 @@ class LiveFrameConfigTests(unittest.TestCase):
 
         self.assertTrue(args.enable_operator_console)
         self.assertEqual(args.operator_api_token, "test-secret")
+        validate_operator_console_args(args)
+
+    def test_operator_console_can_run_with_mjpeg_disabled(self) -> None:
+        args = build_argparser().parse_args(
+            [
+                "--enable-operator-console",
+                "--operator-api-token",
+                "test-secret",
+                "--disable-mjpeg-streaming",
+            ]
+        )
+
+        self.assertTrue(args.enable_operator_console)
+        self.assertTrue(args.disable_mjpeg_streaming)
+        self.assertFalse(args.disable_streaming)
         validate_operator_console_args(args)
 
     def test_plane_crossing_evidence_requires_operator_console(self) -> None:

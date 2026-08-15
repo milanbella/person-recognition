@@ -218,6 +218,72 @@ main {
   margin-bottom: 0.9rem;
 }
 
+.cloud-shelf-sync {
+  margin: 0.9rem 0;
+  padding: 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--paper-bright);
+}
+
+.cloud-shelf-sync-heading,
+.cloud-shelf-sync-grid {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.cloud-shelf-sync-heading h3 {
+  margin: 0;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+}
+
+.cloud-shelf-sync-grid {
+  margin-top: 0.75rem;
+  align-items: stretch;
+}
+
+.cloud-shelf-sync-grid > div {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0.65rem;
+  border-radius: 10px;
+  background: var(--paper);
+}
+
+.cloud-shelf-sync-grid span,
+.cloud-shelf-sync-grid strong {
+  display: block;
+}
+
+.cloud-shelf-sync-grid span {
+  color: var(--ink-soft);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
+.cloud-shelf-sync-grid strong {
+  margin-top: 0.2rem;
+}
+
+.sync-status.synced,
+.sync-status.cleared {
+  background: var(--mint);
+}
+
+.sync-status.pending,
+.sync-status.queued {
+  background: var(--sun);
+}
+
+.sync-status.retrying,
+.sync-status.mismatch,
+.sync-status.unavailable {
+  background: var(--danger-soft);
+}
+
 .shelf-position-evidence {
   margin: 0.9rem 0;
 }
