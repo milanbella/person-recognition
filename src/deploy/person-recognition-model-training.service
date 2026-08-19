@@ -1,0 +1,29 @@
+[Unit]
+Description=Person Recognition Product Model Training
+After=network-online.target person-recognition-live.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ovie1
+WorkingDirectory=/home/ovie1/person-recognition/src
+Environment=PYTHONUNBUFFERED=1
+StateDirectory=person-recognition
+
+ExecStart=/home/ovie1/person-recognition/src/.venv/bin/python ./model_training_app.py \
+  --host 127.0.0.1 \
+  --port 8004 \
+  --state-root /var/lib/person-recognition/model-training \
+  --api-token REPLACE_WITH_MODEL_TRAINING_TOKEN \
+  --live-base-url http://127.0.0.1:8002 \
+  --live-operator-token REPLACE_WITH_OPERATOR_TOKEN \
+  --shop-api-base-url https://ovie.sk \
+  --shop-api-key REPLACE_WITH_SHOP_API_KEY \
+  --shop-id 1
+
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+

@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Shop Model Training</title>
+  <link rel="stylesheet" href="/model-training/assets/model-training.css">
+</head>
+<body>
+  <header>
+    <p class="eyebrow">Physical collection loop</p>
+    <h1>Product model lab</h1>
+    <p id="status" class="status">Enter the training token to begin.</p>
+  </header>
+
+  <main>
+    <section class="panel setup-panel">
+      <label>Training token<input id="token" type="password" autocomplete="current-password"></label>
+      <div class="two-up">
+        <label>Product<select id="product"></select></label>
+        <label>Camera<select id="camera"></select></label>
+      </div>
+      <label>Scenario<select id="scenario">
+        <option value="clear">Clear</option><option value="hand">In hand</option>
+        <option value="shelf">On shelf</option><option value="walking">Walking</option>
+        <option value="moderate_occlusion">Moderate occlusion</option>
+        <option value="heavy_occlusion">Heavy occlusion</option>
+        <option value="pocket">Pocket</option><option value="other">Other</option>
+      </select></label>
+      <div class="actions">
+        <button id="connect" class="secondary">Connect</button>
+        <button id="start-session">Start session</button>
+        <button id="capture" disabled>Capture one</button>
+      </div>
+      <div id="session-summary" class="summary">No active session</div>
+    </section>
+
+    <section class="panel preview-panel">
+      <div class="section-title"><span>Camera preview</span><span id="camera-state">offline</span></div>
+      <img id="stream" alt="Selected camera preview">
+    </section>
+
+    <section class="panel review-panel">
+      <div class="section-title"><span>Review</span><span id="review-count">0 pending</span></div>
+      <div id="canvas-wrap" class="canvas-wrap empty">
+        <canvas id="review-canvas"></canvas>
+        <p id="empty-review">Capture a frame or connect to load pending review.</p>
+      </div>
+      <p id="frame-caption" class="caption">Draw tightly around the visible product. Exclude the hand.</p>
+      <div class="review-actions">
+        <button id="accept" disabled>Accept</button>
+        <button id="redraw" class="secondary" disabled>Redraw</button>
+        <button id="not-visible" class="secondary" disabled>Not visible</button>
+        <button id="uncertain" class="secondary" disabled>Uncertain</button>
+        <button id="reject" class="danger" disabled>Reject</button>
+      </div>
+    </section>
+
+    <section class="panel export-panel">
+      <div><p class="eyebrow">Immutable output</p><h2>YOLO dataset</h2></div>
+      <button id="export" class="secondary">Export reviewed frames</button>
+      <pre id="export-result"></pre>
+    </section>
+  </main>
+  <script src="/model-training/assets/model-training.js"></script>
+</body>
+</html>

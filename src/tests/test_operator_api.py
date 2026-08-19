@@ -192,7 +192,9 @@ class OperatorApiTests(unittest.TestCase):
         self.assertIn("/operator/api/shop/open", script_source)
         self.assertNotIn("/operator/voice/", script_source)
         self.assertNotIn("disconnectVoice", script_source)
-        self.assertIn("visual-testing-6", page_source)
+        self.assertIn("visual-testing-7", page_source)
+        self.assertIn('href="/model-training/"', page_source)
+        self.assertIn("Model training", page_source)
         self.assertIn('id="capture-training-image"', page_source)
 
     def test_shop_leave_persistence_result_is_published_to_operator_events(self) -> None:
