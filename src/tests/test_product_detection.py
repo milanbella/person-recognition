@@ -3,13 +3,29 @@ import unittest
 import numpy as np
 
 from pipeline.product_detection import (
+    decode_product_crop,
     decode_end_to_end_product_output,
+    encode_lossless_product_crop,
     expanded_person_crop,
     parse_yolo_class_names,
 )
 
 
 class ProductDetectionTests(unittest.TestCase):
+    def test_lossless_frozen_crop_round_trip_preserves_every_pixel(self) -> None:
+        crop = np.random.default_rng(7).integers(
+            0,
+            256,
+            size=(73, 119, 3),
+            dtype=np.uint8,
+        )
+
+        encoded = encode_lossless_product_crop(crop)
+        restored = decode_product_crop(encoded)
+
+        self.assertTrue(encoded.startswith(b"\x89PNG\r\n\x1a\n"))
+        np.testing.assert_array_equal(restored, crop)
+
     def test_expands_and_clips_person_crop(self) -> None:
         frame = np.zeros((100, 200, 3), dtype=np.uint8)
 

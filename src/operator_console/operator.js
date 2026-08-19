@@ -14,9 +14,11 @@
     worldState: null,
     shelfSync: null,
     productCameraEvidence: null,
+    selectedProductCamera: null,
     frozenProductCameras: new Map(),
     productFreezePending: new Set(),
     productSnapshotVisitId: null,
+    trainingCapturePending: false,
     openShopPending: false,
     visitProposals: new Map(),
     automaticVisitMappings: new Set(),
@@ -132,6 +134,47 @@
       container.append(button);
     });
     updateStream();
+    updateTrainingCaptureAction();
+  }
+
+  function updateTrainingCaptureAction() {
+    const button = el("capture-training-image");
+    const camera = (app.state?.cameras || []).find(
+      (candidate) => candidate.id === app.selectedCamera
+    );
+    button.disabled = !camera || camera.status !== "active" || app.trainingCapturePending;
+    button.textContent = app.trainingCapturePending
+      ? "Capturing…"
+      : camera ? `Capture 4K · Camera ${camera.id + 1}` : "Capture 4K";
+    if (!app.trainingCapturePending && camera && !el("training-capture-status").dataset.result) {
+      el("training-capture-status").textContent = "Raw training image will be stored on the shop computer.";
+    }
+  }
+
+  async function captureTrainingImage() {
+    if (app.selectedCamera === null || app.trainingCapturePending) return;
+    const cameraIndex = app.selectedCamera;
+    app.trainingCapturePending = true;
+    const status = el("training-capture-status");
+    status.dataset.result = "";
+    status.textContent = `Requesting Camera ${cameraIndex + 1} 4K frame…`;
+    updateTrainingCaptureAction();
+    try {
+      const capture = await api(
+        `/operator/api/cameras/${cameraIndex}/product-training-captures`,
+        {method: "POST"}
+      );
+      status.dataset.result = "saved";
+      status.textContent = `Saved ${capture.width}×${capture.height}: ${capture.imagePath}`;
+      showToast(`Camera ${cameraIndex + 1} training image saved.`);
+    } catch (error) {
+      status.dataset.result = "error";
+      status.textContent = error.message;
+      showToast(error.message);
+    } finally {
+      app.trainingCapturePending = false;
+      updateTrainingCaptureAction();
+    }
   }
 
   function selectCamera(cameraId) {
@@ -583,6 +626,7 @@
         );
       }
       app.worldState = worldState;
+      app.productCameraEvidence = await api("/product-observations/cameras");
       const visitId = app.worldState?.claims?.visitId;
       if (Number.isInteger(visitId)) {
         try {
@@ -598,20 +642,8 @@
             lastError: error.message,
           };
         }
-        if (
-          Number.isInteger(app.productSnapshotVisitId)
-          && app.productSnapshotVisitId !== visitId
-        ) {
-          resetProductSnapshots();
-        }
-        app.productSnapshotVisitId = visitId;
-        app.productCameraEvidence = await api(
-          `/world-state/visits/${visitId}/product-observations`
-        );
       } else {
         app.shelfSync = null;
-        app.productCameraEvidence = null;
-        resetProductSnapshots();
       }
       renderWorldState();
     } catch (error) {
@@ -721,29 +753,35 @@
     const evidence = el("product-camera-evidence");
     evidence.replaceChildren();
     const cameraEvidence = app.productCameraEvidence;
-    if (!payload || !cameraEvidence) {
-      summary.textContent = "No product evidence for this visit.";
-      updateProductFreezeAllControl([]);
+    if (!cameraEvidence) {
+      summary.textContent = "No product camera evidence.";
+      updateProductCameraSelector([]);
       return;
     }
     const best = recognition?.bestCandidate;
     const cameras = cameraEvidence.cameras || [];
+    const selectedCamera = updateProductCameraSelector(cameras);
     const fullFrameDebug = cameras.some(
       (camera) => camera.scope === "full_frame"
     );
-    const frozenCount = cameras.filter(
-      (camera) => app.frozenProductCameras.has(camera.cameraIndex)
-    ).length;
+    const selectedFrozen = selectedCamera
+      && app.frozenProductCameras.has(selectedCamera.cameraIndex);
     const beliefSummary = fullFrameDebug
       ? "Full-frame debug mode: camera detections are shown but are not treated as products held by this visit."
       : best
       ? `Visit belief: ${best.label} · ${(100 * (best.bestScore ?? best.score ?? 0)).toFixed(0)}% · ${best.confirmations ?? 1} confirmation(s)`
       : "Visit belief: no product detected.";
-    summary.textContent = frozenCount
-      ? `${beliefSummary} ${frozenCount} camera snapshot(s) frozen.`
+    summary.textContent = selectedFrozen
+      ? `${beliefSummary} Camera ${selectedCamera.cameraIndex + 1} is frozen.`
       : beliefSummary;
-    updateProductFreezeAllControl(cameras);
-    cameras.forEach((camera) => {
+    if (!selectedCamera) {
+      const empty = document.createElement("p");
+      empty.className = "shelf-evidence-empty";
+      empty.textContent = "No product camera is available.";
+      evidence.append(empty);
+      return;
+    }
+    [selectedCamera].forEach((camera) => {
       const snapshot = app.frozenProductCameras.get(camera.cameraIndex);
       const displayedCamera = snapshot?.camera || camera;
       const frozen = Boolean(snapshot);
@@ -775,26 +813,43 @@
           void freezeProductCamera(camera.cameraIndex);
         }
       });
-      actions.append(state, freeze);
+      const detect = document.createElement("button");
+      detect.type = "button";
+      detect.className = "button product-camera-detect";
+      detect.textContent = app.productFreezePending.has(camera.cameraIndex)
+        ? "Detecting…"
+        : "Detect";
+      detect.hidden = !frozen;
+      detect.disabled = app.productFreezePending.has(camera.cameraIndex);
+      detect.addEventListener("click", () => {
+        void redetectFrozenProductCamera(camera.cameraIndex);
+      });
+      actions.append(state, freeze, detect);
       heading.append(title, actions);
       card.append(heading);
 
       const metadata = document.createElement("p");
       metadata.className = "product-camera-metadata";
+      const observedVisit = displayedCamera.visitId == null
+        ? "unassigned"
+        : `visit ${displayedCamera.visitId}`;
       const captured = snapshot
         ? `frozen ${new Date(snapshot.capturedAtUnixMilliseconds).toLocaleTimeString()}`
         : `${displayedCamera.ageMilliseconds} ms old`;
+      const redetected = displayedCamera.redetectedAtUnixMilliseconds
+        ? ` · detected ${new Date(displayedCamera.redetectedAtUnixMilliseconds).toLocaleTimeString()}`
+        : "";
       metadata.textContent = displayedCamera.cropAvailable
-        ? `${displayedCamera.scope === "full_frame" ? "full frame" : `track ${displayedCamera.trackId}`} · frame ${displayedCamera.rgbSequenceNumber} · ${captured} · ${displayedCamera.inferenceMilliseconds} ms inference`
-        : "No person crop has been processed for this visit.";
+        ? `${observedVisit} · ${displayedCamera.scope === "full_frame" ? "full frame" : `track ${displayedCamera.trackId}`} · frame ${displayedCamera.rgbSequenceNumber} · ${captured}${redetected} · ${displayedCamera.inferenceMilliseconds} ms inference`
+        : "No product crop has been processed on this camera.";
       card.append(metadata);
 
       if (displayedCamera.cropAvailable) {
         const image = document.createElement("img");
         image.loading = "lazy";
-        image.alt = `Camera ${camera.cameraIndex + 1} product detections for visit ${cameraEvidence.visitId}`;
+        image.alt = `Camera ${camera.cameraIndex + 1} latest product detections`;
         image.src = snapshot?.imageUrl
-          || `/world-state/visits/${cameraEvidence.visitId}/product-observations/${camera.cameraIndex}/crop.jpg?observed=${displayedCamera.observedAtUnixMilliseconds}`;
+          || `/product-observations/cameras/${camera.cameraIndex}/crop.jpg?observed=${displayedCamera.observedAtUnixMilliseconds}`;
         card.append(image);
       }
 
@@ -823,28 +878,53 @@
     app.productSnapshotVisitId = null;
   }
 
-  function updateProductFreezeAllControl(cameras) {
-    const button = el("freeze-all-products");
-    const available = cameras.filter((camera) => camera.cropAvailable);
-    const allFrozen = (
-      available.length > 0
-      && available.every((camera) => app.frozenProductCameras.has(camera.cameraIndex))
-    );
-    button.disabled = !available.length || app.productFreezePending.size > 0;
-    button.textContent = allFrozen ? "Resume all" : "Freeze all";
+  function updateProductCameraSelector(cameras) {
+    const tabs = el("product-camera-tabs");
+    const cameraIndexes = cameras.map((camera) => camera.cameraIndex);
+    if (!cameraIndexes.includes(app.selectedProductCamera)) {
+      app.selectedProductCamera = (
+        cameras.find((camera) => camera.cropAvailable)?.cameraIndex
+        ?? cameraIndexes[0]
+        ?? null
+      );
+    }
+    const signature = cameraIndexes.join(",");
+    if (tabs.dataset.cameraIndexes !== signature) {
+      tabs.replaceChildren();
+      cameras.forEach((camera) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.dataset.cameraIndex = String(camera.cameraIndex);
+        button.textContent = String(camera.cameraIndex + 1);
+        button.setAttribute("aria-label", `Show products from camera ${camera.cameraIndex + 1}`);
+        button.addEventListener("click", () => {
+          app.selectedProductCamera = camera.cameraIndex;
+          renderProductRecognition(app.worldState);
+        });
+        tabs.append(button);
+      });
+      tabs.dataset.cameraIndexes = signature;
+    }
+    [...tabs.children].forEach((button) => {
+      const selected = Number(button.dataset.cameraIndex) === app.selectedProductCamera;
+      button.classList.toggle("active", selected);
+      button.setAttribute("aria-pressed", String(selected));
+    });
+    return cameras.find(
+      (camera) => camera.cameraIndex === app.selectedProductCamera
+    ) || null;
   }
 
   async function freezeProductCamera(cameraIndex, render = true) {
-    const visitId = app.productCameraEvidence?.visitId;
-    if (!Number.isInteger(visitId) || app.productFreezePending.has(cameraIndex)) return;
+    if (!app.productCameraEvidence || app.productFreezePending.has(cameraIndex)) return;
     app.productFreezePending.add(cameraIndex);
     if (render) renderProductRecognition(app.worldState);
     try {
       const snapshot = await api(
-        `/world-state/visits/${visitId}/product-observations/${cameraIndex}/snapshot`,
+        `/product-observations/cameras/${cameraIndex}/snapshot`,
         {method: "POST"}
       );
-      if (app.productCameraEvidence?.visitId === visitId) {
+      if (app.productCameraEvidence) {
         app.frozenProductCameras.set(cameraIndex, snapshot);
       }
     } catch (error) {
@@ -855,23 +935,26 @@
     }
   }
 
-  el("freeze-all-products").addEventListener("click", async () => {
-    const cameras = (app.productCameraEvidence?.cameras || []).filter(
-      (camera) => camera.cropAvailable
-    );
-    if (!cameras.length) return;
-    if (cameras.every((camera) => app.frozenProductCameras.has(camera.cameraIndex))) {
-      app.frozenProductCameras.clear();
-      renderProductRecognition(app.worldState);
-      return;
-    }
-    await Promise.all(
-      cameras
-        .filter((camera) => !app.frozenProductCameras.has(camera.cameraIndex))
-        .map((camera) => freezeProductCamera(camera.cameraIndex, false))
-    );
+  async function redetectFrozenProductCamera(cameraIndex) {
+    const snapshot = app.frozenProductCameras.get(cameraIndex);
+    if (!snapshot || app.productFreezePending.has(cameraIndex)) return;
+    app.productFreezePending.add(cameraIndex);
     renderProductRecognition(app.worldState);
-  });
+    try {
+      const redetected = await api(
+        `/product-observation-snapshots/${encodeURIComponent(snapshot.snapshotId)}/detect`,
+        {method: "POST"}
+      );
+      if (app.frozenProductCameras.get(cameraIndex)?.snapshotId === snapshot.snapshotId) {
+        app.frozenProductCameras.set(cameraIndex, redetected);
+      }
+    } catch (error) {
+      showToast(error.message);
+    } finally {
+      app.productFreezePending.delete(cameraIndex);
+      renderProductRecognition(app.worldState);
+    }
+  }
 
   function renderShelfPositionEvidence(payload) {
     const container = el("shelf-position-evidence");
@@ -937,6 +1020,7 @@
     const response = await annotate("subject_visit_mapping", {visitId});
     if (response) await pollWorldState();
   });
+  el("capture-training-image").addEventListener("click", captureTrainingImage);
   el("subject-select").addEventListener("change", () => {
     resetProductSnapshots();
     void pollWorldState();

@@ -19,7 +19,9 @@ from pipeline.operator_api import create_operator_router
 from pipeline.operator_state import OperatorState
 from pipeline.operator_test_store import OperatorTestStore
 from pipeline.product_detection import (
+    ProductDetection,
     ProductRecognitionResult,
+    product_detections_payload,
     product_recognition_payload,
 )
 from pipeline.shelf_api import (
@@ -67,6 +69,12 @@ class MjpegStreamServer:
         operator_runtime_configuration: dict[str, object] | None = None,
         shop_opener: Callable[[], Mapping[str, Any]] | None = None,
         shop_shelf_sync_provider: Callable[[int], Mapping[str, Any]] | None = None,
+        product_training_capturer: Callable[[int], Mapping[str, Any]] | None = None,
+        product_redetector: Callable[
+            [bytes, str, tuple[int, int, int, int]],
+            tuple[tuple[ProductDetection, ...], bytes, int],
+        ]
+        | None = None,
     ) -> None:
         if not camera_device_ids:
             raise ValueError("At least one camera device id is required for streaming.")
@@ -105,12 +113,15 @@ class MjpegStreamServer:
             tuple[int, int], dict[str, object]
         ] = {}
         self._product_crop_jpegs_by_visit_camera: dict[tuple[int, int], bytes] = {}
+        self._product_source_images_by_visit_camera: dict[tuple[int, int], bytes] = {}
         self._product_payloads_by_camera: dict[int, dict[str, object]] = {}
         self._product_crop_jpegs_by_camera: dict[int, bytes] = {}
+        self._product_source_images_by_camera: dict[int, bytes] = {}
         self._product_camera_snapshots: dict[
-            str, tuple[dict[str, object], bytes]
+            str, tuple[dict[str, object], bytes, bytes]
         ] = {}
         self._max_product_camera_snapshots = 100
+        self._product_redetector = product_redetector
         effective_world_state_db = (
             operator_state_db if world_state_db is None else world_state_db
         )
@@ -171,6 +182,7 @@ class MjpegStreamServer:
                     / "operator_console",
                     shop_opener=shop_opener,
                     shop_shelf_sync_provider=shop_shelf_sync_provider,
+                    product_training_capturer=product_training_capturer,
                 )
             )
 
@@ -294,6 +306,45 @@ class MjpegStreamServer:
             except KeyError as error:
                 raise HTTPException(status_code=404, detail=str(error)) from error
 
+        @app.get("/product-observations/cameras")
+        def latest_camera_product_observations() -> dict[str, object]:
+            return self.latest_product_camera_observations_payload()
+
+        @app.get("/product-observations/cameras/{camera_index}/crop.jpg")
+        def latest_camera_product_crop(camera_index: int) -> Response:
+            if camera_index not in self._cameras:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Camera index {camera_index} is not configured.",
+                )
+            with self._condition:
+                evidence = self._latest_product_evidence_for_camera_locked(
+                    camera_index
+                )
+                jpeg = None if evidence is None else evidence[1]
+            if jpeg is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail=(
+                        "No product crop is available for camera "
+                        f"{camera_index}."
+                    ),
+                )
+            return Response(
+                content=jpeg,
+                media_type="image/jpeg",
+                headers={"Cache-Control": "no-store, max-age=0"},
+            )
+
+        @app.post("/product-observations/cameras/{camera_index}/snapshot")
+        def create_latest_camera_product_snapshot(
+            camera_index: int,
+        ) -> dict[str, object]:
+            try:
+                return self.create_latest_product_camera_snapshot(camera_index)
+            except KeyError as error:
+                raise HTTPException(status_code=404, detail=str(error)) from error
+
         @app.get("/product-observation-snapshots/{snapshot_id}/crop.jpg")
         def product_camera_snapshot_crop(snapshot_id: str) -> Response:
             with self._condition:
@@ -309,6 +360,20 @@ class MjpegStreamServer:
                 media_type="image/jpeg",
                 headers={"Cache-Control": "private, max-age=31536000, immutable"},
             )
+
+        @app.post("/product-observation-snapshots/{snapshot_id}/detect")
+        def redetect_product_camera_snapshot(snapshot_id: str) -> dict[str, object]:
+            if self._product_redetector is None:
+                raise HTTPException(
+                    status_code=503,
+                    detail="Product redetection is not enabled.",
+                )
+            try:
+                return self.redetect_product_camera_snapshot(snapshot_id)
+            except KeyError as error:
+                raise HTTPException(status_code=404, detail=str(error)) from error
+            except (RuntimeError, ValueError) as error:
+                raise HTTPException(status_code=500, detail=str(error)) from error
 
         @app.get("/shelf-events")
         def shelf_events(
@@ -484,6 +549,9 @@ class MjpegStreamServer:
             camera_key = (visit_id, result.camera_index)
             self._product_payloads_by_visit_camera[camera_key] = payload
             self._product_crop_jpegs_by_visit_camera[camera_key] = result.crop_jpeg
+            self._product_source_images_by_visit_camera[camera_key] = (
+                result.source_crop_image or result.crop_jpeg
+            )
         if self.world_state is not None:
             self.world_state.publish_product_recognition(payload)
 
@@ -503,6 +571,9 @@ class MjpegStreamServer:
             self._product_payloads_by_camera[result.camera_index] = payload
             self._product_crop_jpegs_by_camera[result.camera_index] = (
                 result.crop_jpeg
+            )
+            self._product_source_images_by_camera[result.camera_index] = (
+                result.source_crop_image or result.crop_jpeg
             )
 
     def product_recognition_payload(self, visit_id: int) -> dict[str, object]:
@@ -577,6 +648,55 @@ class MjpegStreamServer:
             "cameras": cameras,
         }
 
+    def latest_product_camera_observations_payload(self) -> dict[str, object]:
+        now_ms = time.time_ns() // 1_000_000
+        with self._condition:
+            observations = {
+                camera_index: copy.deepcopy(evidence[0])
+                for camera_index in self._cameras
+                if (
+                    evidence := self._latest_product_evidence_for_camera_locked(
+                        camera_index
+                    )
+                )
+                is not None
+            }
+
+        cameras: list[dict[str, object]] = []
+        for camera_index, camera in self._cameras.items():
+            payload = observations.get(camera_index)
+            if payload is None:
+                cameras.append(
+                    {
+                        "cameraIndex": camera_index,
+                        "deviceId": camera.device_id,
+                        "cameraRole": camera.camera_role,
+                        "visitId": None,
+                        "status": "unknown",
+                        "freshness": "unknown",
+                        "cropAvailable": False,
+                        "bestCandidate": None,
+                        "candidates": [],
+                    }
+                )
+                continue
+            observed_ms = int(payload["observedAtUnixMilliseconds"])
+            age_ms = max(0, now_ms - observed_ms)
+            payload["ageMilliseconds"] = age_ms
+            payload["freshness"] = (
+                "current"
+                if age_ms <= int(payload["maxAgeMilliseconds"])
+                else "stale"
+            )
+            payload["cameraRole"] = camera.camera_role
+            payload["cropAvailable"] = True
+            cameras.append(payload)
+        return {
+            "scope": "latest_by_camera",
+            "generatedAtUnixMilliseconds": now_ms,
+            "cameras": cameras,
+        }
+
     def create_product_camera_snapshot(
         self,
         *,
@@ -585,8 +705,6 @@ class MjpegStreamServer:
     ) -> dict[str, object]:
         if camera_index not in self._cameras:
             raise KeyError(f"Camera index {camera_index} is not configured.")
-        snapshot_id = uuid.uuid4().hex
-        captured_ms = time.time_ns() // 1_000_000
         with self._condition:
             evidence = self._latest_camera_product_evidence_locked(
                 visit_id,
@@ -597,10 +715,60 @@ class MjpegStreamServer:
                     "No product evidence is available for visit "
                     f"{visit_id} on camera {camera_index}."
                 )
+            source_image = self._source_product_crop_for_payload_locked(
+                evidence[0], camera_index
+            )
+        return self._create_product_camera_snapshot_from_evidence(
+            camera_index=camera_index,
+            evidence=evidence,
+            source_image=source_image,
+            requested_visit_id=visit_id,
+        )
+
+    def create_latest_product_camera_snapshot(
+        self,
+        camera_index: int,
+    ) -> dict[str, object]:
+        if camera_index not in self._cameras:
+            raise KeyError(f"Camera index {camera_index} is not configured.")
+        with self._condition:
+            evidence = self._latest_product_evidence_for_camera_locked(camera_index)
+            if evidence is None:
+                raise KeyError(
+                    f"No product evidence is available on camera {camera_index}."
+                )
+            source_image = self._source_product_crop_for_payload_locked(
+                evidence[0], camera_index
+            )
+        requested_visit_id = evidence[0].get("visitId")
+        return self._create_product_camera_snapshot_from_evidence(
+            camera_index=camera_index,
+            evidence=evidence,
+            source_image=source_image,
+            requested_visit_id=(
+                int(requested_visit_id)
+                if requested_visit_id is not None
+                else None
+            ),
+        )
+
+    def _create_product_camera_snapshot_from_evidence(
+        self,
+        *,
+        camera_index: int,
+        evidence: tuple[dict[str, object], bytes],
+        source_image: bytes,
+        requested_visit_id: int | None,
+    ) -> dict[str, object]:
+        snapshot_id = uuid.uuid4().hex
+        now_ms = time.time_ns() // 1_000_000
+        captured_ms = int(evidence[0].get("frozenAtUnixMilliseconds", now_ms))
+        with self._condition:
             payload = copy.deepcopy(evidence[0])
             jpeg = evidence[1]
+            payload["frozenAtUnixMilliseconds"] = captured_ms
             observed_ms = int(payload["observedAtUnixMilliseconds"])
-            age_ms = max(0, captured_ms - observed_ms)
+            age_ms = max(0, now_ms - observed_ms)
             payload["ageMilliseconds"] = age_ms
             payload["freshness"] = (
                 "current"
@@ -609,22 +777,81 @@ class MjpegStreamServer:
             )
             payload["cameraRole"] = self._cameras[camera_index].camera_role
             payload["cropAvailable"] = True
-            self._product_camera_snapshots[snapshot_id] = (payload, jpeg)
-            while (
-                len(self._product_camera_snapshots)
-                > self._max_product_camera_snapshots
-            ):
+            self._product_camera_snapshots[snapshot_id] = (
+                payload,
+                jpeg,
+                source_image,
+            )
+            while len(self._product_camera_snapshots) > self._max_product_camera_snapshots:
                 oldest_snapshot_id = next(iter(self._product_camera_snapshots))
                 del self._product_camera_snapshots[oldest_snapshot_id]
         return {
             "snapshotId": snapshot_id,
-            "requestedVisitId": visit_id,
+            "requestedVisitId": requested_visit_id,
             "capturedAtUnixMilliseconds": captured_ms,
             "camera": payload,
-            "imageUrl": (
-                f"/product-observation-snapshots/{snapshot_id}/crop.jpg"
-            ),
+            "imageUrl": f"/product-observation-snapshots/{snapshot_id}/crop.jpg",
         }
+
+    def redetect_product_camera_snapshot(
+        self,
+        snapshot_id: str,
+    ) -> dict[str, object]:
+        if self._product_redetector is None:
+            raise RuntimeError("Product redetection is not enabled.")
+        with self._condition:
+            snapshot = self._product_camera_snapshots.get(snapshot_id)
+            if snapshot is None:
+                raise KeyError(f"Product snapshot {snapshot_id} is not available.")
+            original_payload = copy.deepcopy(snapshot[0])
+            source_image = snapshot[2]
+        person_box_payload = original_payload["personBoxInCrop"]
+        if not isinstance(person_box_payload, dict):
+            raise ValueError("Frozen product snapshot has no person crop bounds.")
+        person_box = tuple(
+            int(person_box_payload[key]) for key in ("x1", "y1", "x2", "y2")
+        )
+        detections, annotated_jpeg, inference_ms = self._product_redetector(
+            source_image,
+            str(original_payload["scope"]),
+            person_box,
+        )
+        candidates = product_detections_payload(detections)
+        original_payload["status"] = "recognized" if candidates else "no_product"
+        original_payload["bestCandidate"] = None if not candidates else candidates[0]
+        original_payload["candidates"] = candidates
+        original_payload["inferenceMilliseconds"] = inference_ms
+        original_payload["redetectedAtUnixMilliseconds"] = (
+            time.time_ns() // 1_000_000
+        )
+        requested_visit_id = original_payload.get("visitId")
+        return self._create_product_camera_snapshot_from_evidence(
+            camera_index=int(original_payload["cameraIndex"]),
+            evidence=(original_payload, annotated_jpeg),
+            source_image=source_image,
+            requested_visit_id=(
+                int(requested_visit_id)
+                if requested_visit_id is not None
+                else None
+            ),
+        )
+
+    def _source_product_crop_for_payload_locked(
+        self,
+        payload: dict[str, object],
+        camera_index: int,
+    ) -> bytes:
+        visit_id = payload.get("visitId")
+        if visit_id is not None:
+            source = self._product_source_images_by_visit_camera.get(
+                (int(visit_id), camera_index)
+            )
+            if source is not None:
+                return source
+        source = self._product_source_images_by_camera.get(camera_index)
+        if source is not None:
+            return source
+        raise KeyError(f"No source product crop is available on camera {camera_index}.")
 
     def _latest_camera_product_evidence_locked(
         self,
@@ -644,6 +871,32 @@ class MjpegStreamServer:
         camera_jpeg = self._product_crop_jpegs_by_camera.get(camera_index)
         if camera_payload is not None and camera_jpeg is not None:
             candidates.append((camera_payload, camera_jpeg))
+        if not candidates:
+            return None
+        return max(
+            candidates,
+            key=lambda item: int(item[0]["observedAtUnixMilliseconds"]),
+        )
+
+    def _latest_product_evidence_for_camera_locked(
+        self,
+        camera_index: int,
+    ) -> tuple[dict[str, object], bytes] | None:
+        candidates: list[tuple[dict[str, object], bytes]] = []
+        camera_payload = self._product_payloads_by_camera.get(camera_index)
+        camera_jpeg = self._product_crop_jpegs_by_camera.get(camera_index)
+        if camera_payload is not None and camera_jpeg is not None:
+            candidates.append((camera_payload, camera_jpeg))
+        for (visit_id, candidate_camera_index), payload in (
+            self._product_payloads_by_visit_camera.items()
+        ):
+            if candidate_camera_index != camera_index:
+                continue
+            jpeg = self._product_crop_jpegs_by_visit_camera.get(
+                (visit_id, candidate_camera_index)
+            )
+            if jpeg is not None:
+                candidates.append((payload, jpeg))
         if not candidates:
             return None
         return max(

@@ -190,6 +190,93 @@ class MjpegStreamServerTests(unittest.TestCase):
             b"jpeg-data",
         )
 
+    def test_latest_camera_product_evidence_is_not_limited_to_selected_visit(self) -> None:
+        observed_ms = time.time_ns() // 1_000_000
+        result = ProductRecognitionResult(
+            camera_index=0,
+            device_id="camera-a",
+            track_id=9,
+            scope="person",
+            rgb_sequence_number=30,
+            host_synced_seconds=4.0,
+            observed_at_unix_milliseconds=observed_ms,
+            inference_milliseconds=35,
+            crop_box=(1, 2, 100, 200),
+            person_box_in_crop=(10, 20, 80, 180),
+            detections=(),
+            crop_jpeg=b"visit-eight-jpeg",
+            source_crop_image=b"clean-visit-eight-image",
+        )
+        self.server.publish_product_recognition(
+            result,
+            visit_id=8,
+            customer_id=None,
+            max_age_seconds=3.0,
+        )
+
+        selected_visit = self.server.product_camera_observations_payload(7)
+        self.assertFalse(selected_visit["cameras"][0]["cropAvailable"])
+        latest = self.server.latest_product_camera_observations_payload()
+        self.assertEqual(latest["scope"], "latest_by_camera")
+        self.assertEqual(latest["cameras"][0]["visitId"], 8)
+        self.assertTrue(latest["cameras"][0]["cropAvailable"])
+
+        crop_route = next(
+            route
+            for route in self.server.app.routes
+            if getattr(route, "path", None)
+            == "/product-observations/cameras/{camera_index}/crop.jpg"
+        )
+        self.assertEqual(crop_route.endpoint(0).body, b"visit-eight-jpeg")
+
+        snapshot_route = next(
+            route
+            for route in self.server.app.routes
+            if getattr(route, "path", None)
+            == "/product-observations/cameras/{camera_index}/snapshot"
+        )
+        snapshot = snapshot_route.endpoint(0)
+        self.assertEqual(snapshot["requestedVisitId"], 8)
+        self.assertEqual(snapshot["camera"]["trackId"], 9)
+
+        redetection_inputs: list[bytes] = []
+
+        def redetect(
+            source_image: bytes,
+            scope: str,
+            person_box: tuple[int, int, int, int],
+        ) -> tuple[tuple[ProductDetection, ...], bytes, int]:
+            redetection_inputs.append(source_image)
+            self.assertEqual(scope, "person")
+            self.assertEqual(person_box, (10, 20, 80, 180))
+            return (
+                (ProductDetection(1, 2, 30, 40, 0.8, 1, "001_cola"),),
+                b"redetected-jpeg",
+                44,
+            )
+
+        self.server._product_redetector = redetect
+        detect_route = next(
+            route
+            for route in self.server.app.routes
+            if getattr(route, "path", None)
+            == "/product-observation-snapshots/{snapshot_id}/detect"
+        )
+        redetected = detect_route.endpoint(snapshot["snapshotId"])
+        self.assertEqual(redetection_inputs, [b"clean-visit-eight-image"])
+        self.assertEqual(redetected["camera"]["bestCandidate"]["label"], "cola")
+        self.assertEqual(redetected["camera"]["inferenceMilliseconds"], 44)
+        snapshot_crop_route = next(
+            route
+            for route in self.server.app.routes
+            if getattr(route, "path", None)
+            == "/product-observation-snapshots/{snapshot_id}/crop.jpg"
+        )
+        self.assertEqual(
+            snapshot_crop_route.endpoint(redetected["snapshotId"]).body,
+            b"redetected-jpeg",
+        )
+
     def test_full_frame_product_evidence_is_visible_without_visit_belief(self) -> None:
         observed_ms = time.time_ns() // 1_000_000
         result = ProductRecognitionResult(

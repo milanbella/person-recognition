@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#102f2b">
   <title>Shop Walk Test</title>
-  <link rel="stylesheet" href="/operator/assets/operator.css?v=visual-testing-2">
+  <link rel="stylesheet" href="/operator/assets/operator.css?v=visual-testing-6">
 </head>
 <body>
   <header class="masthead">
@@ -43,6 +43,10 @@
           <div id="camera-empty" class="camera-empty">Select an active camera</div>
           <div id="frame-age" class="frame-age">No observation</div>
         </div>
+        <div class="training-capture-actions">
+          <button id="capture-training-image" class="button primary" disabled>Capture 4K</button>
+          <span id="training-capture-status">Select an active camera.</span>
+        </div>
         <div id="observation-choices" class="observation-choices camera-track-choices">
           <p>Detected tracks will appear here.</p>
         </div>
@@ -78,7 +82,7 @@
           <section class="product-recognition" aria-labelledby="product-recognition-title">
             <div class="product-recognition-heading">
               <h3 id="product-recognition-title">Products by camera</h3>
-              <button id="freeze-all-products" class="button compact" type="button" disabled>Freeze all</button>
+              <div id="product-camera-tabs" class="product-camera-selector" role="group" aria-label="Product camera"></div>
             </div>
             <p id="product-recognition-summary" class="world-state-summary">No product result.</p>
             <div id="product-camera-evidence" class="product-camera-grid"></div>
@@ -166,6 +170,6 @@
   </dialog>
 
   <div id="toast" class="toast" role="status"></div>
-  <script src="/operator/assets/operator.js?v=visual-testing-2"></script>
+  <script src="/operator/assets/operator.js?v=visual-testing-6"></script>
 </body>
 </html>

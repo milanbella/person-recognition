@@ -12,6 +12,7 @@ class OperatorApiTests(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory()
         root = Path(self.temporary.name)
         self.shop_open_calls = 0
+        self.training_capture_calls: list[int] = []
 
         def open_shop() -> dict[str, object]:
             self.shop_open_calls += 1
@@ -21,6 +22,19 @@ class OperatorApiTests(unittest.TestCase):
                 "shopEnteredAt": "2026-08-11T17:00:00",
             }
 
+        def capture_training_image(camera_index: int) -> dict[str, object]:
+            self.training_capture_calls.append(camera_index)
+            return {
+                "cameraIndex": camera_index,
+                "cameraNumber": camera_index + 1,
+                "deviceId": "camera-a",
+                "rgbSequenceNumber": 42,
+                "width": 3840,
+                "height": 2160,
+                "imagePath": "/captures/camera-1/frame.jpg",
+                "metadataPath": "/captures/camera-1/frame.json",
+            }
+
         self.server = MjpegStreamServer(
             camera_device_ids=["camera-a"],
             camera_roles=["observer"],
@@ -28,6 +42,7 @@ class OperatorApiTests(unittest.TestCase):
             operator_runs_root=root / "runs",
             operator_api_token="secret",
             shop_opener=open_shop,
+            product_training_capturer=capture_training_image,
             shop_shelf_sync_provider=lambda visit_id: {
                 "visitId": visit_id,
                 "status": "synced",
@@ -97,6 +112,17 @@ class OperatorApiTests(unittest.TestCase):
         self.assertEqual(shelf_sync["status"], "synced")
         self.assertEqual(shelf_sync["cloud"]["shelfId"], 3)
 
+        capture_route = self.route(
+            "/operator/api/cameras/{camera_index}/product-training-captures"
+        )
+        with self.assertRaises(HTTPException) as unauthorized_capture:
+            capture_route(0, None)
+        self.assertEqual(unauthorized_capture.exception.status_code, 401)
+        captured = capture_route(0, "Bearer secret")
+        self.assertEqual(captured["cameraNumber"], 1)
+        self.assertEqual(captured["width"], 3840)
+        self.assertEqual(self.training_capture_calls, [0])
+
     def test_console_assets_are_local(self) -> None:
         page = self.route("/operator/")()
         self.assertTrue(Path(page.path).exists())
@@ -114,6 +140,9 @@ class OperatorApiTests(unittest.TestCase):
         self.assertIn("autoMapSingleEntranceCandidate", script_source)
         self.assertIn("automatic_single_entrance_candidate", script_source)
         self.assertIn("manual_override", script_source)
+        self.assertIn("selectedProductCamera", script_source)
+        self.assertIn("updateProductCameraSelector", script_source)
+        self.assertNotIn("freeze-all-products", script_source)
         self.assertIn('addEventListener("touchend"', script_source)
         self.assertIn("{passive: false}", script_source)
         self.assertIn('button.addEventListener("click"', script_source)
@@ -127,6 +156,8 @@ class OperatorApiTests(unittest.TestCase):
         self.assertIn(".event-card", stylesheet_source)
         page_source = Path(page.path).read_text(encoding="utf-8")
         self.assertNotIn('name="scenario"', page_source)
+        self.assertIn('id="product-camera-tabs"', page_source)
+        self.assertNotIn('id="freeze-all-products"', page_source)
         self.assertNotIn('name="verifier"', page_source)
         self.assertNotIn('name="subjectId"', page_source)
         self.assertNotIn('name="displayName"', page_source)
@@ -161,7 +192,8 @@ class OperatorApiTests(unittest.TestCase):
         self.assertIn("/operator/api/shop/open", script_source)
         self.assertNotIn("/operator/voice/", script_source)
         self.assertNotIn("disconnectVoice", script_source)
-        self.assertIn("visual-testing-2", page_source)
+        self.assertIn("visual-testing-6", page_source)
+        self.assertIn('id="capture-training-image"', page_source)
 
     def test_shop_leave_persistence_result_is_published_to_operator_events(self) -> None:
         self.server.publish_shop_api_leave_result(

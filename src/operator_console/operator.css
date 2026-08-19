@@ -218,6 +218,21 @@ main {
   margin-bottom: 0.9rem;
 }
 
+.training-capture-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.75rem 0.85rem;
+  border-top: 1px solid var(--line);
+}
+
+.training-capture-actions span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+}
+
 .cloud-shelf-sync {
   margin: 0.9rem 0;
   padding: 0.8rem;
@@ -312,9 +327,35 @@ main {
   margin: 0;
 }
 
+.product-camera-selector {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  overflow-x: auto;
+  padding: 0.15rem;
+}
+
+.product-camera-selector button {
+  flex: 0 0 auto;
+  min-width: 2.45rem;
+  min-height: 2.35rem;
+  padding: 0.35rem 0.65rem;
+  color: var(--ink-soft);
+  background: var(--paper-bright);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  font-weight: 850;
+}
+
+.product-camera-selector button.active {
+  color: white;
+  background: var(--ink);
+  border-color: var(--ink);
+}
+
 .product-camera-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.8rem;
 }
 
@@ -354,7 +395,8 @@ main {
   gap: 0.45rem;
 }
 
-.product-camera-freeze {
+.product-camera-freeze,
+.product-camera-detect {
   min-height: 1.9rem;
   padding: 0.3rem 0.55rem;
   font-size: 0.72rem;

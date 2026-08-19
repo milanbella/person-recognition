@@ -71,7 +71,11 @@ from pipeline.face_identity import (
     scale_recognized_faces,
 )
 from pipeline.mjpeg_stream_server import MjpegStreamServer
-from pipeline.observer_api import ObserverCameraSnapshot, build_observer_camera_snapshot
+from pipeline.observer_api import (
+    ObserverCameraSnapshot,
+    build_observer_camera_snapshot,
+    observer_snapshot_payload,
+)
 from pipeline.performance import LivePerformanceLogger
 from pipeline.plane_crossing_evidence import (
     PlaneEvidenceFrame,
@@ -80,11 +84,13 @@ from pipeline.plane_crossing_evidence import (
 )
 from pipeline.product_detection import (
     DEFAULT_PRODUCT_MODEL,
+    DEFAULT_PRODUCT_SCORE_THRESHOLD,
     ProductCropRequest,
     ProductRecognitionWorker,
     YoloOnnxProductDetector,
     expanded_person_crop,
 )
+from pipeline.product_training_capture import ProductTrainingCaptureService
 from pipeline.rgbd_recording import DEFAULT_PLANE_CALIBRATIONS_DIR
 from pipeline.shelf_anchors import (
     ShelfAnchorManager,
@@ -138,6 +144,11 @@ DEFAULT_LIVE_PROCESSING_HEIGHT = 720
 CAMERA_CONNECT_ATTEMPTS = 5
 CAMERA_CONNECT_RETRY_DELAY_SECONDS = 2.0
 CAMERA_START_DELAY_SECONDS = 1.0
+PRODUCT_TRAINING_CAPTURE_WIDTH = 3840
+PRODUCT_TRAINING_CAPTURE_HEIGHT = 2160
+DEFAULT_PRODUCT_TRAINING_CAPTURES_DIR = Path(
+    "/var/lib/person-recognition/product-training-captures"
+)
 
 
 @dataclass
@@ -177,6 +188,8 @@ class LiveSyncedStreamState:
     depth_queue: dai.MessageQueue
     intrinsics: CameraIntrinsics
     tracker: PersonTracker
+    training_capture_control_queue: dai.MessageQueue | None = None
+    training_capture_frame_queue: dai.MessageQueue | None = None
     depth_states: dict[int, DepthEntranceState] = field(default_factory=dict)
     visit_plane_states: dict[int, VisitPlaneState] = field(default_factory=dict)
     recent_raw_rgb_messages: deque[Any] = field(default_factory=deque)
@@ -517,6 +530,27 @@ def build_argparser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--product-training-captures-dir",
+        type=Path,
+        default=DEFAULT_PRODUCT_TRAINING_CAPTURES_DIR,
+        help=(
+            "Directory for operator-triggered raw 4K product training images. "
+            "Default: /var/lib/person-recognition/product-training-captures."
+        ),
+    )
+    parser.add_argument(
+        "--product-training-capture-jpeg-quality",
+        type=int,
+        default=95,
+        help="JPEG quality for 4K product training captures. Default: 95.",
+    )
+    parser.add_argument(
+        "--product-training-capture-timeout-seconds",
+        type=float,
+        default=5.0,
+        help="Timeout for an operator-triggered 4K capture. Default: 5 seconds.",
+    )
+    parser.add_argument(
         "--capture-plane-crossing-evidence",
         action="store_true",
         help=(
@@ -612,7 +646,12 @@ def build_argparser() -> argparse.ArgumentParser:
             "of person crops. Results are camera evidence, not held-product claims."
         ),
     )
-    parser.add_argument("--product-score-threshold", type=float, default=0.15)
+    parser.add_argument(
+        "--product-score-threshold",
+        type=float,
+        default=DEFAULT_PRODUCT_SCORE_THRESHOLD,
+        help="Minimum product detection confidence. Default: 0.55.",
+    )
     parser.add_argument("--product-nms-threshold", type=float, default=0.45)
     parser.add_argument(
         "--product-scan-interval-seconds",
@@ -820,6 +859,17 @@ def create_live_stream_state(
         type=dai.ImgFrame.Type.BGR888p,
         fps=args.fps,
     )
+    training_capture_control_queue: dai.MessageQueue | None = None
+    training_capture_frame_queue: dai.MessageQueue | None = None
+    if args.enable_operator_console:
+        training_rgb_output = cam_rgb.requestFullResolutionOutput(
+            type=dai.ImgFrame.Type.NV12,
+        )
+        training_capture_control_queue = cam_rgb.inputControl.createInputQueue()
+        training_capture_frame_queue = training_rgb_output.createOutputQueue(
+            maxSize=1,
+            blocking=False,
+        )
 
     mono_left = pipeline.create(dai.node.Camera).build(dai.CameraBoardSocket.CAM_B)
     mono_right = pipeline.create(dai.node.Camera).build(dai.CameraBoardSocket.CAM_C)
@@ -859,6 +909,8 @@ def create_live_stream_state(
         depth_queue=depth_queue,
         intrinsics=intrinsics,
         tracker=tracker,
+        training_capture_control_queue=training_capture_control_queue,
+        training_capture_frame_queue=training_capture_frame_queue,
         recent_raw_rgb_messages=deque(maxlen=8),
         recent_processing_rgb_messages=deque(maxlen=8),
         recent_rgb_track_snapshots=deque(maxlen=processing_buffer_frames),
@@ -2299,6 +2351,33 @@ def preview_frame_or_placeholder(
     return placeholder_frame(label, width=width, height=height)
 
 
+def product_training_capture_context(
+    state: LiveSyncedStreamState,
+) -> dict[str, object]:
+    snapshot = state.cached_observer_snapshot
+    age_milliseconds = (
+        0
+        if snapshot is None
+        else max(
+            0,
+            time.time_ns() // 1_000_000
+            - snapshot.published_at_unix_milliseconds,
+        )
+    )
+    return {
+        "observerSnapshot": (
+            None
+            if snapshot is None
+            else observer_snapshot_payload(
+                snapshot,
+                age_milliseconds=age_milliseconds,
+                status="active",
+                include_observations=True,
+            )
+        )
+    }
+
+
 def main() -> None:
     args = build_argparser().parse_args()
     validate_operator_console_args(args)
@@ -2329,6 +2408,14 @@ def main() -> None:
         raise ValueError("--stream-jpeg-quality must be between 1 and 100.")
     if args.stream_camera_timeout_seconds <= 0:
         raise ValueError("--stream-camera-timeout-seconds must be greater than zero.")
+    if not 1 <= args.product_training_capture_jpeg_quality <= 100:
+        raise ValueError(
+            "--product-training-capture-jpeg-quality must be between 1 and 100."
+        )
+    if args.product_training_capture_timeout_seconds <= 0.0:
+        raise ValueError(
+            "--product-training-capture-timeout-seconds must be greater than zero."
+        )
     if args.frame_width <= 0 or args.frame_height <= 0:
         raise ValueError("--frame-width and --frame-height must be greater than zero.")
     if args.performance_log_interval_seconds <= 0:
@@ -2392,6 +2479,17 @@ def main() -> None:
             association_margin_fraction=args.product_association_margin,
             log_results=args.log_product_recognition,
         )
+    product_training_capture = (
+        ProductTrainingCaptureService(
+            args.product_training_captures_dir,
+            jpeg_quality=args.product_training_capture_jpeg_quality,
+            timeout_seconds=args.product_training_capture_timeout_seconds,
+            target_width=PRODUCT_TRAINING_CAPTURE_WIDTH,
+            target_height=PRODUCT_TRAINING_CAPTURE_HEIGHT,
+        )
+        if args.enable_operator_console
+        else None
+    )
     face_matcher = build_face_recognizer(args)
     body_evidence_extractor = build_body_evidence_extractor(args)
     visit_registry = VisitRegistry(
@@ -2487,6 +2585,16 @@ def main() -> None:
                     and args.enable_operator_console
                     else None
                 ),
+                product_training_capturer=(
+                    product_training_capture.capture
+                    if product_training_capture is not None
+                    else None
+                ),
+                product_redetector=(
+                    product_worker.redetect_crop_image
+                    if product_worker is not None
+                    else None
+                ),
             )
             stream_server.start()
             if args.enable_operator_console:
@@ -2504,15 +2612,42 @@ def main() -> None:
             ):
                 if stop_requested.is_set():
                     break
-                states.append(
-                    create_live_stream_state(
-                        device_id=device_id,
-                        camera_role=camera_role,
-                        args=args,
-                        stack=stack,
-                        shelf_config=shelf_config,
-                    )
+                state = create_live_stream_state(
+                    device_id=device_id,
+                    camera_role=camera_role,
+                    args=args,
+                    stack=stack,
+                    shelf_config=shelf_config,
                 )
+                states.append(state)
+                camera_index = len(states) - 1
+                if product_training_capture is not None:
+                    if (
+                        state.training_capture_control_queue is None
+                        or state.training_capture_frame_queue is None
+                    ):
+                        raise RuntimeError(
+                            "Operator 4K capture queues were not created for "
+                            f"device {state.device_id}."
+                        )
+                    product_training_capture.register_camera(
+                        camera_index,
+                        device_id=state.device_id,
+                        control_queue=state.training_capture_control_queue,
+                        frame_queue=state.training_capture_frame_queue,
+                        context_provider=(
+                            lambda state=state: product_training_capture_context(
+                                state
+                            )
+                        ),
+                    )
+                    print(
+                        "PRODUCT_TRAINING_CAPTURE_READY "
+                        f"camera_number={camera_index + 1} "
+                        f"device_id={state.device_id} "
+                        f"size={PRODUCT_TRAINING_CAPTURE_WIDTH}x"
+                        f"{PRODUCT_TRAINING_CAPTURE_HEIGHT}"
+                    )
                 if camera_position < len(camera_specs):
                     print(
                         f"CAMERA_START_DELAY completed={camera_position}/"

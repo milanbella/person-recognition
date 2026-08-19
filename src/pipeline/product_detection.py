@@ -17,6 +17,7 @@ from pipeline.onnx_runtime import prepare_onnx_runtime
 
 
 DEFAULT_PRODUCT_MODEL = Path(__file__).resolve().parent.parent.parent / "models" / "best.onnx"
+DEFAULT_PRODUCT_SCORE_THRESHOLD = 0.55
 
 
 @dataclass(frozen=True)
@@ -58,6 +59,22 @@ class ProductRecognitionResult:
     person_box_in_crop: tuple[int, int, int, int]
     detections: tuple[ProductDetection, ...]
     crop_jpeg: bytes
+    source_crop_image: bytes | None = None
+
+
+def encode_lossless_product_crop(crop: np.ndarray) -> bytes:
+    encoded, png = cv2.imencode(".png", crop)
+    if not encoded:
+        raise RuntimeError("Could not encode lossless product source crop.")
+    return png.tobytes()
+
+
+def decode_product_crop(source_crop_image: bytes) -> np.ndarray:
+    encoded = np.frombuffer(source_crop_image, dtype=np.uint8)
+    crop = cv2.imdecode(encoded, cv2.IMREAD_COLOR)
+    if crop is None:
+        raise ValueError("Frozen product source crop is not a valid image.")
+    return crop
 
 
 def expanded_person_crop(
@@ -147,7 +164,7 @@ class YoloOnnxProductDetector:
         self,
         model_path: Path,
         *,
-        score_threshold: float = 0.15,
+        score_threshold: float = DEFAULT_PRODUCT_SCORE_THRESHOLD,
         nms_threshold: float = 0.45,
     ) -> None:
         if not model_path.exists():
@@ -326,6 +343,7 @@ class ProductRecognitionWorker:
         self.jpeg_quality = jpeg_quality
         self.log_results = log_results
         self._condition = threading.Condition()
+        self._inference_lock = threading.Lock()
         self._pending: dict[tuple[int, int | None], ProductCropRequest] = {}
         self._results: deque[ProductRecognitionResult] = deque()
         self._last_submitted: dict[tuple[int, int | None], float] = {}
@@ -380,6 +398,41 @@ class ProductRecognitionWorker:
             self._results.clear()
         return results
 
+    def redetect_crop_image(
+        self,
+        source_crop_image: bytes,
+        scope: str,
+        person_box_in_crop: tuple[int, int, int, int],
+    ) -> tuple[tuple[ProductDetection, ...], bytes, int]:
+        crop = decode_product_crop(source_crop_image)
+        started = time.monotonic()
+        with self._inference_lock:
+            candidates = self.detector.detect(crop)
+        inference_ms = int(round((time.monotonic() - started) * 1000.0))
+        associated = (
+            tuple(candidates)
+            if scope == "full_frame"
+            else tuple(
+                candidate
+                for candidate in candidates
+                if product_center_matches_person(
+                    candidate,
+                    person_box_in_crop,
+                    margin_fraction=self.association_margin_fraction,
+                )
+            )
+        )
+        annotated = crop.copy()
+        draw_product_detections(annotated, associated)
+        success, jpeg = cv2.imencode(
+            ".jpg",
+            annotated,
+            [cv2.IMWRITE_JPEG_QUALITY, self.jpeg_quality],
+        )
+        if not success:
+            raise RuntimeError("Could not encode redetected product crop.")
+        return associated, jpeg.tobytes(), inference_ms
+
     def _run(self) -> None:
         while True:
             with self._condition:
@@ -402,9 +455,10 @@ class ProductRecognitionWorker:
                 requests = [self._pending.pop(key) for key in keys]
             started = time.monotonic()
             try:
-                detected = self.detector.detect_batch(
-                    tuple(request.crop for request in requests)
-                )
+                with self._inference_lock:
+                    detected = self.detector.detect_batch(
+                        tuple(request.crop for request in requests)
+                    )
             except Exception as exc:
                 print(f"PRODUCT_RECOGNITION_ERROR error={exc}")
                 continue
@@ -433,6 +487,10 @@ class ProductRecognitionWorker:
                 )
                 if not encoded:
                     continue
+                try:
+                    source_crop_image = encode_lossless_product_crop(request.crop)
+                except RuntimeError:
+                    continue
                 result = ProductRecognitionResult(
                     camera_index=request.camera_index,
                     device_id=request.device_id,
@@ -448,6 +506,7 @@ class ProductRecognitionWorker:
                     person_box_in_crop=request.person_box_in_crop,
                     detections=associated,
                     crop_jpeg=jpeg.tobytes(),
+                    source_crop_image=source_crop_image,
                 )
                 completed.append(result)
                 if self.log_results:
@@ -473,26 +532,7 @@ def product_recognition_payload(
     customer_id: str | None,
     max_age_seconds: float,
 ) -> dict[str, object]:
-    candidates = [
-        {
-            "productId": detection.label.split("_", 1)[0],
-            "label": (
-                detection.label.split("_", 1)[1]
-                if "_" in detection.label
-                else detection.label
-            ),
-            "modelLabel": detection.label,
-            "classId": detection.class_id,
-            "score": detection.score,
-            "boundingBoxInCrop": {
-                "x1": detection.x1,
-                "y1": detection.y1,
-                "x2": detection.x2,
-                "y2": detection.y2,
-            },
-        }
-        for detection in result.detections
-    ]
+    candidates = product_detections_payload(result.detections)
     return {
         "status": "recognized" if candidates else "no_product",
         "freshness": "current",
@@ -522,3 +562,28 @@ def product_recognition_payload(
         "bestCandidate": None if not candidates else candidates[0],
         "candidates": candidates,
     }
+
+
+def product_detections_payload(
+    detections: Sequence[ProductDetection],
+) -> list[dict[str, object]]:
+    return [
+        {
+            "productId": detection.label.split("_", 1)[0],
+            "label": (
+                detection.label.split("_", 1)[1]
+                if "_" in detection.label
+                else detection.label
+            ),
+            "modelLabel": detection.label,
+            "classId": detection.class_id,
+            "score": detection.score,
+            "boundingBoxInCrop": {
+                "x1": detection.x1,
+                "y1": detection.y1,
+                "x2": detection.x2,
+                "y2": detection.y2,
+            },
+        }
+        for detection in detections
+    ]

@@ -16,6 +16,7 @@ from pipeline.camera import (
 from pipeline.config import DEFAULT_CAMERA_FPS
 from pipeline.product_detection import (
     DEFAULT_PRODUCT_MODEL,
+    DEFAULT_PRODUCT_SCORE_THRESHOLD,
     YoloOnnxProductDetector,
     draw_product_detections,
 )
@@ -30,7 +31,11 @@ def build_argparser() -> argparse.ArgumentParser:
     parser.add_argument("--width", type=int, default=1280)
     parser.add_argument("--height", type=int, default=720)
     parser.add_argument("--fps", type=int, default=min(DEFAULT_CAMERA_FPS, 15))
-    parser.add_argument("--score-threshold", type=float, default=0.15)
+    parser.add_argument(
+        "--score-threshold",
+        type=float,
+        default=DEFAULT_PRODUCT_SCORE_THRESHOLD,
+    )
     parser.add_argument("--nms-threshold", type=float, default=0.45)
     parser.add_argument("--display-width", type=int, default=1280)
     parser.add_argument("--display-height", type=int, default=720)

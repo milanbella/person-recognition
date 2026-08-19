@@ -140,8 +140,20 @@ The old on-device `RVC2` experiment scripts were intentionally removed.
   - enable it explicitly with `--enable-operator-console --operator-api-token <secret>`; it is disabled by default
   - the operator console reuses raw MJPEG plus observer JSON and draws selectable person boxes in the browser; it does not run another detector
   - accepted entry/leave, visit assignment, customer binding, track, and camera transitions are available through `/operator/api/events`; current shelf position is exposed through world state
+  - each operator camera view has a `Capture 4K` action that stores one raw, unannotated product-training JPEG and a JSON sidecar on the shop computer; no image download endpoint is exposed
   - continuously materializes system-believed shop state in the same SQLite DB and exposes it through `/world-state`; this read API is available whenever MJPEG streaming is enabled, even when the operator console is disabled
   - optionally runs `../models/best.onnx` asynchronously on expanded full-resolution person crops with `--enable-product-recognition`; fixed batch-three inference never blocks person tracking and stale crop jobs are replaced by newer ones
+
+Operator-triggered training captures default to
+`/var/lib/person-recognition/product-training-captures/camera-N/`. The camera
+number matches the one-based number displayed in the console. Every JPEG has a
+same-name JSON sidecar containing the device ID, RGB sequence, capture time,
+dimensions, and current observer snapshot. Override the directory with
+`--product-training-captures-dir`; JPEG quality defaults to 95 and can be
+changed with `--product-training-capture-jpeg-quality`. The OAK's native
+full-resolution still is sent only when the authenticated capture action is
+pressed, then center-cropped without distortion to the saved `3840x2160`
+training image.
 
 ## System-Believed World State
 

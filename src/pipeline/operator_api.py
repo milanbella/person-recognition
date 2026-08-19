@@ -24,6 +24,7 @@ def create_operator_router(
     assets_root: Path,
     shop_opener: Callable[[], Mapping[str, Any]] | None = None,
     shop_shelf_sync_provider: Callable[[int], Mapping[str, Any]] | None = None,
+    product_training_capturer: Callable[[int], Mapping[str, Any]] | None = None,
 ) -> APIRouter:
     router = APIRouter()
 
@@ -143,6 +144,49 @@ def create_operator_router(
             },
         )
         return response
+
+    @router.post("/operator/api/cameras/{camera_index}/product-training-captures")
+    def capture_product_training_image(
+        camera_index: int,
+        authorization: str | None = Header(default=None),
+    ) -> dict[str, Any]:
+        require_mutation_auth(authorization)
+        if product_training_capturer is None:
+            raise HTTPException(
+                status_code=503,
+                detail="4K product training capture is not enabled.",
+            )
+        try:
+            capture = dict(product_training_capturer(camera_index))
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except TimeoutError as exc:
+            raise HTTPException(status_code=504, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+        state.publish_event(
+            event_type="product_training_image_captured",
+            source="operator",
+            camera_index=camera_index,
+            device_id=(
+                None
+                if capture.get("deviceId") is None
+                else str(capture["deviceId"])
+            ),
+            rgb_sequence_number=(
+                None
+                if capture.get("rgbSequenceNumber") is None
+                else int(capture["rgbSequenceNumber"])
+            ),
+            payload={
+                "cameraNumber": capture.get("cameraNumber"),
+                "width": capture.get("width"),
+                "height": capture.get("height"),
+                "imagePath": capture.get("imagePath"),
+                "metadataPath": capture.get("metadataPath"),
+            },
+        )
+        return capture
 
     @router.get("/operator/api/events")
     def operator_events(
