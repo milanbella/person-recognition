@@ -23,6 +23,10 @@ class CaptureRegistrar:
         for directory in (self.captures_root, self.proxies_root, self.thumbnails_root):
             directory.mkdir(parents=True, exist_ok=True)
 
+    def ensure_directories(self) -> None:
+        for directory in (self.captures_root, self.proxies_root, self.thumbnails_root):
+            directory.mkdir(parents=True, exist_ok=True)
+
     def register(
         self,
         session: Mapping[str, Any],

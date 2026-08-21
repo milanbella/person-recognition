@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import shutil
+import threading
 import uuid
 from pathlib import Path
 from typing import Any, Mapping
@@ -35,6 +37,7 @@ class ModelTrainingService:
         self.catalog_client = catalog_client
         self.assets_root = Path(assets_root).resolve()
         self.browser_stream_base_url = browser_stream_base_url.rstrip("/")
+        self._mutation_lock = threading.RLock()
         self.store = ModelTrainingStore(self.state_root / "model_training.sqlite")
         self.registrar = CaptureRegistrar(self.state_root, self.store)
         self.exporter = YoloDatasetExporter(self.state_root, self.store)
@@ -104,6 +107,13 @@ class ModelTrainingService:
                 raise HTTPException(status_code=404, detail="No capture session is active.")
             return session
 
+        @router.get("/model-training/api/sessions")
+        def sessions(group: str = Query(default="all")) -> dict[str, Any]:
+            try:
+                return {"sessions": self.store.list_sessions(group=group)}
+            except ValueError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
+
         @router.post("/model-training/api/sessions")
         def create_session(
             payload: dict[str, Any] = Body(...),
@@ -138,6 +148,46 @@ class ModelTrainingService:
             except KeyError as exc:
                 raise HTTPException(status_code=404, detail="Unknown capture session.") from exc
 
+        @router.delete("/model-training/api/sessions/active")
+        def clear_active_session(
+            payload: dict[str, Any] = Body(...),
+            authorization: str | None = Header(default=None),
+        ) -> dict[str, Any]:
+            require_auth(authorization)
+            if payload.get("confirmation") != "CLEAR CURRENT SESSION":
+                raise HTTPException(
+                    status_code=422,
+                    detail="Confirmation must be CLEAR CURRENT SESSION.",
+                )
+            with self._mutation_lock:
+                active = self.store.active_session()
+                if active is None:
+                    raise HTTPException(status_code=404, detail="No capture session is active.")
+                result = self.store.delete_session(str(active["sessionId"]))
+                self._delete_owned_files(result["ownedPaths"])
+                session_directory = self.registrar.captures_root / str(active["sessionId"])
+                try:
+                    session_directory.rmdir()
+                except OSError:
+                    pass
+            return {"status": "cleared", **result, "ownedPaths": None}
+
+        @router.delete("/model-training/api/training-data")
+        def clear_all_training_data(
+            payload: dict[str, Any] = Body(...),
+            authorization: str | None = Header(default=None),
+        ) -> dict[str, Any]:
+            require_auth(authorization)
+            if payload.get("confirmation") != "CLEAR ALL TRAINING DATA":
+                raise HTTPException(
+                    status_code=422,
+                    detail="Confirmation must be CLEAR ALL TRAINING DATA.",
+                )
+            with self._mutation_lock:
+                counts = self.store.clear_training_data()
+                self._clear_owned_directories()
+            return {"status": "cleared", **counts}
+
         @router.post("/model-training/api/sessions/{session_id}/captures")
         def capture(
             session_id: str,
@@ -145,16 +195,17 @@ class ModelTrainingService:
         ) -> dict[str, Any]:
             require_auth(authorization)
             try:
-                session = self.store.get_session(session_id)
-                if session["status"] != "active":
-                    raise ValueError("Capture session is not active.")
-                request_id = str(uuid.uuid4())
-                live_capture = self.live_client.capture(int(session["cameraIndex"]))
-                if int(live_capture["cameraIndex"]) != int(session["cameraIndex"]):
-                    raise RuntimeError("Live capture camera does not match the session camera.")
-                if str(live_capture["deviceId"]) != str(session["deviceId"]):
-                    raise RuntimeError("Live capture device does not match the session device.")
-                return self.registrar.register(session, live_capture, capture_request_id=request_id)
+                with self._mutation_lock:
+                    session = self.store.get_session(session_id)
+                    if session["status"] != "active":
+                        raise ValueError("Capture session is not active.")
+                    request_id = str(uuid.uuid4())
+                    live_capture = self.live_client.capture(int(session["cameraIndex"]))
+                    if int(live_capture["cameraIndex"]) != int(session["cameraIndex"]):
+                        raise RuntimeError("Live capture camera does not match the session camera.")
+                    if str(live_capture["deviceId"]) != str(session["deviceId"]):
+                        raise RuntimeError("Live capture device does not match the session device.")
+                    return self.registrar.register(session, live_capture, capture_request_id=request_id)
             except KeyError as exc:
                 raise HTTPException(status_code=404, detail="Unknown session or incomplete live capture response.") from exc
             except ValueError as exc:
@@ -163,8 +214,29 @@ class ModelTrainingService:
                 raise HTTPException(status_code=502, detail=str(exc)) from exc
 
         @router.get("/model-training/api/frames")
-        def frames(status: str | None = Query(default=None), limit: int = Query(default=100, ge=1, le=500)) -> dict[str, Any]:
-            return {"frames": self.store.list_frames(status=status, limit=limit)}
+        def frames(
+            status: str | None = Query(default=None),
+            session_id: str | None = Query(default=None, alias="sessionId"),
+            exported_only: bool = Query(default=False, alias="exportedOnly"),
+            limit: int = Query(default=100, ge=1, le=500),
+        ) -> dict[str, Any]:
+            return {
+                "frames": self.store.list_frames(
+                    status=status,
+                    session_id=session_id,
+                    exported_only=exported_only,
+                    limit=limit,
+                )
+            }
+
+        @router.get("/model-training/api/frames/review-state")
+        def review_state(
+            session_id: str | None = Query(default=None, alias="sessionId"),
+            limit: int = Query(default=200, ge=1, le=500),
+        ) -> dict[str, Any]:
+            return self.store.frame_queue_state(
+                status="needs_review", session_id=session_id, limit=limit
+            )
 
         @router.get("/model-training/api/frames/{frame_id}")
         def frame(frame_id: str) -> dict[str, Any]:
@@ -221,11 +293,29 @@ class ModelTrainingService:
         def export_dataset(authorization: str | None = Header(default=None)) -> dict[str, Any]:
             require_auth(authorization)
             try:
-                return self.exporter.export()
+                with self._mutation_lock:
+                    return self.exporter.export()
             except (OSError, RuntimeError, ValueError) as exc:
                 raise HTTPException(status_code=409, detail=str(exc)) from exc
 
         return router
+
+    def _delete_owned_files(self, raw_paths: Any) -> None:
+        for raw_path in raw_paths:
+            path = Path(str(raw_path)).resolve(strict=False)
+            if not path.is_relative_to(self.state_root):
+                raise RuntimeError(f"Refusing to delete path outside state root: {path}")
+            path.unlink(missing_ok=True)
+
+    def _clear_owned_directories(self) -> None:
+        for path in (self.state_root / "captures", self.state_root / "datasets"):
+            resolved = path.resolve(strict=False)
+            if not resolved.is_relative_to(self.state_root) or resolved == self.state_root:
+                raise RuntimeError(f"Refusing to clear unsafe path: {resolved}")
+            if resolved.exists():
+                shutil.rmtree(resolved)
+        self.registrar.ensure_directories()
+        self.exporter.datasets_root.mkdir(parents=True, exist_ok=True)
 
     def _asset(self, name: str, media_type: str) -> FileResponse:
         path = self.assets_root / name
@@ -243,4 +333,3 @@ class ModelTrainingService:
             except ValueError as exc:
                 raise HTTPException(status_code=422, detail=str(exc)) from exc
         return finalize
-

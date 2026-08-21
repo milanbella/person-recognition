@@ -16,8 +16,14 @@
   <main>
     <section class="panel setup-panel">
       <label>Training token<input id="token" type="password" autocomplete="current-password"></label>
+      <label>Find product
+        <input id="product-search" type="search" autocomplete="off" placeholder="Search name, code, or barcode">
+      </label>
       <div class="two-up">
-        <label>Product<select id="product"></select></label>
+        <label>Product
+          <select id="product"></select>
+          <span id="product-match-count" class="field-hint">0 products</span>
+        </label>
         <label>Camera<select id="camera"></select></label>
       </div>
       <label>Scenario<select id="scenario">
@@ -30,7 +36,6 @@
       <div class="actions">
         <button id="connect" class="secondary">Connect</button>
         <button id="start-session">Start session</button>
-        <button id="capture" disabled>Capture one</button>
       </div>
       <div id="session-summary" class="summary">No active session</div>
     </section>
@@ -38,6 +43,23 @@
     <section class="panel preview-panel">
       <div class="section-title"><span>Camera preview</span><span id="camera-state">offline</span></div>
       <img id="stream" alt="Selected camera preview">
+      <div class="preview-actions">
+        <button id="capture" disabled>Capture 4K frame</button>
+      </div>
+    </section>
+
+    <section class="panel session-browser-panel">
+      <div><p class="eyebrow">Collection history</p><h2>Sessions</h2></div>
+      <div class="two-up session-selectors">
+        <label>Working sessions
+          <select id="working-session"><option value="">No working sessions</option></select>
+          <span class="field-hint">Pending review or newly reviewed frames not yet exported.</span>
+        </label>
+        <label>Exported sessions
+          <select id="exported-session"><option value="">No exported sessions</option></select>
+          <span class="field-hint">Read-only frames already included in a dataset.</span>
+        </label>
+      </div>
     </section>
 
     <section class="panel review-panel">
@@ -48,6 +70,8 @@
       </div>
       <p id="frame-caption" class="caption">Draw tightly around the visible product. Exclude the hand.</p>
       <div class="review-actions">
+        <button id="previous-frame" class="secondary" disabled>Previous</button>
+        <button id="next-frame" class="secondary" disabled>Next</button>
         <button id="accept" disabled>Accept</button>
         <button id="redraw" class="secondary" disabled>Redraw</button>
         <button id="not-visible" class="secondary" disabled>Not visible</button>
@@ -60,6 +84,15 @@
       <div><p class="eyebrow">Immutable output</p><h2>YOLO dataset</h2></div>
       <button id="export" class="secondary">Export reviewed frames</button>
       <pre id="export-result"></pre>
+    </section>
+
+    <section class="panel cleanup-panel">
+      <div><p class="eyebrow">Destructive operations</p><h2>Clear training data</h2></div>
+      <p class="caption">Captured source files in the live-service spool are not removed.</p>
+      <div class="actions">
+        <button id="clear-session" class="danger" disabled>Clear current session</button>
+        <button id="clear-all-data" class="danger">Clear all training data</button>
+      </div>
     </section>
   </main>
   <script src="/model-training/assets/model-training.js"></script>

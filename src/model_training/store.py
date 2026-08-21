@@ -152,7 +152,51 @@ class ModelTrainingStore:
                     manifest_json TEXT NOT NULL,
                     created_at_unix_ms INTEGER NOT NULL
                 );
+
+                CREATE TABLE IF NOT EXISTS mt_dataset_frames (
+                    dataset_version TEXT NOT NULL,
+                    frame_id TEXT NOT NULL,
+                    session_id TEXT NOT NULL,
+                    split TEXT NOT NULL,
+                    PRIMARY KEY(dataset_version, frame_id),
+                    FOREIGN KEY(dataset_version) REFERENCES mt_dataset_versions(dataset_version)
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_mt_dataset_frames_session
+                ON mt_dataset_frames(session_id, frame_id);
+
+                CREATE INDEX IF NOT EXISTS idx_mt_dataset_frames_frame
+                ON mt_dataset_frames(frame_id);
                 """
+            )
+            self._backfill_dataset_memberships(connection)
+
+    @staticmethod
+    def _backfill_dataset_memberships(connection: sqlite3.Connection) -> None:
+        rows = connection.execute(
+            "SELECT dataset_version, manifest_json FROM mt_dataset_versions"
+        ).fetchall()
+        for row in rows:
+            try:
+                items = json.loads(str(row["manifest_json"])).get("items", [])
+            except (AttributeError, TypeError, ValueError, json.JSONDecodeError):
+                continue
+            connection.executemany(
+                """
+                INSERT OR IGNORE INTO mt_dataset_frames (
+                    dataset_version, frame_id, session_id, split
+                ) VALUES (?, ?, ?, ?)
+                """,
+                [
+                    (
+                        str(row["dataset_version"]),
+                        str(item["frameId"]),
+                        str(item["sessionId"]),
+                        str(item["split"]),
+                    )
+                    for item in items
+                    if all(key in item for key in ("frameId", "sessionId", "split"))
+                ],
             )
 
     def replace_products(self, shop_id: int, products: Sequence[Mapping[str, Any]]) -> int:
@@ -264,16 +308,60 @@ class ModelTrainingStore:
         with self._connection() as connection:
             row = connection.execute(
                 """
-                SELECT s.*, COUNT(f.frame_id) AS frame_count
+                SELECT s.*,
+                       (SELECT COUNT(*) FROM mt_captured_frames f
+                        WHERE f.session_id = s.session_id) AS frame_count,
+                       (SELECT COUNT(*) FROM mt_captured_frames f
+                        WHERE f.session_id = s.session_id
+                          AND f.annotation_status = 'needs_review') AS pending_count,
+                       (SELECT COUNT(*) FROM mt_captured_frames f
+                        WHERE f.session_id = s.session_id
+                          AND f.annotation_status != 'needs_review') AS reviewed_count,
+                       (SELECT COUNT(*) FROM mt_captured_frames f
+                        WHERE f.session_id = s.session_id
+                          AND f.annotation_status IN ('accepted', 'corrected', 'not_visible')) AS exportable_count,
+                       (SELECT COUNT(*) FROM mt_captured_frames f
+                        WHERE f.session_id = s.session_id
+                          AND f.annotation_status IN ('accepted', 'corrected', 'not_visible')
+                          AND NOT EXISTS (
+                              SELECT 1 FROM mt_dataset_frames df
+                              WHERE df.frame_id = f.frame_id
+                          )) AS unexported_count,
+                       (SELECT COUNT(DISTINCT df.frame_id) FROM mt_dataset_frames df
+                        WHERE df.session_id = s.session_id) AS exported_count,
+                       (SELECT GROUP_CONCAT(DISTINCT df.dataset_version)
+                        FROM mt_dataset_frames df
+                        WHERE df.session_id = s.session_id) AS dataset_versions
                 FROM mt_capture_sessions s
-                LEFT JOIN mt_captured_frames f ON f.session_id = s.session_id
-                WHERE s.session_id = ? GROUP BY s.session_id
+                WHERE s.session_id = ?
                 """,
                 (session_id,),
             ).fetchone()
         if row is None:
             raise KeyError(session_id)
         return _session_payload(row)
+
+    def list_sessions(self, *, group: str = "all") -> list[dict[str, Any]]:
+        if group not in {"all", "working", "exported"}:
+            raise ValueError("group must be all, working, or exported.")
+        with self._connection() as connection:
+            session_ids = [
+                str(row["session_id"])
+                for row in connection.execute(
+                    "SELECT session_id FROM mt_capture_sessions ORDER BY started_at_unix_ms DESC"
+                ).fetchall()
+            ]
+        sessions = [self.get_session(session_id) for session_id in session_ids]
+        if group == "working":
+            return [
+                session for session in sessions
+                if session["pendingCount"] > 0
+                or session["unexportedCount"] > 0
+                or session["exportedCount"] == 0
+            ]
+        if group == "exported":
+            return [session for session in sessions if session["exportedCount"] > 0]
+        return sessions
 
     def active_session(self) -> dict[str, Any] | None:
         with self._connection() as connection:
@@ -293,6 +381,76 @@ class ModelTrainingStore:
             ).fetchone() is None:
                 raise KeyError(session_id)
         return self.get_session(session_id)
+
+    def delete_session(self, session_id: str) -> dict[str, Any]:
+        with self._connection() as connection:
+            session = connection.execute(
+                "SELECT * FROM mt_capture_sessions WHERE session_id = ?",
+                (session_id,),
+            ).fetchone()
+            if session is None:
+                raise KeyError(session_id)
+            frame_rows = connection.execute(
+                """
+                SELECT frame_id, image_path, metadata_path, review_proxy_path,
+                       thumbnail_path
+                FROM mt_captured_frames WHERE session_id = ?
+                """,
+                (session_id,),
+            ).fetchall()
+            frame_ids = [str(row["frame_id"]) for row in frame_rows]
+            if frame_ids:
+                placeholders = ",".join("?" for _frame_id in frame_ids)
+                connection.execute(
+                    f"DELETE FROM mt_annotation_revisions WHERE frame_id IN ({placeholders})",
+                    frame_ids,
+                )
+                connection.execute(
+                    f"DELETE FROM mt_annotations WHERE frame_id IN ({placeholders})",
+                    frame_ids,
+                )
+            connection.execute(
+                "DELETE FROM mt_captured_frames WHERE session_id = ?", (session_id,)
+            )
+            connection.execute(
+                "DELETE FROM mt_capture_sessions WHERE session_id = ?", (session_id,)
+            )
+        paths = [
+            str(row[column])
+            for row in frame_rows
+            for column in (
+                "image_path",
+                "metadata_path",
+                "review_proxy_path",
+                "thumbnail_path",
+            )
+        ]
+        return {
+            "sessionId": session_id,
+            "frameCount": len(frame_rows),
+            "ownedPaths": paths,
+        }
+
+    def clear_training_data(self) -> dict[str, Any]:
+        with self._connection() as connection:
+            counts = {
+                "sessions": int(connection.execute(
+                    "SELECT COUNT(*) FROM mt_capture_sessions"
+                ).fetchone()[0]),
+                "frames": int(connection.execute(
+                    "SELECT COUNT(*) FROM mt_captured_frames"
+                ).fetchone()[0]),
+                "datasets": int(connection.execute(
+                    "SELECT COUNT(*) FROM mt_dataset_versions"
+                ).fetchone()[0]),
+            }
+            connection.execute("DELETE FROM mt_annotation_revisions")
+            connection.execute("DELETE FROM mt_annotations")
+            connection.execute("DELETE FROM mt_dataset_frames")
+            connection.execute("DELETE FROM mt_captured_frames")
+            connection.execute("DELETE FROM mt_capture_sessions")
+            connection.execute("DELETE FROM mt_dataset_versions")
+        return counts
 
     def add_frame(self, record: Mapping[str, Any]) -> dict[str, Any]:
         with self._connection() as connection:
@@ -346,12 +504,27 @@ class ModelTrainingStore:
         payload["annotations"] = [_annotation_payload(item) for item in annotations]
         return payload
 
-    def list_frames(self, *, status: str | None = None, limit: int = 100) -> list[dict[str, Any]]:
+    def list_frames(
+        self,
+        *,
+        status: str | None = None,
+        session_id: str | None = None,
+        exported_only: bool = False,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
         params: list[Any] = []
-        where = ""
+        conditions: list[str] = []
         if status:
-            where = "WHERE f.annotation_status = ?"
+            conditions.append("f.annotation_status = ?")
             params.append(status)
+        if session_id:
+            conditions.append("f.session_id = ?")
+            params.append(session_id)
+        if exported_only:
+            conditions.append(
+                "EXISTS (SELECT 1 FROM mt_dataset_frames df WHERE df.frame_id = f.frame_id)"
+            )
+        where = "" if not conditions else "WHERE " + " AND ".join(conditions)
         params.append(max(1, min(limit, 500)))
         with self._connection() as connection:
             rows = connection.execute(
@@ -362,6 +535,36 @@ class ModelTrainingStore:
                 params,
             ).fetchall()
         return [self.get_frame(str(row["frame_id"])) for row in rows]
+
+    def frame_queue_state(
+        self,
+        *,
+        status: str,
+        session_id: str | None = None,
+        limit: int = 200,
+    ) -> dict[str, Any]:
+        bounded_limit = max(1, min(limit, 500))
+        session_condition = "" if session_id is None else " AND session_id = ?"
+        params: list[Any] = [status]
+        if session_id is not None:
+            params.append(session_id)
+        with self._connection() as connection:
+            count = int(connection.execute(
+                f"SELECT COUNT(*) FROM mt_captured_frames WHERE annotation_status = ?{session_condition}",
+                params,
+            ).fetchone()[0])
+            rows = connection.execute(
+                f"""
+                SELECT frame_id FROM mt_captured_frames
+                WHERE annotation_status = ?{session_condition}
+                ORDER BY captured_at_unix_ms ASC LIMIT ?
+                """,
+                [*params, bounded_limit],
+            ).fetchall()
+        return {
+            "count": count,
+            "frameIds": [str(row["frame_id"]) for row in rows],
+        }
 
     def frame_image_path(self, frame_id: str, variant: str) -> Path:
         columns = {
@@ -467,6 +670,22 @@ class ModelTrainingStore:
                 "INSERT INTO mt_dataset_versions VALUES (?, ?, 'complete', ?, ?)",
                 (version, str(path), json.dumps(dict(manifest), sort_keys=True), _now_ms()),
             )
+            connection.executemany(
+                """
+                INSERT INTO mt_dataset_frames (
+                    dataset_version, frame_id, session_id, split
+                ) VALUES (?, ?, ?, ?)
+                """,
+                [
+                    (
+                        version,
+                        str(item["frameId"]),
+                        str(item["sessionId"]),
+                        str(item["split"]),
+                    )
+                    for item in manifest.get("items", [])
+                ],
+            )
 
     @staticmethod
     def _insert_revision(
@@ -515,6 +734,9 @@ def _product_payload(row: sqlite3.Row) -> dict[str, Any]:
 
 
 def _session_payload(row: sqlite3.Row) -> dict[str, Any]:
+    dataset_versions = []
+    if "dataset_versions" in row.keys() and row["dataset_versions"]:
+        dataset_versions = sorted(str(row["dataset_versions"]).split(","))
     return {
         "sessionId": row["session_id"], "shopId": row["shop_id"],
         "productCode": row["product_code"], "productName": row["product_name_snapshot"],
@@ -524,6 +746,12 @@ def _session_payload(row: sqlite3.Row) -> dict[str, Any]:
         "startedAtUnixMilliseconds": row["started_at_unix_ms"],
         "stoppedAtUnixMilliseconds": row["stopped_at_unix_ms"],
         "frameCount": int(row["frame_count"]) if "frame_count" in row.keys() else 0,
+        "pendingCount": int(row["pending_count"]) if "pending_count" in row.keys() else 0,
+        "reviewedCount": int(row["reviewed_count"]) if "reviewed_count" in row.keys() else 0,
+        "exportableCount": int(row["exportable_count"]) if "exportable_count" in row.keys() else 0,
+        "unexportedCount": int(row["unexported_count"]) if "unexported_count" in row.keys() else 0,
+        "exportedCount": int(row["exported_count"]) if "exported_count" in row.keys() else 0,
+        "datasetVersions": dataset_versions,
     }
 
 

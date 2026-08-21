@@ -12,6 +12,8 @@ rsync -avz --delete \
     --exclude='src/.cache' \
     --exclude='src/.depthai_cached_models/' \
     --exclude='src/recordings/' \
+    --exclude='src/state/' \
+    --exclude='src/live_runs/' \
     --exclude='src/plane_calibrations/' \
     --exclude='src/shelf_calibrations/' \
     --exclude='src/evidence/' \
