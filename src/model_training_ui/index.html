@@ -64,16 +64,25 @@
 
     <section class="panel review-panel">
       <div class="section-title"><span>Review</span><span id="review-count">0 pending</span></div>
+      <div class="review-toolbar" aria-label="Review image controls">
+        <button id="draw-mode" class="secondary active" disabled>Draw box</button>
+        <button id="redraw" class="secondary" disabled>Redraw</button>
+        <button id="pan-mode" class="secondary" disabled>Pan</button>
+        <button id="zoom-out" class="secondary" disabled aria-label="Zoom out">-</button>
+        <span id="zoom-level" class="zoom-level">100%</span>
+        <button id="zoom-in" class="secondary" disabled aria-label="Zoom in">+</button>
+        <button id="zoom-reset" class="secondary" disabled>Reset zoom</button>
+      </div>
+      <p class="field-hint review-hint">In Draw box mode, drag inside a box to move it or drag a white corner handle to resize it.</p>
       <div id="canvas-wrap" class="canvas-wrap empty">
         <canvas id="review-canvas"></canvas>
         <p id="empty-review">Capture a frame or connect to load pending review.</p>
       </div>
-      <p id="frame-caption" class="caption">Draw tightly around the visible product. Exclude the hand.</p>
+      <p id="frame-caption" class="caption">Draw tightly around the visible product. Drag the box to move it or a corner to resize it.</p>
       <div class="review-actions">
         <button id="previous-frame" class="secondary" disabled>Previous</button>
         <button id="next-frame" class="secondary" disabled>Next</button>
         <button id="accept" disabled>Accept</button>
-        <button id="redraw" class="secondary" disabled>Redraw</button>
         <button id="not-visible" class="secondary" disabled>Not visible</button>
         <button id="uncertain" class="secondary" disabled>Uncertain</button>
         <button id="reject" class="danger" disabled>Reject</button>

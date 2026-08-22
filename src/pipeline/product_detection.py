@@ -105,6 +105,23 @@ def expanded_person_crop(
     )
 
 
+def translate_product_detection(
+    detection: ProductDetection,
+    crop_box: tuple[int, int, int, int],
+) -> ProductDetection:
+    """Map a crop-relative product detection back to source-frame coordinates."""
+    crop_x1, crop_y1, _crop_x2, _crop_y2 = crop_box
+    return ProductDetection(
+        x1=detection.x1 + crop_x1,
+        y1=detection.y1 + crop_y1,
+        x2=detection.x2 + crop_x1,
+        y2=detection.y2 + crop_y1,
+        score=detection.score,
+        class_id=detection.class_id,
+        label=detection.label,
+    )
+
+
 def parse_yolo_class_names(metadata: Mapping[str, str]) -> dict[int, str]:
     raw_names = metadata.get("names")
     if not raw_names:

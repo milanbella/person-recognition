@@ -30,6 +30,7 @@ class YoloDatasetExporter:
 
         classes = sorted({str(row["productCode"]) for row in rows})
         class_ids = {code: index for index, code in enumerate(classes)}
+        model_labels = _model_labels(self.store, classes)
         assignments, warning = _session_assignments(rows)
         manifest_items: list[dict[str, Any]] = []
         try:
@@ -65,10 +66,22 @@ class YoloDatasetExporter:
                     }
                 )
             data_yaml = [f"path: {final_path}", "train: images/train", "val: images/val", "test: images/test", "names:"]
-            data_yaml.extend(f"  {index}: {json.dumps(code)}" for code, index in class_ids.items())
+            data_yaml.extend(
+                f"  {index}: {json.dumps(model_labels[code])}"
+                for code, index in class_ids.items()
+            )
             (temporary / "data.yaml").write_text("\n".join(data_yaml) + "\n", encoding="utf-8")
             (temporary / "class-map.json").write_text(
-                json.dumps({"classes": classes, "classIds": class_ids}, indent=2, sort_keys=True), encoding="utf-8"
+                json.dumps(
+                    {
+                        "classes": classes,
+                        "classIds": class_ids,
+                        "modelLabels": model_labels,
+                    },
+                    indent=2,
+                    sort_keys=True,
+                ),
+                encoding="utf-8",
             )
             manifest = {
                 "datasetVersion": version,
@@ -77,6 +90,7 @@ class YoloDatasetExporter:
                 "splitWarning": warning,
                 "counts": dict(Counter(item["split"] for item in manifest_items)),
                 "classes": classes,
+                "modelLabels": model_labels,
                 "items": manifest_items,
             }
             (temporary / "manifest.json").write_text(
@@ -88,6 +102,39 @@ class YoloDatasetExporter:
         except BaseException:
             shutil.rmtree(temporary, ignore_errors=True)
             raise
+
+
+def _model_labels(
+    store: ModelTrainingStore,
+    product_codes: list[str],
+) -> dict[str, str]:
+    products = {
+        str(product["code"]): product
+        for product in store.list_products(active_only=False)
+    }
+    labels: dict[str, str] = {}
+    assigned_ids: dict[int, str] = {}
+    for code in product_codes:
+        product = products.get(code)
+        if product is None or product.get("id") is None:
+            raise ValueError(
+                f"Product {code!r} has no stable shop product ID for model export."
+            )
+        source_product_id = int(product["id"])
+        if source_product_id <= 0:
+            raise ValueError(
+                f"Product {code!r} has invalid shop product ID {source_product_id}."
+            )
+        model_product_id = source_product_id - 1
+        previous_code = assigned_ids.get(model_product_id)
+        if previous_code is not None and previous_code != code:
+            raise ValueError(
+                "Products have duplicate model product ID "
+                f"{model_product_id:03d}: {previous_code!r} and {code!r}."
+            )
+        assigned_ids[model_product_id] = code
+        labels[code] = f"{model_product_id:03d}_{code}"
+    return labels
 
 
 def _session_assignments(rows: list[Mapping[str, Any]]) -> tuple[dict[str, str], str | None]:

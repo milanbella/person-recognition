@@ -43,6 +43,11 @@ button:disabled { opacity: .42; cursor: default; }
 #stream { width: 100%; aspect-ratio: 16/9; object-fit: contain; background: #121714; border-radius: 12px; display: block; }
 .preview-actions { display: flex; margin-top: 10px; }
 .preview-actions button { flex: 1; }
+.review-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; margin-bottom: 10px; }
+.review-toolbar button { min-height: 38px; padding: 6px 12px; }
+.review-toolbar button.active { background: var(--green); color: #fff; }
+.zoom-level { min-width: 118px; text-align: center; font-size: .8rem; font-weight: 850; font-variant-numeric: tabular-nums; }
+.review-hint { display: block; margin: -3px 0 10px; }
 .canvas-wrap { position: relative; width: 100%; min-height: 220px; background: #111613; border-radius: 12px; overflow: hidden; display: grid; place-items: center; }
 .canvas-wrap.empty { background: repeating-linear-gradient(135deg, #19201c, #19201c 12px, #1e2822 12px, #1e2822 24px); }
 #review-canvas {
@@ -54,7 +59,12 @@ button:disabled { opacity: .42; cursor: default; }
   touch-action: none;
   -webkit-touch-callout: none;
   user-select: none;
+  transform-origin: center center;
+  will-change: transform;
+  cursor: crosshair;
 }
+#review-canvas.pan-mode { cursor: grab; }
+#review-canvas.panning { cursor: grabbing; }
 #empty-review { color: #dbe4dc; padding: 30px; text-align: center; }
 .review-actions { margin-top: 12px; }
 .export-panel, .cleanup-panel { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
@@ -71,5 +81,6 @@ button:disabled { opacity: .42; cursor: default; }
   .export-panel { order: 4; }
   .cleanup-panel { order: 5; }
   .session-selectors { grid-template-columns: 1fr; }
+  .review-toolbar button { flex: 1 1 auto; }
   .review-actions button { flex: 1 1 42%; }
 }

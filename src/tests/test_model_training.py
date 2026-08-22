@@ -104,6 +104,14 @@ class ModelTrainingTests(unittest.TestCase):
         dataset = YoloDatasetExporter(self.root / "state", self.store).export()
         label = Path(dataset["path"]) / "labels" / "train" / f"{frame['frameId']}.txt"
         self.assertEqual(label.read_text(encoding="ascii"), "0 0.50000000 0.50000000 0.50000000 0.60000000\n")
+        data_yaml = (Path(dataset["path"]) / "data.yaml").read_text(encoding="utf-8")
+        self.assertIn('  0: "006_oil-1l"', data_yaml)
+        class_map = json.loads(
+            (Path(dataset["path"]) / "class-map.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(class_map["classIds"], {"oil-1l": 0})
+        self.assertEqual(class_map["modelLabels"], {"oil-1l": "006_oil-1l"})
+        self.assertEqual(dataset["modelLabels"], {"oil-1l": "006_oil-1l"})
         self.assertIn("train-only", dataset["splitWarning"])
 
     def test_not_visible_is_exported_as_empty_label(self) -> None:

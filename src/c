@@ -74,19 +74,28 @@ set -xe
 #    --frame-height 1080
 
 
-python ./live_synced_rgbd_streams.py \
-  --device-id 194430107110B32F00 194430103142B32F00 1944301051851C1300 1944301061B0B32F00 194430105114AF2F00 \
-  --camera-role entrance_observer entrance_observer observer observer observer \
-  --output-dir ./live_runs/shop_live_001 \
-  --log-visit-decisions \
-  --log-plane-trace \
-  --shop-api-base-url https://ovie.sk \
-  --shop-api-key a4e02c6a-7657-4077-97da-debbeb88add5 \
-  --shop-id 1 \
-  --state-db state/shop_state.sqlite \
-  --enable-shelf-watching \
-  --log-shelf-distance \
-  --enable-operator-console \
-  --operator-api-token 'secret' \
-  --headless
+#python ./live_synced_rgbd_streams.py \
+#  --device-id 194430107110B32F00 194430103142B32F00 1944301051851C1300 1944301061B0B32F00 194430105114AF2F00 \
+#  --camera-role entrance_observer entrance_observer observer observer observer \
+#  --output-dir ./live_runs/shop_live_001 \
+#  --log-visit-decisions \
+#  --log-plane-trace \
+#  --shop-api-base-url https://ovie.sk \
+#  --shop-api-key a4e02c6a-7657-4077-97da-debbeb88add5 \
+#  --shop-id 1 \
+#  --state-db state/shop_state.sqlite \
+#  --enable-shelf-watching \
+#  --log-shelf-distance \
+#  --enable-operator-console \
+#  --operator-api-token 'secret' \
+#  --headless
+
+python ./preview_body_crop_product_detection.py \
+--device-id \
+  194430107110B32F00 \
+  194430103142B32F00 \
+  1944301051851C1300 \
+  1944301061B0B32F00 \
+  194430105114AF2F00 \
+--product-model ../models/mirinda-dataset-v0001.onnx
 

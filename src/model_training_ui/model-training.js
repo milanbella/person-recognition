@@ -1,6 +1,15 @@
 "use strict";
 
-const app = { token: localStorage.getItem("modelTrainingToken") || "", connected: false, captureInFlight: false, queueRefreshInFlight: false, products: [], session: null, workingSessions: [], exportedSessions: [], reviewSessionId: null, reviewMode: "working", readOnly: false, frames: [], frame: null, frameIndex: -1, image: null, box: null, dragStart: null };
+const app = {
+  token: localStorage.getItem("modelTrainingToken") || "", connected: false,
+  captureInFlight: false, queueRefreshInFlight: false, products: [], session: null,
+  workingSessions: [], exportedSessions: [], reviewSessionId: null,
+  reviewMode: "working", readOnly: false, frames: [], frame: null, frameIndex: -1,
+  image: null, imageVariant: null, imageRequest: 0, originalLoading: false,
+  box: null, dragStart: null, dragOrigin: null, drawing: false,
+  view: { zoom: 1, panX: 0, panY: 0, mode: "draw" },
+  pointers: new Map(), gesture: null
+};
 const el = Object.fromEntries([...document.querySelectorAll("[id]")].map(node => [node.id, node]));
 
 function authHeaders(json = false) {
@@ -269,11 +278,11 @@ async function refreshQueueState() {
 }
 
 async function showFrame(frame) {
-  app.frame = frame; app.box = frame.annotations[0] || null;
+  resetView();
+  app.frame = frame; app.image = null; app.imageVariant = null; app.originalLoading = false;
+  app.box = frame.annotations[0] || null;
   app.frameIndex = app.frames.findIndex(item => item.frameId === frame.frameId);
-  const image = new Image();
-  image.onload = () => { app.image = image; resizeCanvas(); renderCanvas(); };
-  image.src = `${frame.imageUrls.review}&t=${Date.now()}`;
+  loadFrameImage("review");
   const position = app.frameIndex >= 0 ? ` / frame ${app.frameIndex + 1} of ${app.frames.length}` : "";
   const mode = app.readOnly ? " / exported read-only" : "";
   el["frame-caption"].textContent = `${frame.productName} / camera ${frame.cameraNumber} / ${frame.scenario}${position}${mode}`;
@@ -282,13 +291,16 @@ async function showFrame(frame) {
 }
 
 function clearFrame() {
-  app.frame = null; app.frameIndex = -1; app.image = null; app.box = null;
+  app.imageRequest += 1;
+  app.frame = null; app.frameIndex = -1; app.image = null; app.imageVariant = null;
+  app.originalLoading = false; app.box = null; resetView();
   el["canvas-wrap"].classList.add("empty"); el["empty-review"].hidden = false; el["review-canvas"].style.display = "none";
   setReviewEnabled(false); updatePendingCount(0);
 }
 
 function setReviewEnabled(enabled) {
   ["accept", "redraw", "not-visible", "uncertain", "reject"].forEach(id => el[id].disabled = !enabled || app.readOnly);
+  ["draw-mode", "pan-mode", "zoom-in", "zoom-out", "zoom-reset"].forEach(id => el[id].disabled = !enabled);
   el["previous-frame"].disabled = !enabled || app.frameIndex <= 0;
   el["next-frame"].disabled = !enabled || app.frameIndex < 0 || app.frameIndex >= app.frames.length - 1;
 }
@@ -298,6 +310,88 @@ async function moveFrame(offset) {
   if (next >= 0 && next < app.frames.length) await showFrame(app.frames[next]);
 }
 function resizeCanvas() { if (!app.image) return; el["review-canvas"].width = app.image.naturalWidth; el["review-canvas"].height = app.image.naturalHeight; }
+
+function loadFrameImage(variant) {
+  if (!app.frame) return;
+  const frameId = app.frame.frameId;
+  const request = ++app.imageRequest;
+  const image = new Image();
+  image.onload = () => {
+    if (!app.frame || app.frame.frameId !== frameId || request !== app.imageRequest) return;
+    app.image = image; app.imageVariant = variant; app.originalLoading = false;
+    resizeCanvas(); applyView(); renderCanvas();
+  };
+  image.onerror = () => {
+    if (request !== app.imageRequest) return;
+    app.originalLoading = false;
+    if (variant === "original") status("Could not load the 4K image; zooming the review proxy instead.", true);
+    else status("Could not load the review image.", true);
+  };
+  image.src = `${app.frame.imageUrls[variant]}&t=${Date.now()}`;
+}
+
+function ensureOriginalImage() {
+  if (!app.frame || app.imageVariant === "original" || app.originalLoading) return;
+  app.originalLoading = true;
+  loadFrameImage("original");
+}
+
+function resetView() {
+  app.view = { zoom: 1, panX: 0, panY: 0, mode: "draw" };
+  app.pointers.clear(); app.gesture = null; app.dragStart = null; app.dragOrigin = null; app.drawing = false;
+  applyView();
+}
+
+function resetZoom() {
+  app.view.zoom = 1; app.view.panX = 0; app.view.panY = 0;
+  app.gesture = null; applyView();
+}
+
+function clampPan() {
+  const canvas = el["review-canvas"], wrap = el["canvas-wrap"];
+  const maxX = Math.max(0, (canvas.offsetWidth * app.view.zoom - wrap.clientWidth) / 2);
+  const maxY = Math.max(0, (canvas.offsetHeight * app.view.zoom - wrap.clientHeight) / 2);
+  app.view.panX = Math.max(-maxX, Math.min(maxX, app.view.panX));
+  app.view.panY = Math.max(-maxY, Math.min(maxY, app.view.panY));
+}
+
+function applyView() {
+  const canvas = el["review-canvas"];
+  if (!canvas) return;
+  clampPan();
+  canvas.style.transform = `translate3d(${app.view.panX}px, ${app.view.panY}px, 0) scale(${app.view.zoom})`;
+  canvas.classList.toggle("pan-mode", app.view.mode === "pan");
+  el["draw-mode"]?.classList.toggle("active", app.view.mode === "draw");
+  el["pan-mode"]?.classList.toggle("active", app.view.mode === "pan");
+  if (el["zoom-level"]) {
+    const source = app.originalLoading ? "loading 4K" : app.imageVariant === "original" ? "4K" : "proxy";
+    el["zoom-level"].textContent = `${Math.round(app.view.zoom * 100)}% · ${source}`;
+  }
+}
+
+function setMode(mode) {
+  app.view.mode = mode; app.dragStart = null; app.dragOrigin = null;
+  app.drawing = false; app.gesture = null;
+  applyView();
+}
+
+function setZoom(value, focalX = null, focalY = null) {
+  const previous = app.view.zoom;
+  const next = Math.max(1, Math.min(8, value));
+  if (Math.abs(next - previous) < .001) return;
+  if (focalX !== null && focalY !== null) {
+    const wrap = el["canvas-wrap"].getBoundingClientRect();
+    const relativeX = focalX - (wrap.left + wrap.width / 2) - app.view.panX;
+    const relativeY = focalY - (wrap.top + wrap.height / 2) - app.view.panY;
+    app.view.panX += relativeX * (1 - next / previous);
+    app.view.panY += relativeY * (1 - next / previous);
+  }
+  app.view.zoom = next;
+  if (next === 1) { app.view.panX = 0; app.view.panY = 0; }
+  if (next > 1) ensureOriginalImage();
+  applyView();
+}
+
 function renderCanvas() {
   if (!app.image) return;
   const canvas = el["review-canvas"], ctx = canvas.getContext("2d");
@@ -305,9 +399,19 @@ function renderCanvas() {
   if (!app.box) return;
   const x = app.box.x1 * canvas.width, y = app.box.y1 * canvas.height;
   const w = (app.box.x2 - app.box.x1) * canvas.width, h = (app.box.y2 - app.box.y1) * canvas.height;
-  ctx.strokeStyle = "#d8f26a"; ctx.lineWidth = Math.max(3, canvas.width / 400); ctx.strokeRect(x, y, w, h);
+  const renderedWidth = Math.max(1, canvas.getBoundingClientRect().width);
+  const displayScale = canvas.width / renderedWidth;
+  ctx.strokeStyle = "#d8f26a"; ctx.lineWidth = Math.max(2 * displayScale, canvas.width / 800); ctx.strokeRect(x, y, w, h);
   ctx.fillStyle = "#d8f26a"; ctx.fillRect(x, Math.max(0, y - 30), Math.min(w, 260), 30);
   ctx.fillStyle = "#17211c"; ctx.font = "bold 20px sans-serif"; ctx.fillText(app.frame.productCode, x + 7, Math.max(21, y - 8));
+  if (!app.readOnly) {
+    const radius = 8 * displayScale;
+    ctx.fillStyle = "#fffdf7"; ctx.strokeStyle = "#12634a"; ctx.lineWidth = 2 * displayScale;
+    for (const handle of boxHandles(app.box)) {
+      ctx.beginPath(); ctx.arc(handle.x * canvas.width, handle.y * canvas.height, radius, 0, Math.PI * 2);
+      ctx.fill(); ctx.stroke();
+    }
+  }
 }
 
 function point(event) {
@@ -315,12 +419,116 @@ function point(event) {
   return { x: Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)), y: Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height)) };
 }
 
-el["review-canvas"].addEventListener("pointerdown", event => { event.preventDefault(); el["review-canvas"].setPointerCapture(event.pointerId); app.dragStart = point(event); app.box = null; renderCanvas(); });
+function boxHandles(box) {
+  return [
+    { name: "nw", x: box.x1, y: box.y1 }, { name: "ne", x: box.x2, y: box.y1 },
+    { name: "sw", x: box.x1, y: box.y2 }, { name: "se", x: box.x2, y: box.y2 }
+  ];
+}
+
+function boxHit(event) {
+  if (!app.box) return null;
+  const rect = el["review-canvas"].getBoundingClientRect();
+  const current = point(event), handleRadius = 18;
+  const handle = boxHandles(app.box).find(item =>
+    Math.hypot((current.x - item.x) * rect.width, (current.y - item.y) * rect.height) <= handleRadius
+  );
+  if (handle) return { type: "resize", handle: handle.name };
+  if (current.x >= app.box.x1 && current.x <= app.box.x2 && current.y >= app.box.y1 && current.y <= app.box.y2) {
+    return { type: "move" };
+  }
+  return null;
+}
+
+function resizeBox(startBox, handle, current) {
+  const minimum = .003, box = { ...startBox };
+  if (handle.includes("w")) box.x1 = Math.max(0, Math.min(current.x, startBox.x2 - minimum));
+  if (handle.includes("e")) box.x2 = Math.min(1, Math.max(current.x, startBox.x1 + minimum));
+  if (handle.includes("n")) box.y1 = Math.max(0, Math.min(current.y, startBox.y2 - minimum));
+  if (handle.includes("s")) box.y2 = Math.min(1, Math.max(current.y, startBox.y1 + minimum));
+  return box;
+}
+
+function moveBox(startBox, startPoint, current) {
+  const width = startBox.x2 - startBox.x1, height = startBox.y2 - startBox.y1;
+  const x1 = Math.max(0, Math.min(1 - width, startBox.x1 + current.x - startPoint.x));
+  const y1 = Math.max(0, Math.min(1 - height, startBox.y1 + current.y - startPoint.y));
+  return { ...startBox, x1, y1, x2: x1 + width, y2: y1 + height };
+}
+
+function pointerDistance(first, second) { return Math.hypot(second.x - first.x, second.y - first.y); }
+function pointerMidpoint(first, second) { return { x: (first.x + second.x) / 2, y: (first.y + second.y) / 2 }; }
+
+el["review-canvas"].addEventListener("pointerdown", event => {
+  event.preventDefault();
+  el["review-canvas"].setPointerCapture(event.pointerId);
+  app.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+  if (app.pointers.size === 2) {
+    const [first, second] = [...app.pointers.values()];
+    app.gesture = { type: "pinch", distance: pointerDistance(first, second), midpoint: pointerMidpoint(first, second), zoom: app.view.zoom, panX: app.view.panX, panY: app.view.panY };
+    app.dragStart = null; app.dragOrigin = null; app.drawing = false;
+    return;
+  }
+  if (app.view.mode === "pan") {
+    app.gesture = { type: "pan", pointerId: event.pointerId, x: event.clientX, y: event.clientY, panX: app.view.panX, panY: app.view.panY };
+    el["review-canvas"].classList.add("panning");
+  } else if (!app.readOnly) {
+    const hit = boxHit(event);
+    if (hit) {
+      app.gesture = { ...hit, pointerId: event.pointerId, box: { ...app.box }, startPoint: point(event) };
+      return;
+    }
+    app.dragStart = point(event); app.dragOrigin = { x: event.clientX, y: event.clientY };
+    app.drawing = false;
+  }
+});
 el["review-canvas"].addEventListener("pointermove", event => {
-  if (!app.dragStart) return; event.preventDefault(); const current = point(event);
+  if (!app.pointers.has(event.pointerId)) return;
+  event.preventDefault();
+  app.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+  if (app.gesture?.type === "pinch" && app.pointers.size >= 2) {
+    const [first, second] = [...app.pointers.values()];
+    const midpoint = pointerMidpoint(first, second);
+    const nextZoom = Math.max(1, Math.min(8, app.gesture.zoom * pointerDistance(first, second) / Math.max(1, app.gesture.distance)));
+    const wrap = el["canvas-wrap"].getBoundingClientRect();
+    const centerX = wrap.left + wrap.width / 2, centerY = wrap.top + wrap.height / 2;
+    app.view.zoom = nextZoom;
+    app.view.panX = app.gesture.panX + (midpoint.x - app.gesture.midpoint.x) + (app.gesture.midpoint.x - centerX - app.gesture.panX) * (1 - nextZoom / app.gesture.zoom);
+    app.view.panY = app.gesture.panY + (midpoint.y - app.gesture.midpoint.y) + (app.gesture.midpoint.y - centerY - app.gesture.panY) * (1 - nextZoom / app.gesture.zoom);
+    if (nextZoom > 1) ensureOriginalImage();
+    applyView(); return;
+  }
+  if (app.gesture?.type === "pan" && app.gesture.pointerId === event.pointerId) {
+    app.view.panX = app.gesture.panX + event.clientX - app.gesture.x;
+    app.view.panY = app.gesture.panY + event.clientY - app.gesture.y;
+    applyView(); return;
+  }
+  if (app.gesture?.type === "resize" && app.gesture.pointerId === event.pointerId) {
+    app.box = resizeBox(app.gesture.box, app.gesture.handle, point(event));
+    renderCanvas(); return;
+  }
+  if (app.gesture?.type === "move" && app.gesture.pointerId === event.pointerId) {
+    app.box = moveBox(app.gesture.box, app.gesture.startPoint, point(event));
+    renderCanvas(); return;
+  }
+  if (!app.dragStart || app.view.mode !== "draw") return;
+  const current = point(event);
+  if (!app.drawing && Math.hypot(event.clientX - app.dragOrigin.x, event.clientY - app.dragOrigin.y) < 3) return;
+  if (!app.drawing) { app.box = null; app.drawing = true; }
   app.box = { productCode: app.frame.productCode, x1: Math.min(app.dragStart.x, current.x), y1: Math.min(app.dragStart.y, current.y), x2: Math.max(app.dragStart.x, current.x), y2: Math.max(app.dragStart.y, current.y) }; renderCanvas();
 });
-el["review-canvas"].addEventListener("pointerup", event => { event.preventDefault(); app.dragStart = null; });
+function endPointer(event) {
+  event.preventDefault(); app.pointers.delete(event.pointerId);
+  app.dragStart = null; app.dragOrigin = null; app.drawing = false;
+  el["review-canvas"].classList.remove("panning");
+  if (app.pointers.size < 2) app.gesture = null;
+}
+el["review-canvas"].addEventListener("pointerup", endPointer);
+el["review-canvas"].addEventListener("pointercancel", endPointer);
+el["review-canvas"].addEventListener("wheel", event => {
+  event.preventDefault();
+  setZoom(app.view.zoom * (event.deltaY < 0 ? 1.25 : .8), event.clientX, event.clientY);
+}, { passive: false });
 el["review-canvas"].addEventListener("contextmenu", event => event.preventDefault());
 
 async function accept() {
@@ -328,7 +536,7 @@ async function accept() {
   try {
     await api(`/model-training/api/frames/${app.frame.frameId}/annotations`, { method: "PUT", headers: authHeaders(true), body: JSON.stringify({ boxes: [app.box] }) });
     await api(`/model-training/api/frames/${app.frame.frameId}/accept`, { method: "POST", headers: authHeaders() });
-    await advance("Frame accepted.");
+    await advance("Frame accepted.", "pan");
   } catch (error) { status(error.message, true); }
 }
 
@@ -338,11 +546,14 @@ async function finalize(action, message) {
   catch (error) { status(error.message, true); }
 }
 
-async function advance(message) {
+async function advance(message, nextMode = "draw") {
   const removedIndex = app.frameIndex;
   app.frames = app.frames.filter(item => item.frameId !== app.frame.frameId);
   updatePendingCount(app.frames.length);
-  if (app.frames.length) await showFrame(app.frames[Math.min(removedIndex, app.frames.length - 1)]); else clearFrame();
+  if (app.frames.length) {
+    await showFrame(app.frames[Math.min(removedIndex, app.frames.length - 1)]);
+    setMode(nextMode);
+  } else clearFrame();
   await refreshSessionLists();
   status(message);
 }
@@ -394,12 +605,17 @@ el["exported-session"].addEventListener("change", () => selectReviewSession("exp
 el["previous-frame"].addEventListener("click", () => moveFrame(-1));
 el["next-frame"].addEventListener("click", () => moveFrame(1));
 el["product-search"].addEventListener("input", renderProducts);
-el.accept.addEventListener("click", accept); el.redraw.addEventListener("click", () => { app.box = null; renderCanvas(); });
+el["draw-mode"].addEventListener("click", () => setMode("draw"));
+el["pan-mode"].addEventListener("click", () => setMode("pan"));
+el["zoom-in"].addEventListener("click", () => setZoom(app.view.zoom * 1.5));
+el["zoom-out"].addEventListener("click", () => setZoom(app.view.zoom / 1.5));
+el["zoom-reset"].addEventListener("click", resetZoom);
+el.accept.addEventListener("click", accept); el.redraw.addEventListener("click", () => { setMode("draw"); app.box = null; renderCanvas(); });
 el["not-visible"].addEventListener("click", () => finalize("not-visible", "Valid negative recorded."));
 el.uncertain.addEventListener("click", () => finalize("uncertain", "Frame marked uncertain.")); el.reject.addEventListener("click", () => finalize("reject", "Frame rejected.")); el.export.addEventListener("click", exportDataset);
 el["clear-session"].addEventListener("click", clearCurrentSession);
 el["clear-all-data"].addEventListener("click", clearAllTrainingData);
-window.addEventListener("resize", renderCanvas);
+window.addEventListener("resize", () => { applyView(); renderCanvas(); });
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") refreshQueueState(); });
 window.setInterval(refreshQueueState, 2000);
 if (app.token) connect();

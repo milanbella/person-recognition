@@ -3,11 +3,13 @@ import unittest
 import numpy as np
 
 from pipeline.product_detection import (
+    ProductDetection,
     decode_product_crop,
     decode_end_to_end_product_output,
     encode_lossless_product_crop,
     expanded_person_crop,
     parse_yolo_class_names,
+    translate_product_detection,
 )
 
 
@@ -45,6 +47,19 @@ class ProductDetectionTests(unittest.TestCase):
         )
 
         self.assertEqual(names, {0: "cola", 1: "rice"})
+
+    def test_translates_crop_detection_to_source_frame(self) -> None:
+        detection = ProductDetection(5, 10, 45, 70, 0.8, 3, "juice")
+
+        translated = translate_product_detection(
+            detection,
+            (100, 200, 500, 800),
+        )
+
+        self.assertEqual(
+            translated,
+            ProductDetection(105, 210, 145, 270, 0.8, 3, "juice"),
+        )
 
     def test_decodes_selected_batch_and_filters_score(self) -> None:
         output = np.zeros((3, 3, 6), dtype=np.float32)
