@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#102f2b">
   <title>Shop Walk Test</title>
-  <link rel="stylesheet" href="/operator/assets/operator.css?v=visual-testing-7">
+  <link rel="stylesheet" href="/operator/assets/operator.css?v=product-interactions-2">
 </head>
 <body>
   <header class="masthead">
@@ -87,6 +87,18 @@
             </div>
             <p id="product-recognition-summary" class="world-state-summary">No product result.</p>
             <div id="product-camera-evidence" class="product-camera-grid"></div>
+          </section>
+          <section class="product-interactions" aria-labelledby="product-interactions-title">
+            <div class="product-recognition-heading">
+              <h3 id="product-interactions-title">Product interaction candidates</h3>
+              <span class="pill">Diagnostic only</span>
+            </div>
+            <div id="product-interaction-current" class="interaction-event-list">
+              <p class="world-state-summary">No current 3D product evidence.</p>
+            </div>
+            <div id="product-interaction-events" class="interaction-event-list">
+              <p class="world-state-summary">No pick or return candidates.</p>
+            </div>
           </section>
         </section>
 
@@ -171,6 +183,6 @@
   </dialog>
 
   <div id="toast" class="toast" role="status"></div>
-  <script src="/operator/assets/operator.js?v=visual-testing-6"></script>
+  <script src="/operator/assets/operator.js?v=product-interactions-2"></script>
 </body>
 </html>

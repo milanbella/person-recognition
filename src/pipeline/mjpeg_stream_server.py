@@ -24,12 +24,17 @@ from pipeline.product_detection import (
     product_detections_payload,
     product_recognition_payload,
 )
+from pipeline.product_interaction import (
+    ProductInteractionEvent,
+    product_interaction_event_payload,
+)
 from pipeline.shelf_api import (
     ShelfCameraSnapshot,
     shelf_camera_snapshot_payload,
     shelf_status_payload,
 )
 from pipeline.shelf_proximity import ShelfProximityStatus
+from pipeline.shelf_regions import ShelfRegion
 from pipeline.visit_registry import is_observer_enabled
 from pipeline.world_state import WorldStateProjector
 from pipeline.world_state_api import create_world_state_router
@@ -75,6 +80,7 @@ class MjpegStreamServer:
             tuple[tuple[ProductDetection, ...], bytes, int],
         ]
         | None = None,
+        product_interaction_history: tuple[dict[str, Any], ...] = (),
     ) -> None:
         if not camera_device_ids:
             raise ValueError("At least one camera device id is required for streaming.")
@@ -122,6 +128,12 @@ class MjpegStreamServer:
         ] = {}
         self._max_product_camera_snapshots = 100
         self._product_redetector = product_redetector
+        self._product_interaction_events = list(product_interaction_history)
+        self._current_product_interactions: tuple[dict[str, object], ...] = ()
+        self._held_products_by_visit: dict[int, set[str]] = {}
+        self._shelf_regions_by_camera: dict[int, dict[int, ShelfRegion]] = {}
+        for payload in self._product_interaction_events:
+            self._apply_product_interaction_to_held_state(payload)
         effective_world_state_db = (
             operator_state_db if world_state_db is None else world_state_db
         )
@@ -235,6 +247,97 @@ class MjpegStreamServer:
             with self._condition:
                 statuses = self._shelf_statuses
             return shelf_status_payload(statuses)
+
+        @app.get("/shelf-regions/cameras/{camera_index}")
+        def camera_shelf_regions(camera_index: int) -> dict[str, object]:
+            if camera_index not in self._cameras:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Camera index {camera_index} is not configured.",
+                )
+            with self._condition:
+                regions = self._shelf_regions_by_camera.get(camera_index, {})
+                device_id = self._cameras[camera_index].device_id
+            return {
+                "cameraIndex": camera_index,
+                "cameraNumber": camera_index + 1,
+                "deviceId": device_id,
+                "regions": [
+                    {
+                        "shelfId": shelf_id,
+                        "polygonNormalized": [
+                            {"x": point.x, "y": point.y}
+                            for point in region.polygon
+                        ],
+                        "polygonsNormalized": [
+                            [{"x": point.x, "y": point.y} for point in polygon]
+                            for polygon in region.polygons
+                        ],
+                        "depthToleranceMm": region.depth_tolerance_mm,
+                        "offShelfHysteresisMm": region.off_shelf_hysteresis_mm,
+                        "has3dDepthModel": region.depth_model is not None,
+                        "depthModel": (
+                            None
+                            if region.depth_model is None
+                            else {
+                                "columns": region.depth_model.columns,
+                                "rows": region.depth_model.rows,
+                                "alignedDepthWidth": region.depth_model.aligned_depth_width,
+                                "alignedDepthHeight": region.depth_model.aligned_depth_height,
+                                "validCellCount": len(region.depth_model.cells),
+                                "calibrationFrameCount": region.depth_model.calibration_frame_count,
+                                "calibratedAtUnixMilliseconds": region.depth_model.calibrated_at_unix_milliseconds,
+                                "cameraCalibrationId": region.depth_model.camera_calibration_id,
+                            }
+                        ),
+                    }
+                    for shelf_id, region in sorted(regions.items())
+                ],
+            }
+
+        @app.get("/product-interaction-events")
+        def product_interaction_events(
+            afterEventId: int = 0,
+            limit: int = 100,
+        ) -> dict[str, object]:
+            return self.product_interaction_events_payload(
+                after_id=afterEventId,
+                limit=limit,
+            )
+
+        @app.get("/product-interactions/current")
+        def current_product_interactions() -> dict[str, object]:
+            with self._condition:
+                interactions = copy.deepcopy(self._current_product_interactions)
+            return {"interactions": interactions, "authority": "diagnostic"}
+
+        @app.get("/pose-observations/cameras/{camera_index}")
+        def camera_pose_observations(camera_index: int) -> dict[str, object]:
+            payload = self.observer_snapshot_payload(camera_index)
+            return {
+                "camera": payload["camera"],
+                "frame": payload["frame"],
+                "poses": [
+                    {
+                        "trackId": observation["trackId"],
+                        "visitId": observation["visitId"],
+                        "pose": observation["pose"],
+                    }
+                    for observation in payload.get("observations", [])
+                    if observation.get("pose") is not None
+                ],
+            }
+
+        @app.get("/world-state/visits/{visit_id}/held-products")
+        def held_products(visit_id: int) -> dict[str, object]:
+            with self._condition:
+                labels = sorted(self._held_products_by_visit.get(visit_id, set()))
+            return {
+                "visitId": visit_id,
+                "products": labels,
+                "count": len(labels),
+                "authority": "candidate",
+            }
 
         @app.get("/world-state/visits/{visit_id}/product-crop.jpg")
         def visit_product_crop(visit_id: int) -> Response:
@@ -554,6 +657,67 @@ class MjpegStreamServer:
             )
         if self.world_state is not None:
             self.world_state.publish_product_recognition(payload)
+
+    def publish_product_interaction_event(
+        self,
+        event: ProductInteractionEvent,
+        *,
+        persisted_id: int,
+        status: str = "candidate",
+    ) -> None:
+        payload = product_interaction_event_payload(event, status=status)
+        payload["id"] = persisted_id
+        with self._condition:
+            self._product_interaction_events.append(payload)
+            self._product_interaction_events = self._product_interaction_events[-1000:]
+            self._apply_product_interaction_to_held_state(payload)
+
+    def publish_shelf_regions(
+        self,
+        camera_index: int,
+        regions: Mapping[int, ShelfRegion],
+    ) -> None:
+        if camera_index not in self._cameras:
+            raise KeyError(f"Camera index {camera_index} is not configured.")
+        with self._condition:
+            self._shelf_regions_by_camera[camera_index] = dict(regions)
+
+    def publish_current_product_interactions(
+        self,
+        interactions: tuple[dict[str, object], ...],
+    ) -> None:
+        with self._condition:
+            self._current_product_interactions = copy.deepcopy(interactions)
+
+    def product_interaction_events_payload(
+        self,
+        *,
+        after_id: int = 0,
+        limit: int = 100,
+    ) -> dict[str, object]:
+        safe_limit = min(500, max(1, limit))
+        with self._condition:
+            events = [
+                copy.deepcopy(payload)
+                for payload in self._product_interaction_events
+                if int(payload.get("id", 0)) > after_id
+            ][:safe_limit]
+        return {
+            "events": events,
+            "nextEventId": after_id if not events else int(events[-1]["id"]),
+        }
+
+    def _apply_product_interaction_to_held_state(
+        self,
+        payload: Mapping[str, object],
+    ) -> None:
+        visit_id = int(payload["visitId"])
+        label = str(payload["productLabel"])
+        held = self._held_products_by_visit.setdefault(visit_id, set())
+        if payload["eventType"] == "PRODUCT_PICKED":
+            held.add(label)
+        elif payload["eventType"] == "PRODUCT_RETURNED":
+            held.discard(label)
 
     def publish_camera_product_recognition(
         self,

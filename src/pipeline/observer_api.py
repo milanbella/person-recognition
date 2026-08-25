@@ -7,6 +7,7 @@ from typing import Collection, Mapping, Sequence
 import numpy as np
 
 from pipeline.depth import DepthSample
+from pipeline.pose import PoseObservation
 from pipeline.tracking import Track
 from pipeline.visit_identity import VisitAssignment
 from pipeline.visit_registry import (
@@ -52,6 +53,7 @@ class ObservedPerson:
     match_state: str
     match_decision: str | None = None
     match_reason: str | None = None
+    pose: PoseObservation | None = None
 
 
 @dataclass(frozen=True)
@@ -109,8 +111,10 @@ def build_observer_camera_snapshot(
     provisional_track_ids: Collection[int] = (),
     frame_width: int | None = None,
     frame_height: int | None = None,
+    pose_observations_by_track: Mapping[int, PoseObservation] | None = None,
 ) -> ObserverCameraSnapshot:
     decisions = {} if visit_decisions is None else visit_decisions
+    poses = {} if pose_observations_by_track is None else pose_observations_by_track
     source_frame_height, source_frame_width = rgb_frame.shape[:2]
     snapshot_frame_width = source_frame_width if frame_width is None else frame_width
     snapshot_frame_height = source_frame_height if frame_height is None else frame_height
@@ -160,6 +164,7 @@ def build_observer_camera_snapshot(
                     if registry_decision is None
                     else registry_decision.reason
                 ),
+                pose=poses.get(track.track_id),
             )
         )
 
@@ -240,6 +245,30 @@ def observer_snapshot_payload(
                     "state": person.match_state,
                     "decision": person.match_decision,
                     "reason": person.match_reason,
+                },
+                "pose": None
+                if person.pose is None
+                else {
+                    "rgbSequenceNumber": person.pose.rgb_sequence_number,
+                    "hostSyncedSeconds": person.pose.host_synced_seconds,
+                    "observedAtUnixMilliseconds": (
+                        person.pose.observed_at_unix_milliseconds
+                    ),
+                    "inferenceMilliseconds": person.pose.inference_milliseconds,
+                    "queueAgeMilliseconds": person.pose.queue_age_milliseconds,
+                    "sourceFrame": {
+                        "width": person.pose.source_frame_width,
+                        "height": person.pose.source_frame_height,
+                    },
+                    "landmarks": [
+                        {
+                            "name": landmark.name,
+                            "x": landmark.x,
+                            "y": landmark.y,
+                            "score": landmark.score,
+                        }
+                        for landmark in person.pose.landmarks
+                    ],
                 },
             }
             for person in snapshot.observations

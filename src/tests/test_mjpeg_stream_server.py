@@ -9,8 +9,10 @@ from fastapi import HTTPException
 from pipeline.mjpeg_stream_server import MjpegStreamServer
 from pipeline.observer_api import ObserverCameraSnapshot
 from pipeline.product_detection import ProductDetection, ProductRecognitionResult
+from pipeline.product_interaction import ProductInteractionEvent
 from pipeline.shelf_api import ShelfCameraSnapshot
 from pipeline.shelf_config import ShelfDefinition
+from pipeline.shelf_regions import NormalizedPoint, ShelfRegion
 
 
 class MjpegStreamServerTests(unittest.TestCase):
@@ -22,6 +24,66 @@ class MjpegStreamServerTests(unittest.TestCase):
 
     def tearDown(self) -> None:
         self.server.stop()
+
+    def test_product_interaction_diagnostic_routes_and_projection(self) -> None:
+        paths = {getattr(route, "path", None) for route in self.server.app.routes}
+        self.assertIn("/product-interaction-events", paths)
+        self.assertIn("/product-interactions/current", paths)
+        self.assertIn("/pose-observations/cameras/{camera_index}", paths)
+        self.assertIn("/world-state/visits/{visit_id}/held-products", paths)
+        self.assertIn("/shelf-regions/cameras/{camera_index}", paths)
+
+        event = ProductInteractionEvent(
+            event_id="interaction-1",
+            event_type="PRODUCT_PICKED",
+            visit_id=7,
+            customer_id="customer-7",
+            product_class_id=3,
+            product_label="oil",
+            shelf_id=2,
+            occurred_host_synced_seconds=12.5,
+            confidence=0.8,
+            camera_index=1,
+            device_id="camera-b",
+            person_track_id=4,
+            product_track_id=9,
+            rgb_sequence_number=100,
+        )
+        self.server.publish_product_interaction_event(event, persisted_id=11)
+        payload = self.server.product_interaction_events_payload(after_id=0)
+        self.assertEqual(payload["nextEventId"], 11)
+        self.assertEqual(payload["events"][0]["productLabel"], "oil")
+
+        route = next(
+            route
+            for route in self.server.app.routes
+            if getattr(route, "path", None)
+            == "/world-state/visits/{visit_id}/held-products"
+        )
+        held = route.endpoint(7)
+        self.assertEqual(held["products"], ["oil"])
+
+        self.server.publish_shelf_regions(
+            0,
+            {
+                3: ShelfRegion(
+                    3,
+                    (
+                        NormalizedPoint(0.1, 0.2),
+                        NormalizedPoint(0.5, 0.2),
+                        NormalizedPoint(0.5, 0.8),
+                    ),
+                )
+            },
+        )
+        shelf_route = next(
+            route
+            for route in self.server.app.routes
+            if getattr(route, "path", None)
+            == "/shelf-regions/cameras/{camera_index}"
+        )
+        shelf_payload = shelf_route.endpoint(0)
+        self.assertEqual(shelf_payload["regions"][0]["shelfId"], 3)
 
     def test_status_preserves_order_and_tracks_health(self) -> None:
         cameras = self.server.camera_status_payload()["cameras"]

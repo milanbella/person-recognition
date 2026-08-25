@@ -11,6 +11,8 @@ PROFILE_STAGE_ORDER = (
     "rgb_decode",
     "yolo",
     "tracking",
+    "pose_crop",
+    "interaction_coordinator",
     "shelf_marker",
     "depth_logic",
     "shelf_depth",
@@ -32,6 +34,16 @@ PROFILE_METRIC_ORDER = (
     "preview_age_ms",
     "raw_rgb_queue_drained",
     "processing_rgb_queue_drained",
+    "pose_inference_ms",
+    "pose_queue_age_ms",
+    "pose_pending_depth",
+    "pose_pending_replacements",
+    "product_interaction_candidates",
+    "product_tracker_ms",
+    "product_depth_cache_hit",
+    "product_depth_delta_ms",
+    "product_depth_valid_fraction",
+    "product_depth_unknown",
 )
 
 

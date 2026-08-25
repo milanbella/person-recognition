@@ -6,6 +6,7 @@ import numpy as np
 
 from pipeline.depth import DepthSample
 from pipeline.observer_api import build_observer_camera_snapshot, observer_snapshot_payload
+from pipeline.pose import PoseLandmark, PoseObservation
 from pipeline.shop_state_store import ShopStateStore
 from pipeline.tracking import Track
 from pipeline.visit_identity import BodyAppearance, VisitAssignment
@@ -46,6 +47,18 @@ class ObserverApiTests(unittest.TestCase):
             anchor_px=(60, 180),
             point_3d_mm=(-100.0, 200.0, 3000.0),
         )
+        pose = PoseObservation(
+            camera_index=0,
+            device_id="camera-a",
+            track_id=7,
+            rgb_sequence_number=41,
+            host_synced_seconds=12.4,
+            observed_at_unix_milliseconds=1000,
+            inference_milliseconds=8,
+            person_box=(10, 20, 110, 220),
+            pose_box=(12, 22, 108, 218),
+            landmarks=(PoseLandmark("left_wrist", 0.25, 0.50, 0.9),),
+        )
 
         snapshot = build_observer_camera_snapshot(
             camera_index=0,
@@ -59,6 +72,7 @@ class ObserverApiTests(unittest.TestCase):
             visit_assignments={7: assignment},
             depth_samples={7: depth},
             customer_ids_by_visit={12: "customer-123"},
+            pose_observations_by_track={7: pose},
         )
         payload = observer_snapshot_payload(
             snapshot,
@@ -77,6 +91,9 @@ class ObserverApiTests(unittest.TestCase):
         self.assertEqual(person["faceIdentityIds"], ["face_person_012"])
         self.assertEqual(person["visitMatch"]["state"], "matched")
         self.assertNotIn("histogram", person["body"])
+        self.assertEqual(person["pose"]["rgbSequenceNumber"], 41)
+        self.assertEqual(person["pose"]["landmarks"][0]["name"], "left_wrist")
+        self.assertEqual(person["pose"]["landmarks"][0]["x"], 0.25)
 
     def test_pending_customer_and_missing_depth_are_explicit(self) -> None:
         track = Track(1, 1, 2, 11, 22, 0.9, status="NEW")

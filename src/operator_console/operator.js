@@ -18,6 +18,12 @@
     frozenProductCameras: new Map(),
     productFreezePending: new Set(),
     productSnapshotVisitId: null,
+    productInteractionEvents: [],
+    currentProductInteractions: [],
+    lastProductInteractionEventId: 0,
+    lastProductInteractionPollAt: 0,
+    shelfRegionsCamera: null,
+    shelfRegions: [],
     trainingCapturePending: false,
     openShopPending: false,
     visitProposals: new Map(),
@@ -301,6 +307,9 @@
     try {
       const payload = await api(`/observer-cameras/${app.selectedCamera}/observations`);
       app.observationPayload = payload;
+      if (app.shelfRegionsCamera !== app.selectedCamera) {
+        void pollShelfRegions(app.selectedCamera);
+      }
       updateRecentObservations(payload);
       el("frame-age").textContent = payload.frame
         ? `Frame ${payload.frame.rgbSequenceNumber} · ${payload.frame.ageMilliseconds} ms`
@@ -315,6 +324,9 @@
       renderSelected();
       updateSystemAnswer();
       if (Date.now() - app.lastWorldPollAt >= 1000) void pollWorldState();
+      if (Date.now() - app.lastProductInteractionPollAt >= 1000) {
+        void pollProductInteractionEvents();
+      }
     } catch (error) {
       el("frame-age").textContent = "Observation unavailable";
       drawOverlay();
@@ -345,6 +357,7 @@
     const offsetY = (stage.clientHeight - renderedHeight) / 2;
     const geometry = {scale, offsetX, offsetY};
     renderObservationHitboxes(geometry, observations);
+    drawShelfRegions(context, {renderedWidth, renderedHeight, offsetX, offsetY});
 
     observations.forEach((entry, index) => {
       const person = entry.person;
@@ -366,6 +379,178 @@
       context.fillRect(x, Math.max(0, y - 25), labelWidth, 25);
       context.fillStyle = "white";
       context.fillText(label, x + 7, Math.max(17, y - 7));
+
+      const pose = person.pose;
+      if (pose?.landmarks?.length) {
+        const posePoints = new Map();
+        pose.landmarks.forEach((landmark) => {
+          if (landmark.score < 0.35) return;
+          const point = {
+            x: offsetX + landmark.x * renderedWidth,
+            y: offsetY + landmark.y * renderedHeight,
+          };
+          posePoints.set(landmark.name, point);
+          context.beginPath();
+          context.arc(point.x, point.y, 3, 0, Math.PI * 2);
+          context.fillStyle = "#ffd166";
+          context.fill();
+        });
+        [
+          ["left_shoulder", "right_shoulder"],
+          ["left_shoulder", "left_elbow"],
+          ["left_elbow", "left_wrist"],
+          ["right_shoulder", "right_elbow"],
+          ["right_elbow", "right_wrist"],
+          ["left_shoulder", "left_hip"],
+          ["right_shoulder", "right_hip"],
+          ["left_hip", "right_hip"],
+        ].forEach(([startName, endName]) => {
+          const start = posePoints.get(startName);
+          const end = posePoints.get(endName);
+          if (!start || !end) return;
+          context.beginPath();
+          context.moveTo(start.x, start.y);
+          context.lineTo(end.x, end.y);
+          context.strokeStyle = "#ffd166";
+          context.lineWidth = 2;
+          context.stroke();
+        });
+      }
+    });
+  }
+
+  async function pollShelfRegions(cameraIndex) {
+    try {
+      const payload = await api(`/shelf-regions/cameras/${cameraIndex}`);
+      if (cameraIndex !== app.selectedCamera) return;
+      app.shelfRegionsCamera = cameraIndex;
+      app.shelfRegions = payload.regions || [];
+      drawOverlay();
+    } catch (_) {
+      if (cameraIndex === app.selectedCamera) {
+        app.shelfRegionsCamera = cameraIndex;
+        app.shelfRegions = [];
+      }
+    }
+  }
+
+  function drawShelfRegions(context, geometry) {
+    const {renderedWidth, renderedHeight, offsetX, offsetY} = geometry;
+    (app.shelfRegions || []).forEach((region) => {
+      const polygons = region.polygonsNormalized || [region.polygonNormalized || []];
+      polygons.forEach((points) => {
+        if (points.length < 3) return;
+        context.beginPath();
+        points.forEach((point, index) => {
+          const x = offsetX + point.x * renderedWidth;
+          const y = offsetY + point.y * renderedHeight;
+          if (index === 0) context.moveTo(x, y);
+          else context.lineTo(x, y);
+        });
+        context.closePath();
+        context.fillStyle = "rgba(255, 209, 102, .10)";
+        context.fill();
+        context.strokeStyle = "rgba(255, 209, 102, .85)";
+        context.lineWidth = 2;
+        context.setLineDash([8, 5]);
+        context.stroke();
+        context.setLineDash([]);
+      });
+      const points = polygons.find((polygon) => polygon.length >= 3) || [];
+      if (!points.length) return;
+      const first = points[0];
+      context.fillStyle = "#ffd166";
+      context.font = "700 13px Bahnschrift, sans-serif";
+      context.fillText(
+        `Shelf ${region.shelfId}`,
+        offsetX + first.x * renderedWidth + 4,
+        offsetY + first.y * renderedHeight + 16
+      );
+    });
+  }
+
+  async function pollProductInteractionEvents() {
+    app.lastProductInteractionPollAt = Date.now();
+    try {
+      const [payload, current] = await Promise.all([
+        api(`/product-interaction-events?afterEventId=${app.lastProductInteractionEventId}&limit=100`),
+        api("/product-interactions/current"),
+      ]);
+      const events = payload.events || [];
+      if (events.length) {
+        app.productInteractionEvents.push(...events);
+        app.productInteractionEvents = app.productInteractionEvents.slice(-50);
+        app.lastProductInteractionEventId = payload.nextEventId;
+      }
+      app.currentProductInteractions = current.interactions || [];
+      renderCurrentProductInteractions();
+      renderProductInteractionEvents();
+    } catch (_) {
+      // The diagnostic endpoint can be absent while an older live service is deployed.
+    }
+  }
+
+  function renderCurrentProductInteractions() {
+    const container = el("product-interaction-current");
+    if (!container) return;
+    container.replaceChildren();
+    const selectedVisit = app.worldState?.subject?.visitId ?? null;
+    const interactions = app.currentProductInteractions.filter(
+      (item) => selectedVisit === null || item.visitId === selectedVisit
+    );
+    if (!interactions.length) {
+      const empty = document.createElement("p");
+      empty.className = "world-state-summary";
+      empty.textContent = "No current 3D product evidence.";
+      container.append(empty);
+      return;
+    }
+    interactions.slice(-8).reverse().forEach((item) => {
+      const card = document.createElement("article");
+      card.className = "interaction-event-card";
+      const title = document.createElement("strong");
+      title.textContent = `${item.productLabel}: ${item.shelfOccupancy}`;
+      const detail = document.createElement("span");
+      const depth = item.productDepthMm === null ? "depth unknown" : `${Math.round(item.productDepthMm)} mm`;
+      const expected = item.expectedShelfDepthMm === null ? "shelf unknown" : `shelf ${Math.round(item.expectedShelfDepthMm)} mm`;
+      const residual = item.shelfDepthResidualMm === null ? "residual unknown" : `residual ${Math.round(item.shelfDepthResidualMm)} mm`;
+      detail.textContent = `camera ${item.cameraNumber} · visit ${item.visitId} · ${depth} · ${expected} · ${residual}`;
+      card.append(title, detail);
+      if (item.depthSuppressionReason) {
+        const reason = document.createElement("span");
+        reason.textContent = `suppressed: ${item.depthSuppressionReason}`;
+        card.append(reason);
+      }
+      container.append(card);
+    });
+  }
+
+  function renderProductInteractionEvents() {
+    const container = el("product-interaction-events");
+    if (!container) return;
+    container.replaceChildren();
+    const selectedVisit = app.worldState?.subject?.visitId ?? null;
+    const events = app.productInteractionEvents
+      .filter((event) => selectedVisit === null || event.visitId === selectedVisit)
+      .slice(-8)
+      .reverse();
+    if (!events.length) {
+      const empty = document.createElement("p");
+      empty.className = "world-state-summary";
+      empty.textContent = "No pick or return candidates.";
+      container.append(empty);
+      return;
+    }
+    events.forEach((event) => {
+      const card = document.createElement("article");
+      card.className = "interaction-event-card";
+      const title = document.createElement("strong");
+      title.textContent = `${event.eventType === "PRODUCT_PICKED" ? "Picked" : "Returned"}: ${event.productLabel}`;
+      const detail = document.createElement("span");
+      const shelf = event.shelfId === null ? "unknown shelf" : `shelf ${event.shelfId}`;
+      detail.textContent = `visit ${event.visitId} · ${shelf} · camera ${event.cameraNumber} · ${(event.confidence * 100).toFixed(0)}%`;
+      card.append(title, detail);
+      container.append(card);
     });
   }
 

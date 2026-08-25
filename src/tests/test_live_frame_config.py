@@ -1,4 +1,5 @@
 import unittest
+from collections import deque
 from pathlib import Path
 from unittest.mock import MagicMock, call, patch
 
@@ -7,14 +8,78 @@ from live_synced_rgbd_streams import (
     CAMERA_CONNECT_RETRY_DELAY_SECONDS,
     CAMERA_START_DELAY_SECONDS,
     ShopApiClient,
+    LiveInteractionDepthFrame,
     build_argparser,
     placeholder_frame,
     resolve_live_device,
+    resolve_product_interaction_depth,
     validate_operator_console_args,
+    validate_product_interaction_args,
 )
+from pipeline.product_detection import ProductRecognitionResult
 
 
 class LiveFrameConfigTests(unittest.TestCase):
+    @staticmethod
+    def _product_result(sequence: int) -> ProductRecognitionResult:
+        return ProductRecognitionResult(
+            camera_index=0,
+            device_id="camera-a",
+            track_id=1,
+            scope="person_crop",
+            rgb_sequence_number=sequence,
+            host_synced_seconds=1.0,
+            observed_at_unix_milliseconds=1,
+            inference_milliseconds=1,
+            crop_box=(0, 0, 10, 10),
+            person_box_in_crop=(0, 0, 10, 10),
+            detections=(),
+            crop_jpeg=b"jpeg",
+        )
+
+    @staticmethod
+    def _depth_frame(sequence: int) -> LiveInteractionDepthFrame:
+        return LiveInteractionDepthFrame(
+            rgb_sequence_number=sequence,
+            depth_sequence_number=sequence + 100,
+            timestamp_delta_milliseconds=1.0,
+            frame_mm=MagicMock(),
+        )
+
+    def test_product_interaction_depth_waits_for_delayed_pair(self) -> None:
+        state = MagicMock()
+        state.recent_interaction_depth_frames = deque(
+            [self._depth_frame(8), self._depth_frame(9)]
+        )
+
+        status, depth = resolve_product_interaction_depth(self._product_result(10), state)
+
+        self.assertEqual(status, "waiting")
+        self.assertIsNone(depth)
+
+    def test_product_interaction_depth_matches_exact_rgb_sequence(self) -> None:
+        expected = self._depth_frame(10)
+        state = MagicMock()
+        state.recent_interaction_depth_frames = deque(
+            [self._depth_frame(9), expected]
+        )
+
+        status, depth = resolve_product_interaction_depth(self._product_result(10), state)
+
+        self.assertEqual(status, "matched")
+        self.assertIs(depth, expected)
+
+    def test_product_interaction_depth_expires_after_sequence_passes(self) -> None:
+        state = MagicMock()
+        state.recent_interaction_depth_frames = deque(
+            [self._depth_frame(10), self._depth_frame(11)]
+        )
+
+        status, depth = resolve_product_interaction_depth(self._product_result(9), state)
+
+        self.assertEqual(status, "expired")
+        self.assertIsNone(depth)
+
     def test_shop_api_bind_visit_reports_bound_customer(self) -> None:
         client = ShopApiClient(
             base_url="https://shop.example",
@@ -241,6 +306,55 @@ class LiveFrameConfigTests(unittest.TestCase):
 
         debug_args = build_argparser().parse_args(["--product-full-frame"])
         self.assertTrue(debug_args.product_full_frame)
+
+    def test_product_interactions_are_opt_in_and_require_all_evidence_sources(self) -> None:
+        parser = build_argparser()
+        defaults = parser.parse_args([])
+        self.assertFalse(defaults.enable_pose_estimation)
+        self.assertFalse(defaults.enable_product_interactions)
+        self.assertEqual(defaults.pose_model.name, "yolo26n-pose.onnx")
+        validate_product_interaction_args(defaults)
+
+        incomplete = parser.parse_args(["--enable-product-interactions"])
+        with self.assertRaisesRegex(ValueError, "requires"):
+            validate_product_interaction_args(incomplete)
+
+        complete = parser.parse_args(
+            [
+                "--enable-product-interactions",
+                "--enable-product-recognition",
+                "--enable-pose-estimation",
+                "--enable-shelf-watching",
+            ]
+        )
+        validate_product_interaction_args(complete)
+
+        mismatched_aspect = parser.parse_args(
+            [
+                "--enable-product-interactions",
+                "--enable-product-recognition",
+                "--enable-pose-estimation",
+                "--enable-shelf-watching",
+                "--frame-width",
+                "1280",
+                "--frame-height",
+                "800",
+            ]
+        )
+        with self.assertRaisesRegex(ValueError, "same aspect ratio"):
+            validate_product_interaction_args(mismatched_aspect)
+
+        full_frame = parser.parse_args(
+            [
+                "--enable-product-interactions",
+                "--enable-product-recognition",
+                "--enable-pose-estimation",
+                "--enable-shelf-watching",
+                "--product-full-frame",
+            ]
+        )
+        with self.assertRaisesRegex(ValueError, "product-full-frame"):
+            validate_product_interaction_args(full_frame)
 
     def test_operator_console_is_disabled_with_separate_run_root(self) -> None:
         args = build_argparser().parse_args([])

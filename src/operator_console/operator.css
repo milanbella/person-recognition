@@ -967,6 +967,30 @@ dialog label {
   transition: 180ms ease;
 }
 
+.product-interactions {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+}
+
+.interaction-event-list {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.interaction-event-card {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.65rem 0.75rem;
+  border-left: 4px solid var(--signal);
+  background: color-mix(in srgb, var(--signal) 8%, white);
+}
+
+.interaction-event-card span {
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
 .toast.show {
   opacity: 1;
   transform: translateY(0);

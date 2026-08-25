@@ -7,6 +7,10 @@ from typing import Any
 
 from pipeline.shelf_api import shelf_event_payload
 from pipeline.shelf_proximity import ShelfProximityEvent
+from pipeline.product_interaction import (
+    ProductInteractionEvent,
+    product_interaction_event_payload,
+)
 
 
 DEFAULT_SHOP_STATE_DB = Path("state") / "shop_state.sqlite"
@@ -170,6 +174,79 @@ class ShopStateStore:
                 """,
                 (shopping_customer_id, visit_id),
             )
+
+    def record_product_interaction_event(
+        self,
+        event: ProductInteractionEvent,
+        *,
+        status: str = "candidate",
+    ) -> int | None:
+        payload = product_interaction_event_payload(event, status=status)
+        with self.connection:
+            cursor = self.connection.execute(
+                """
+                INSERT OR IGNORE INTO product_interaction_events (
+                    interaction_event_id,
+                    event_type,
+                    status,
+                    visit_id,
+                    shopping_customer_id,
+                    product_class_id,
+                    product_label,
+                    shelf_id,
+                    host_seconds,
+                    confidence,
+                    camera_index,
+                    device_id,
+                    person_track_id,
+                    product_track_id,
+                    rgb_sequence_number,
+                    payload_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    event.event_id,
+                    event.event_type,
+                    status,
+                    event.visit_id,
+                    event.customer_id,
+                    event.product_class_id,
+                    event.product_label,
+                    event.shelf_id,
+                    event.occurred_host_synced_seconds,
+                    event.confidence,
+                    event.camera_index,
+                    event.device_id,
+                    event.person_track_id,
+                    event.product_track_id,
+                    event.rgb_sequence_number,
+                    json.dumps(payload, sort_keys=True),
+                ),
+            )
+        return int(cursor.lastrowid) if cursor.rowcount > 0 else None
+
+    def load_product_interaction_events(
+        self,
+        *,
+        after_id: int = 0,
+        limit: int = 100,
+    ) -> tuple[dict[str, Any], ...]:
+        rows = self.connection.execute(
+            """
+            SELECT id, payload_json
+            FROM product_interaction_events
+            WHERE id > ?
+            ORDER BY id ASC
+            LIMIT ?
+            """,
+            (after_id, limit),
+        ).fetchall()
+        payloads: list[dict[str, Any]] = []
+        for row in rows:
+            payload = json.loads(str(row["payload_json"]))
+            payload["id"] = int(row["id"])
+            payloads.append(payload)
+        return tuple(payloads)
 
     def record_shelf_event(
         self,
@@ -522,5 +599,35 @@ class ShopStateStore:
                 """
                 CREATE INDEX IF NOT EXISTS idx_shelf_events_session
                 ON shelf_events(proximity_session_id)
+                """
+            )
+            self.connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS product_interaction_events (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    interaction_event_id TEXT NOT NULL UNIQUE,
+                    event_type TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    visit_id INTEGER NOT NULL,
+                    shopping_customer_id TEXT,
+                    product_class_id INTEGER NOT NULL,
+                    product_label TEXT NOT NULL,
+                    shelf_id INTEGER,
+                    host_seconds REAL NOT NULL,
+                    confidence REAL NOT NULL,
+                    camera_index INTEGER NOT NULL,
+                    device_id TEXT NOT NULL,
+                    person_track_id INTEGER NOT NULL,
+                    product_track_id INTEGER NOT NULL,
+                    rgb_sequence_number INTEGER NOT NULL,
+                    payload_json TEXT NOT NULL,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+            self.connection.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_product_interactions_visit_time
+                ON product_interaction_events(visit_id, host_seconds)
                 """
             )

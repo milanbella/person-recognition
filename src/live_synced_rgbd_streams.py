@@ -77,6 +77,17 @@ from pipeline.observer_api import (
     observer_snapshot_payload,
 )
 from pipeline.performance import LivePerformanceLogger
+from pipeline.pose import (
+    DEFAULT_POSE_KEYPOINT_THRESHOLD,
+    DEFAULT_POSE_MODEL,
+    DEFAULT_POSE_SCORE_THRESHOLD,
+    PoseEstimationWorker,
+    PoseObservation,
+    PoseRequest,
+    YoloOnnxPoseEstimator,
+    crop_person_for_pose,
+    draw_pose_observation,
+)
 from pipeline.plane_crossing_evidence import (
     PlaneEvidenceFrame,
     render_plane_crossing_contact_sheet,
@@ -86,10 +97,13 @@ from pipeline.product_detection import (
     DEFAULT_PRODUCT_MODEL,
     DEFAULT_PRODUCT_SCORE_THRESHOLD,
     ProductCropRequest,
+    ProductRecognitionResult,
     ProductRecognitionWorker,
     YoloOnnxProductDetector,
     expanded_person_crop,
+    translate_product_detection,
 )
+from pipeline.product_interaction import ProductInteractionCoordinator
 from pipeline.product_training_capture import ProductTrainingCaptureService
 from pipeline.rgbd_recording import DEFAULT_PLANE_CALIBRATIONS_DIR
 from pipeline.shelf_anchors import (
@@ -112,6 +126,13 @@ from pipeline.shelf_proximity import (
     person_to_shelf_distance_mm,
 )
 from pipeline.shelf_position_push import ShelfPositionPushService
+from pipeline.shelf_regions import (
+    SHELF_REGION_SCHEMA_VERSION,
+    ShelfRegion,
+    depth_calibration_identity,
+    load_camera_shelf_regions,
+    shelf_regions_path,
+)
 from pipeline.shop_state_store import DEFAULT_SHOP_STATE_DB, ShopStateStore
 from pipeline.tracking import PersonTracker, Track, build_person_tracker, draw_tracks, scale_tracks
 from pipeline.visit_identity import VisitAssignment, add_visit_identity_args, draw_visit_labels
@@ -177,6 +198,32 @@ class LiveRgbTrackSnapshot:
     body_evidence_by_track: dict[int, BodyEvidence]
 
 
+@dataclass(frozen=True)
+class LiveInteractionDepthFrame:
+    rgb_sequence_number: int
+    depth_sequence_number: int
+    timestamp_delta_milliseconds: float
+    frame_mm: np.ndarray
+
+
+def resolve_product_interaction_depth(
+    result: ProductRecognitionResult,
+    state: "LiveSyncedStreamState",
+) -> tuple[str, LiveInteractionDepthFrame | None]:
+    """Resolve an exact delayed RGB/depth join without substituting another frame."""
+    for depth_frame in reversed(state.recent_interaction_depth_frames):
+        if depth_frame.rgb_sequence_number == result.rgb_sequence_number:
+            return "matched", depth_frame
+
+    if (
+        state.recent_interaction_depth_frames
+        and state.recent_interaction_depth_frames[-1].rgb_sequence_number
+        > result.rgb_sequence_number
+    ):
+        return "expired", None
+    return "waiting", None
+
+
 @dataclass
 class LiveSyncedStreamState:
     device_id: str
@@ -196,6 +243,9 @@ class LiveSyncedStreamState:
     recent_processing_rgb_messages: deque[Any] = field(default_factory=deque)
     recent_rgb_track_snapshots: deque[LiveRgbTrackSnapshot] = field(default_factory=deque)
     recent_plane_evidence_frames: deque[PlaneEvidenceFrame] = field(default_factory=deque)
+    recent_interaction_depth_frames: deque[LiveInteractionDepthFrame] = field(
+        default_factory=deque
+    )
     plane: object | None = None
     plane_enter_direction: str | None = None
     cached_rgb_raw: np.ndarray | None = None
@@ -211,6 +261,8 @@ class LiveSyncedStreamState:
     last_depth_sync_warning_seconds: float | None = None
     last_shelf_push_depth_sequence: int | None = None
     shelf_anchor_manager: ShelfAnchorManager | None = None
+    pose_observations_by_track: dict[int, PoseObservation] = field(default_factory=dict)
+    shelf_regions: dict[int, ShelfRegion] = field(default_factory=dict)
 
 
 class NoRedirectHandler(urllib.request.HTTPRedirectHandler):
@@ -682,6 +734,55 @@ def build_argparser() -> argparse.ArgumentParser:
         action="store_true",
         help="Log product inference timing and recognized candidates.",
     )
+    parser.add_argument(
+        "--enable-pose-estimation",
+        action="store_true",
+        help="Run optional YOLO pose inference on visible person crops.",
+    )
+    parser.add_argument(
+        "--pose-model",
+        type=Path,
+        default=DEFAULT_POSE_MODEL,
+        help="YOLO pose ONNX model. Default: ../models/yolo26n-pose.onnx.",
+    )
+    parser.add_argument(
+        "--pose-score-threshold",
+        type=float,
+        default=DEFAULT_POSE_SCORE_THRESHOLD,
+    )
+    parser.add_argument(
+        "--pose-keypoint-threshold",
+        type=float,
+        default=DEFAULT_POSE_KEYPOINT_THRESHOLD,
+    )
+    parser.add_argument("--pose-nms-threshold", type=float, default=0.45)
+    parser.add_argument(
+        "--pose-scan-interval-seconds",
+        type=float,
+        default=0.2,
+        help="Minimum pose interval per camera track. Default: 0.2 seconds.",
+    )
+    parser.add_argument("--pose-crop-margin", type=float, default=0.05)
+    parser.add_argument(
+        "--pose-result-max-age-seconds",
+        type=float,
+        default=1.0,
+        help="Maximum age for pose API/overlay evidence. Default: 1 second.",
+    )
+    parser.add_argument("--log-pose", action="store_true")
+    parser.add_argument(
+        "--enable-product-interactions",
+        action="store_true",
+        help=(
+            "Generate diagnostic PRODUCT_PICKED/PRODUCT_RETURNED candidates from "
+            "pose, product, and calibrated shelf-region evidence."
+        ),
+    )
+    parser.add_argument(
+        "--log-product-interactions",
+        action="store_true",
+        help="Log diagnostic product interaction candidate events.",
+    )
     parser.add_argument("--detector-backend", choices=DETECTOR_BACKEND_CHOICES, default=DEFAULT_PERSON_DETECTOR_BACKEND)
     parser.add_argument("--model", type=Path, default=DEFAULT_PERSON_DETECTOR_MODEL)
     parser.add_argument("--input-width", type=int, default=DEFAULT_DETECTION_INPUT_WIDTH)
@@ -756,6 +857,36 @@ def validate_operator_console_args(args: argparse.Namespace) -> None:
     if args.capture_plane_crossing_evidence and not args.enable_operator_console:
         raise ValueError(
             "--capture-plane-crossing-evidence requires --enable-operator-console."
+        )
+
+
+def validate_product_interaction_args(args: argparse.Namespace) -> None:
+    if not args.enable_product_interactions:
+        if args.log_product_interactions:
+            raise ValueError(
+                "--log-product-interactions requires --enable-product-interactions."
+            )
+        return
+    required = {
+        "--enable-product-recognition": args.enable_product_recognition,
+        "--enable-pose-estimation": args.enable_pose_estimation,
+        "--enable-shelf-watching": args.enable_shelf_watching,
+    }
+    missing = [name for name, enabled in required.items() if not enabled]
+    if missing:
+        raise ValueError(
+            "--enable-product-interactions requires " + ", ".join(missing) + "."
+        )
+    if args.product_full_frame:
+        raise ValueError(
+            "--enable-product-interactions cannot be combined with --product-full-frame."
+        )
+    raw_aspect = args.frame_width / args.frame_height
+    processing_aspect = args.processing_width / args.processing_height
+    if not math.isclose(raw_aspect, processing_aspect, rel_tol=0.0, abs_tol=1e-3):
+        raise ValueError(
+            "--enable-product-interactions requires raw and processing RGB "
+            "resolutions with the same aspect ratio."
         )
 
 
@@ -917,6 +1048,7 @@ def create_live_stream_state(
         recent_plane_evidence_frames=deque(
             maxlen=max(8, args.plane_crossing_evidence_frame_count * 3)
         ),
+        recent_interaction_depth_frames=deque(maxlen=12),
     )
     if shelf_config is not None and is_observer_enabled(camera_role):
         shelf_anchor_manager = load_saved_shelf_anchor_manager(
@@ -939,6 +1071,55 @@ def create_live_stream_state(
             print(
                 f"Skipping shelf watching device_id={device_id} "
                 f"reason=no_saved_anchors calibration={calibration_path}"
+            )
+    if args.enable_product_interactions and is_observer_enabled(camera_role):
+        regions_path = shelf_regions_path(args.shelf_calibrations_root, device_id)
+        if regions_path.exists():
+            regions = load_camera_shelf_regions(regions_path)
+            if regions.device_id != device_id:
+                raise ValueError(
+                    f"Shelf-region deviceId {regions.device_id!r} does not match "
+                    f"camera {device_id!r}."
+                )
+            if not regions.has_3d_calibration:
+                raise ValueError(
+                    f"Shelf calibration {regions_path} uses schemaVersion "
+                    f"{regions.schema_version}; product interactions require "
+                    f"schemaVersion {SHELF_REGION_SCHEMA_VERSION} with 3D depth models."
+                )
+            expected_calibration_id = depth_calibration_identity(
+                device_id,
+                width=args.processing_width,
+                height=args.processing_height,
+                intrinsics=(intrinsics.fx, intrinsics.fy, intrinsics.cx, intrinsics.cy),
+            )
+            for region in regions.regions:
+                model = region.depth_model
+                if model is None:
+                    raise ValueError(f"Shelf {region.shelf_id} has no 3D depth model.")
+                if (
+                    model.aligned_depth_width != args.processing_width
+                    or model.aligned_depth_height != args.processing_height
+                ):
+                    raise ValueError(
+                        f"Shelf {region.shelf_id} depth model is "
+                        f"{model.aligned_depth_width}x{model.aligned_depth_height}; "
+                        f"runtime depth is {args.processing_width}x{args.processing_height}."
+                    )
+                if model.camera_calibration_id != expected_calibration_id:
+                    raise ValueError(
+                        f"Shelf {region.shelf_id} calibration identity does not match "
+                        f"the current camera/alignment configuration. Recalibrate {device_id}."
+                    )
+            state.shelf_regions = regions.by_shelf_id()
+            print(
+                f"Loaded shelf regions device_id={device_id} "
+                f"regions={len(state.shelf_regions)} calibration={regions_path}"
+            )
+        else:
+            print(
+                f"Skipping product interactions device_id={device_id} "
+                f"reason=no_shelf_regions calibration={regions_path}"
             )
 
     if args.depth_trigger_mode == "plane" and is_entrance_enabled(camera_role):
@@ -1218,6 +1399,7 @@ def process_latest_rgb_pair(
     face_matcher: FaceRecognizer | None,
     body_evidence_extractor: BodyEvidenceExtractor,
     product_worker: ProductRecognitionWorker | None,
+    pose_worker: PoseEstimationWorker | None,
     args: argparse.Namespace,
     performance: LivePerformanceLogger,
 ) -> bool:
@@ -1295,6 +1477,40 @@ def process_latest_rgb_pair(
         target_height=raw_rgb_frame.shape[0],
     )
     performance.record_duration("tracking", tracking_started)
+
+    if pose_worker is not None:
+        pose_crop_started = performance.start()
+        for track in processing_tracks:
+            if track.status not in {"NEW", "TRACKED"}:
+                continue
+            if not pose_worker.is_due(
+                camera_index, track.track_id, processing_rgb_host_synced_seconds
+            ):
+                continue
+            try:
+                pose_crop, pose_crop_box = crop_person_for_pose(
+                    processing_rgb_frame,
+                    (track.x1, track.y1, track.x2, track.y2),
+                    margin_fraction=args.pose_crop_margin,
+                )
+            except ValueError:
+                continue
+            pose_worker.submit(
+                PoseRequest(
+                    camera_index=camera_index,
+                    device_id=state.device_id,
+                    track_id=track.track_id,
+                    rgb_sequence_number=rgb_sequence,
+                    host_synced_seconds=processing_rgb_host_synced_seconds,
+                    submitted_at_unix_milliseconds=time.time_ns() // 1_000_000,
+                    source_frame_width=processing_width,
+                    source_frame_height=processing_height,
+                    crop_box=pose_crop_box,
+                    person_box=(track.x1, track.y1, track.x2, track.y2),
+                    crop=pose_crop,
+                )
+            )
+        performance.record_duration("pose_crop", pose_crop_started)
 
     if product_worker is not None:
         product_crop_started = performance.start()
@@ -1497,6 +1713,16 @@ def process_latest_depth_frame(
         max_delta_ms=args.max_rgb_depth_delta_ms,
     ):
         return False
+
+    if state.shelf_regions:
+        state.recent_interaction_depth_frames.append(
+            LiveInteractionDepthFrame(
+                rgb_sequence_number=rgb_sequence,
+                depth_sequence_number=depth_sequence,
+                timestamp_delta_milliseconds=float(matched_delta_ms or 0.0),
+                frame_mm=best_depth.frame_mm,
+            )
+        )
 
     processed_frame = build_processed_live_rgb_frame(
         camera_index=camera_index,
@@ -2262,12 +2488,28 @@ def build_processed_live_rgb_frame(
                     track_id=track_id,
                 )
             },
+            pose_observations_by_track={
+                track_id: pose
+                for track_id, pose in state.pose_observations_by_track.items()
+                if rgb_host_synced_seconds - pose.host_synced_seconds
+                <= args.pose_result_max_age_seconds
+            },
         )
     performance.record_duration("registry_io", registry_started)
 
     overlay_started = performance.start()
     processing_overlay = processing_rgb_frame.copy()
     draw_tracks(processing_overlay, processing_tracks)
+    for pose in state.pose_observations_by_track.values():
+        if (
+            rgb_host_synced_seconds - pose.host_synced_seconds
+            <= args.pose_result_max_age_seconds
+        ):
+            draw_pose_observation(
+                processing_overlay,
+                pose,
+                keypoint_threshold=args.pose_keypoint_threshold,
+            )
     draw_visit_labels(
         processing_overlay,
         processing_tracks,
@@ -2381,6 +2623,7 @@ def product_training_capture_context(
 def main() -> None:
     args = build_argparser().parse_args()
     validate_operator_console_args(args)
+    validate_product_interaction_args(args)
     if args.frame_width <= 0 or args.frame_height <= 0:
         raise ValueError("--frame-width and --frame-height must be greater than zero.")
     if args.processing_width <= 0 or args.processing_height <= 0:
@@ -2430,6 +2673,21 @@ def main() -> None:
         raise ValueError("Product crop and association margins must not be negative.")
     if args.product_result_max_age_seconds <= 0.0:
         raise ValueError("--product-result-max-age-seconds must be greater than zero.")
+    for name in (
+        "pose_score_threshold",
+        "pose_keypoint_threshold",
+        "pose_nms_threshold",
+    ):
+        if not 0.0 <= getattr(args, name) <= 1.0:
+            raise ValueError(
+                f"--{name.replace('_', '-')} must be between zero and one."
+            )
+    if args.pose_scan_interval_seconds <= 0.0:
+        raise ValueError("--pose-scan-interval-seconds must be greater than zero.")
+    if args.pose_crop_margin < 0.0:
+        raise ValueError("--pose-crop-margin must not be negative.")
+    if args.pose_result_max_age_seconds <= 0.0:
+        raise ValueError("--pose-result-max-age-seconds must be greater than zero.")
     if args.shop_api_shelf_stability_seconds < 0.0:
         raise ValueError("--shop-api-shelf-stability-seconds must not be negative.")
     if args.shop_api_shelf_stale_seconds <= 0.0:
@@ -2467,6 +2725,7 @@ def main() -> None:
             f"shelves={len(shelf_config.shelves)} mode=nearest_distance"
         )
     detector = build_person_detector(args)
+    diagnostic_inference_lock = threading.Lock()
     product_worker: ProductRecognitionWorker | None = None
     if args.enable_product_recognition:
         product_worker = ProductRecognitionWorker(
@@ -2478,7 +2737,29 @@ def main() -> None:
             scan_interval_seconds=args.product_scan_interval_seconds,
             association_margin_fraction=args.product_association_margin,
             log_results=args.log_product_recognition,
+            inference_lock=diagnostic_inference_lock,
         )
+    pose_worker: PoseEstimationWorker | None = None
+    if args.enable_pose_estimation:
+        pose_worker = PoseEstimationWorker(
+            YoloOnnxPoseEstimator(
+                args.pose_model,
+                score_threshold=args.pose_score_threshold,
+                keypoint_threshold=args.pose_keypoint_threshold,
+                nms_threshold=args.pose_nms_threshold,
+            ),
+            scan_interval_seconds=args.pose_scan_interval_seconds,
+            log_results=args.log_pose,
+            inference_lock=diagnostic_inference_lock,
+        )
+    product_interactions = (
+        ProductInteractionCoordinator(
+            keypoint_threshold=args.pose_keypoint_threshold,
+        )
+        if args.enable_product_interactions
+        else None
+    )
+    pending_product_interaction_results: deque[ProductRecognitionResult] = deque(maxlen=512)
     product_training_capture = (
         ProductTrainingCaptureService(
             args.product_training_captures_dir,
@@ -2555,6 +2836,8 @@ def main() -> None:
             )
         if product_worker is not None:
             product_worker.start()
+        if pose_worker is not None:
+            pose_worker.start()
         if not args.disable_streaming:
             stream_server = MjpegStreamServer(
                 camera_device_ids=list(args.device_id),
@@ -2595,6 +2878,10 @@ def main() -> None:
                     if product_worker is not None
                     else None
                 ),
+                product_interaction_history=shop_state_store.load_product_interaction_events(
+                    after_id=0,
+                    limit=1000,
+                ),
             )
             stream_server.start()
             if args.enable_operator_console:
@@ -2621,6 +2908,11 @@ def main() -> None:
                 )
                 states.append(state)
                 camera_index = len(states) - 1
+                if stream_server is not None and state.shelf_regions:
+                    stream_server.publish_shelf_regions(
+                        camera_index,
+                        state.shelf_regions,
+                    )
                 if product_training_capture is not None:
                     if (
                         state.training_capture_control_queue is None
@@ -2656,6 +2948,13 @@ def main() -> None:
                     )
                     if stop_requested.wait(CAMERA_START_DELAY_SECONDS):
                         break
+            if product_interactions is not None and not any(
+                state.shelf_regions for state in states
+            ):
+                raise RuntimeError(
+                    "Product interactions are enabled, but no camera has a saved "
+                    "shelf-region calibration. Run calibrate_shelf_regions.py first."
+                )
             print(
                 "Camera roles: "
                 + ", ".join(f"{state.device_id}={state.camera_role}" for state in states)
@@ -2684,6 +2983,7 @@ def main() -> None:
                         face_matcher=face_matcher,
                         body_evidence_extractor=body_evidence_extractor,
                         product_worker=product_worker,
+                        pose_worker=pose_worker,
                         args=args,
                         performance=performance,
                     )
@@ -2752,16 +3052,44 @@ def main() -> None:
                     performance.record_duration("camera_iteration", camera_iteration_started)
 
                 if product_worker is not None:
-                    for product_result in product_worker.drain_results():
-                        if stream_server is None:
+                    new_product_results = product_worker.drain_results()
+                    deferred_product_results: list[ProductRecognitionResult] = []
+                    still_pending: deque[ProductRecognitionResult] = deque(maxlen=512)
+                    for pending_result in pending_product_interaction_results:
+                        pending_state = next(
+                            (
+                                item
+                                for item in states
+                                if item.device_id == pending_result.device_id
+                            ),
+                            None,
+                        )
+                        if pending_state is None:
                             continue
+                        depth_status, _ = resolve_product_interaction_depth(
+                            pending_result,
+                            pending_state,
+                        )
+                        if depth_status == "matched":
+                            deferred_product_results.append(pending_result)
+                        elif depth_status == "waiting":
+                            still_pending.append(pending_result)
+                        else:
+                            performance.record_metric("product_depth_join_expired", 1.0)
+                    pending_product_interaction_results = still_pending
+
+                    product_results = tuple(
+                        (result, True) for result in new_product_results
+                    ) + tuple((result, False) for result in deferred_product_results)
+                    for product_result, publish_result in product_results:
                         if product_result.scope == "full_frame":
-                            stream_server.publish_camera_product_recognition(
-                                product_result,
-                                max_age_seconds=(
-                                    args.product_result_max_age_seconds
-                                ),
-                            )
+                            if publish_result and stream_server is not None:
+                                stream_server.publish_camera_product_recognition(
+                                    product_result,
+                                    max_age_seconds=(
+                                        args.product_result_max_age_seconds
+                                    ),
+                                )
                             continue
                         if product_result.track_id is None:
                             continue
@@ -2771,14 +3099,200 @@ def main() -> None:
                         )
                         if assignment is None:
                             continue
-                        stream_server.publish_product_recognition(
-                            product_result,
-                            visit_id=assignment.visit_id,
-                            customer_id=customer_ids_by_visit.get(
-                                assignment.visit_id
-                            ),
-                            max_age_seconds=args.product_result_max_age_seconds,
+                        customer_id = customer_ids_by_visit.get(assignment.visit_id)
+                        if publish_result and stream_server is not None:
+                            stream_server.publish_product_recognition(
+                                product_result,
+                                visit_id=assignment.visit_id,
+                                customer_id=customer_id,
+                                max_age_seconds=args.product_result_max_age_seconds,
+                            )
+                        if product_interactions is not None:
+                            interaction_state = next(
+                                (
+                                    item
+                                    for item in states
+                                    if item.device_id == product_result.device_id
+                                ),
+                                None,
+                            )
+                            if interaction_state is not None and interaction_state.shelf_regions:
+                                interaction_started = performance.start()
+                                depth_status, interaction_depth = (
+                                    resolve_product_interaction_depth(
+                                        product_result,
+                                        interaction_state,
+                                    )
+                                )
+                                performance.record_metric(
+                                    "product_depth_cache_hit",
+                                    1.0 if interaction_depth is not None else 0.0,
+                                )
+                                if interaction_depth is None:
+                                    if depth_status == "waiting" and publish_result:
+                                        pending_product_interaction_results.append(product_result)
+                                        performance.record_metric(
+                                            "product_depth_join_waiting",
+                                            1.0,
+                                        )
+                                    elif depth_status == "expired":
+                                        performance.record_metric(
+                                            "product_depth_join_expired",
+                                            1.0,
+                                        )
+                                    continue
+                                if interaction_depth is not None:
+                                    performance.record_metric(
+                                        "product_depth_delta_ms",
+                                        abs(interaction_depth.timestamp_delta_milliseconds),
+                                    )
+                                source_detections = tuple(
+                                    translate_product_detection(
+                                        detection,
+                                        product_result.crop_box,
+                                    )
+                                    for detection in product_result.detections
+                                )
+                                events = product_interactions.process(
+                                    camera_index=product_result.camera_index,
+                                    device_id=product_result.device_id,
+                                    person_track_id=product_result.track_id,
+                                    visit_id=assignment.visit_id,
+                                    customer_id=customer_id,
+                                    rgb_sequence_number=product_result.rgb_sequence_number,
+                                    host_synced_seconds=product_result.host_synced_seconds,
+                                    detections=source_detections,
+                                    frame_width=args.frame_width,
+                                    frame_height=args.frame_height,
+                                    shelf_regions=interaction_state.shelf_regions,
+                                    depth_frame_mm=(
+                                        None
+                                        if interaction_depth is None
+                                        else interaction_depth.frame_mm
+                                    ),
+                                    depth_sequence_number=(
+                                        None
+                                        if interaction_depth is None
+                                        else interaction_depth.depth_sequence_number
+                                    ),
+                                    depth_delta_milliseconds=(
+                                        None
+                                        if interaction_depth is None
+                                        else interaction_depth.timestamp_delta_milliseconds
+                                    ),
+                                    intrinsics=interaction_state.intrinsics,
+                                )
+                                performance.record_duration(
+                                    "interaction_coordinator",
+                                    interaction_started,
+                                )
+                                performance.record_metric(
+                                    "product_interaction_candidates",
+                                    float(len(events)),
+                                )
+                                performance.record_metric(
+                                    "product_tracker_ms",
+                                    product_interactions.last_tracker_milliseconds,
+                                )
+                                matching_interactions = tuple(
+                                    interaction
+                                    for interaction in product_interactions.current_payloads()
+                                    if interaction["cameraIndex"]
+                                    == product_result.camera_index
+                                    and interaction["personTrackId"]
+                                    == product_result.track_id
+                                )
+                                for interaction in matching_interactions:
+                                    valid_fraction = interaction[
+                                        "productDepthValidFraction"
+                                    ]
+                                    performance.record_metric(
+                                        "product_depth_unknown",
+                                        1.0 if valid_fraction is None else 0.0,
+                                    )
+                                    if valid_fraction is not None:
+                                        performance.record_metric(
+                                            "product_depth_valid_fraction",
+                                            float(valid_fraction),
+                                        )
+                                if args.log_product_interactions:
+                                    for interaction in matching_interactions:
+                                            print(
+                                                "PRODUCT_INTERACTION_TRACE "
+                                                f"camera_number={product_result.camera_index + 1} "
+                                                f"track_id={product_result.track_id} "
+                                                f"visit_id={assignment.visit_id} "
+                                                f"product={interaction['productLabel']} "
+                                                f"shelf_id={interaction['shelfId']} "
+                                                f"occupancy={interaction['shelfOccupancy']} "
+                                                f"product_depth_mm={interaction['productDepthMm']} "
+                                                f"expected_shelf_depth_mm={interaction['expectedShelfDepthMm']} "
+                                                f"depth_residual_mm={interaction['shelfDepthResidualMm']} "
+                                                f"depth_reason={interaction['depthSuppressionReason']} "
+                                                f"hand={interaction['hand']} "
+                                                f"hand_score={float(interaction['handScore']):.3f} "
+                                                f"pose_delta_ms={interaction['poseDeltaMilliseconds']}"
+                                            )
+                                if stream_server is not None:
+                                    stream_server.publish_current_product_interactions(
+                                        product_interactions.current_payloads()
+                                    )
+                                for event in events:
+                                    persisted_id = shop_state_store.record_product_interaction_event(
+                                        event,
+                                        status="candidate",
+                                    )
+                                    if persisted_id is None:
+                                        continue
+                                    if args.log_product_interactions:
+                                        print(
+                                            "PRODUCT_INTERACTION_CANDIDATE "
+                                            f"event={event.event_type} "
+                                            f"visit_id={event.visit_id} "
+                                            f"customer_id={event.customer_id} "
+                                            f"product={event.product_label} "
+                                            f"shelf_id={event.shelf_id} "
+                                            f"confidence={event.confidence:.3f} "
+                                            f"camera_number={event.camera_index + 1} "
+                                            f"track_id={event.person_track_id}"
+                                        )
+                                    if stream_server is not None:
+                                        stream_server.publish_product_interaction_event(
+                                            event,
+                                            persisted_id=persisted_id,
+                                            status="candidate",
+                                        )
+
+                if pose_worker is not None:
+                    for pose_result in pose_worker.drain_results():
+                        performance.record_metric(
+                            "pose_inference_ms",
+                            float(pose_result.inference_milliseconds),
                         )
+                        performance.record_metric(
+                            "pose_queue_age_ms",
+                            float(pose_result.queue_age_milliseconds),
+                        )
+                        pose_state = next(
+                            (
+                                item
+                                for item in states
+                                if item.device_id == pose_result.device_id
+                            ),
+                            None,
+                        )
+                        if pose_state is not None:
+                            pose_state.pose_observations_by_track[
+                                pose_result.track_id
+                            ] = pose_result
+                        if product_interactions is not None:
+                            product_interactions.publish_pose(pose_result)
+                    pending, replacements = pose_worker.drain_metrics()
+                    performance.record_metric("pose_pending_depth", float(pending))
+                    performance.record_metric(
+                        "pose_pending_replacements",
+                        float(replacements),
+                    )
 
                 if not args.headless:
                     gui_started = performance.start()
@@ -2847,6 +3361,8 @@ def main() -> None:
             shelf_position_push.stop()
         if product_worker is not None:
             product_worker.stop()
+        if pose_worker is not None:
+            pose_worker.stop()
         if stream_server is not None:
             stream_server.stop()
         artifact_writer.write_final_visits(visit_registry)

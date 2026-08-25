@@ -353,6 +353,7 @@ class ProductRecognitionWorker:
         association_margin_fraction: float,
         jpeg_quality: int = 80,
         log_results: bool = False,
+        inference_lock: threading.Lock | None = None,
     ) -> None:
         self.detector = detector
         self.scan_interval_seconds = scan_interval_seconds
@@ -360,7 +361,7 @@ class ProductRecognitionWorker:
         self.jpeg_quality = jpeg_quality
         self.log_results = log_results
         self._condition = threading.Condition()
-        self._inference_lock = threading.Lock()
+        self._inference_lock = inference_lock or threading.Lock()
         self._pending: dict[tuple[int, int | None], ProductCropRequest] = {}
         self._results: deque[ProductRecognitionResult] = deque()
         self._last_submitted: dict[tuple[int, int | None], float] = {}
