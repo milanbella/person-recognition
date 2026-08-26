@@ -4,7 +4,7 @@ import math
 import time
 import uuid
 from collections import deque
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Mapping, Sequence
 
 import numpy as np
@@ -519,12 +519,37 @@ def hand_product_association(
 
 @dataclass
 class _InteractionHypothesis:
+    product_class_id: int | None = None
     state: str = INTERACTION_STATE_UNKNOWN
     shelf_id: int | None = None
     state_since: float = 0.0
     stable_since: float = 0.0
     shelf_point_3d_mm: tuple[float, float, float] | None = None
     contact_score_observed: float = 0.0
+
+
+@dataclass
+class _ShelfContactCandidate:
+    first_seen_seconds: float
+    last_sample: ProductInteractionSample
+
+
+@dataclass
+class _ReturnPlacementCandidate:
+    shelf_id: int
+    first_seen_seconds: float
+    last_seen_seconds: float
+    carry_contact_score: float
+    last_sample: ProductInteractionSample
+    weak_contact_since_by_context: dict[tuple[int, int, int], float] = field(
+        default_factory=dict
+    )
+
+
+@dataclass(frozen=True)
+class _ActiveProductPickup:
+    event: ProductInteractionEvent
+    expires_at_seconds: float
 
 
 class ProductInteractionStateMachine:
@@ -535,6 +560,7 @@ class ProductInteractionStateMachine:
         contact_score: float = 0.35,
         release_score: float = 0.15,
         outside_confirm_seconds: float = 0.25,
+        missing_confirm_seconds: float = 0.75,
         return_confirm_seconds: float = 0.4,
         minimum_off_shelf_displacement_mm: float = 150.0,
     ) -> None:
@@ -542,6 +568,7 @@ class ProductInteractionStateMachine:
         self.contact_score = contact_score
         self.release_score = release_score
         self.outside_confirm_seconds = outside_confirm_seconds
+        self.missing_confirm_seconds = missing_confirm_seconds
         self.return_confirm_seconds = return_confirm_seconds
         self.minimum_off_shelf_displacement_mm = minimum_off_shelf_displacement_mm
         self._hypotheses: dict[
@@ -557,20 +584,71 @@ class ProductInteractionStateMachine:
             sample.product_track_id,
         )
 
-    def prime_return(self, sample: ProductInteractionSample) -> None:
-        """Transfer recent carry evidence into a new track/visit hypothesis."""
+    def _hypothesis(self, sample: ProductInteractionSample) -> _InteractionHypothesis:
         hypothesis = self._hypotheses.setdefault(
             self._key(sample), _InteractionHypothesis()
         )
+        hypothesis.product_class_id = sample.product_class_id
+        return hypothesis
+
+    def reset_product_class(self, product_class_id: int) -> None:
+        """Discard competing track hypotheses after one physical event wins."""
+        for key, hypothesis in tuple(self._hypotheses.items()):
+            if hypothesis.product_class_id == product_class_id:
+                del self._hypotheses[key]
+
+    def prime_return(self, sample: ProductInteractionSample) -> None:
+        """Transfer recent carry evidence into a new track/visit hypothesis."""
+        hypothesis = self._hypothesis(sample)
         if hypothesis.state != INTERACTION_STATE_UNKNOWN:
             return
         hypothesis.state = INTERACTION_STATE_HELD
         hypothesis.state_since = sample.host_synced_seconds
         hypothesis.contact_score_observed = sample.hand_score
 
+    def prime_pick_departure(
+        self,
+        sample: ProductInteractionSample,
+        shelf_sample: ProductInteractionSample,
+    ) -> None:
+        """Transfer shelf contact across a product-track split in one camera."""
+        hypothesis = self._hypothesis(sample)
+        if hypothesis.state not in {
+            INTERACTION_STATE_UNKNOWN,
+            INTERACTION_STATE_ON_SHELF,
+        }:
+            return
+        hypothesis.state = INTERACTION_STATE_HAND_CONTACT
+        hypothesis.shelf_id = shelf_sample.shelf_id
+        hypothesis.state_since = sample.host_synced_seconds
+        hypothesis.stable_since = shelf_sample.host_synced_seconds
+        hypothesis.shelf_point_3d_mm = (
+            None
+            if shelf_sample.product_depth is None
+            else shelf_sample.product_depth.point_3d_mm
+        )
+        hypothesis.contact_score_observed = sample.hand_score
+
+    def prime_return_placing(
+        self,
+        sample: ProductInteractionSample,
+        *,
+        contact_score: float,
+        stable_since: float,
+    ) -> None:
+        """Transfer shelf-placement evidence across product-track boundaries."""
+        hypothesis = self._hypothesis(sample)
+        hypothesis.state = INTERACTION_STATE_RETURN_PLACING
+        hypothesis.shelf_id = sample.shelf_id
+        hypothesis.state_since = sample.host_synced_seconds
+        hypothesis.stable_since = stable_since
+        hypothesis.contact_score_observed = max(
+            hypothesis.contact_score_observed,
+            contact_score,
+        )
+
     def update(self, sample: ProductInteractionSample) -> ProductInteractionEvent | None:
-        key = self._key(sample)
-        hypothesis = self._hypotheses.setdefault(key, _InteractionHypothesis())
+        hypothesis = self._hypothesis(sample)
         now = sample.host_synced_seconds
         if hypothesis.state == INTERACTION_STATE_UNKNOWN:
             if sample.shelf_depth_reference.occupancy == SHELF_OCCUPANCY_ON:
@@ -663,7 +741,10 @@ class ProductInteractionStateMachine:
                 hypothesis.state = INTERACTION_STATE_HELD
                 hypothesis.shelf_id = None
                 return None
-            if sample.hand_score >= self.release_score:
+            # A product can be stably back on the shelf while the hand remains
+            # nearby. Require loss of positive contact, not complete pose-box
+            # separation, otherwise ordinary releases around 0.3 never close.
+            if sample.hand_score >= self.contact_score:
                 hypothesis.stable_since = now
                 return None
             if now - hypothesis.stable_since < self.return_confirm_seconds:
@@ -678,6 +759,40 @@ class ProductInteractionStateMachine:
                 confidence_hand_score=hypothesis.contact_score_observed,
             )
         return None
+
+    def update_missing(
+        self,
+        sample: ProductInteractionSample,
+        now: float,
+    ) -> ProductInteractionEvent | None:
+        """Confirm a pickup when a contacted shelf product disappears from view."""
+        hypothesis = self._hypotheses.get(self._key(sample))
+        if hypothesis is None or hypothesis.state != INTERACTION_STATE_HAND_CONTACT:
+            return None
+        if now - sample.host_synced_seconds < self.missing_confirm_seconds:
+            return None
+        hypothesis.state = INTERACTION_STATE_HELD
+        hypothesis.state_since = now
+        return self._event(
+            EVENT_PRODUCT_PICKED,
+            replace(sample, host_synced_seconds=now),
+            hypothesis.shelf_id,
+            confidence_hand_score=hypothesis.contact_score_observed,
+        )
+
+    def confirm_return(
+        self,
+        sample: ProductInteractionSample,
+        *,
+        carry_contact_score: float,
+    ) -> ProductInteractionEvent:
+        """Create a return confirmed by camera-scoped placement evidence."""
+        return self._event(
+            EVENT_PRODUCT_RETURNED,
+            sample,
+            sample.shelf_id,
+            confidence_hand_score=carry_contact_score,
+        )
 
     def _has_required_3d_departure(
         self,
@@ -756,14 +871,48 @@ class ProductInteractionCoordinator:
         default_factory=dict
     )
     duplicate_event_window_seconds: float = 1.0
-    carry_transfer_window_seconds: float = 3.0
+    carry_transfer_window_seconds: float = 10.0
+    placement_transfer_window_seconds: float = 2.0
+    shelf_contact_transfer_window_seconds: float = 3.0
+    shelf_presence_transfer_window_seconds: float = 5.0
+    carry_end_confirm_seconds: float = 0.5
+    active_pick_timeout_seconds: float = 300.0
+    cross_camera_return_min_seconds: float = 0.5
+    post_return_pick_cooldown_seconds: float = 5.0
     _last_event_time_by_signature: dict[tuple[int, str, int | None], float] = field(
         default_factory=dict
     )
-    _recent_carried_by_class: dict[int, ProductInteractionSample] = field(
+    _recent_carried_by_context: dict[tuple[int, int], ProductInteractionSample] = field(
         default_factory=dict
     )
+    _recent_shelf_contact_by_context: dict[
+        tuple[int, int], ProductInteractionSample
+    ] = field(default_factory=dict)
+    _recent_shelf_presence_by_context: dict[
+        tuple[int, int], ProductInteractionSample
+    ] = field(default_factory=dict)
+    _shelf_contact_candidates: dict[
+        tuple[int, int, int], _ShelfContactCandidate
+    ] = field(default_factory=dict)
+    _shelf_presence_candidates: dict[
+        tuple[int, int, int], _ShelfContactCandidate
+    ] = field(default_factory=dict)
+    _recent_placement_by_context: dict[
+        tuple[int, int], _ReturnPlacementCandidate
+    ] = field(default_factory=dict)
+    _recent_carried_by_product_class: dict[int, ProductInteractionSample] = field(
+        default_factory=dict
+    )
+    _recent_placement_by_product_shelf: dict[
+        tuple[int, int], _ReturnPlacementCandidate
+    ] = field(default_factory=dict)
     _current_samples: dict[tuple[int, int, int], ProductInteractionSample] = field(
+        default_factory=dict
+    )
+    _active_pick_by_product_shelf: dict[
+        tuple[int, int], _ActiveProductPickup
+    ] = field(default_factory=dict)
+    _last_return_time_by_product_shelf: dict[tuple[int, int], float] = field(
         default_factory=dict
     )
     last_tracker_milliseconds: float = 0.0
@@ -828,6 +977,34 @@ class ProductInteractionCoordinator:
             else abs(host_synced_seconds - pose.host_synced_seconds)
         )
         events: list[ProductInteractionEvent] = []
+        visible_product_track_ids = {
+            tracked.product_track_id for tracked in tracked_products
+        }
+        for key, previous_sample in tuple(self._current_samples.items()):
+            previous_camera, previous_person_track, previous_product_track = key
+            if (
+                previous_camera != camera_index
+                or previous_person_track != person_track_id
+                or previous_product_track in visible_product_track_ids
+            ):
+                continue
+            missing_event = self.state_machine.update_missing(
+                previous_sample,
+                host_synced_seconds,
+            )
+            if missing_event is not None:
+                inferred_carry = replace(
+                    previous_sample,
+                    host_synced_seconds=host_synced_seconds,
+                    shelf_depth_reference=replace(
+                        previous_sample.shelf_depth_reference,
+                        occupancy=SHELF_OCCUPANCY_OFF,
+                    ),
+                )
+                self._recent_carried_by_context[
+                    (camera_index, previous_sample.product_class_id)
+                ] = inferred_carry
+                self._accept_event(missing_event, events)
         for tracked in tracked_products:
             detection = tracked.detection
             product_depth = (
@@ -890,61 +1067,388 @@ class ProductInteractionCoordinator:
             self._current_samples[
                 (camera_index, person_track_id, tracked.product_track_id)
             ] = sample
-            self._apply_carry_context(sample)
+            context_event = self._apply_carry_context(sample)
+            if context_event is not None:
+                self._accept_event(context_event, events)
             event = self.state_machine.update(sample)
             if event is not None:
-                if event.event_type == EVENT_PRODUCT_RETURNED:
-                    self._recent_carried_by_class.pop(
-                        event.product_class_id, None
-                    )
-                signature = (
-                    event.product_class_id,
-                    event.event_type,
-                    event.shelf_id,
-                )
-                previous_time = self._last_event_time_by_signature.get(signature)
-                if (
-                    previous_time is None
-                    or event.occurred_host_synced_seconds - previous_time
-                    >= self.duplicate_event_window_seconds
-                ):
-                    self._last_event_time_by_signature[signature] = (
-                        event.occurred_host_synced_seconds
-                    )
-                    events.append(event)
+                self._accept_event(event, events)
         self.last_coordinator_milliseconds = (
             time.perf_counter() - coordinator_started
         ) * 1000.0
         return tuple(events)
 
-    def _apply_carry_context(self, sample: ProductInteractionSample) -> None:
+    def _apply_carry_context(
+        self,
+        sample: ProductInteractionSample,
+    ) -> ProductInteractionEvent | None:
         occupancy = sample.shelf_depth_reference.occupancy
         now = sample.host_synced_seconds
-        previous = self._recent_carried_by_class.get(sample.product_class_id)
+        self._expire_active_picks(now)
+        context = (sample.camera_index, sample.product_class_id)
+        contact_key = (
+            sample.camera_index,
+            sample.person_track_id,
+            sample.product_track_id,
+        )
+        previous = self._recent_carried_by_context.get(context)
+        shelf_contact = self._recent_shelf_contact_by_context.get(context)
+        shelf_presence = self._recent_shelf_presence_by_context.get(context)
+        global_previous = self._recent_carried_by_product_class.get(
+            sample.product_class_id
+        )
+        placement_key = (
+            None
+            if sample.shelf_id is None
+            else (sample.product_class_id, sample.shelf_id)
+        )
+        placement = (
+            self._recent_placement_by_context.get(context)
+            if placement_key is None
+            else self._recent_placement_by_product_shelf.get(placement_key)
+        )
         if (
             previous is not None
             and now - previous.host_synced_seconds
             > self.carry_transfer_window_seconds
         ):
-            self._recent_carried_by_class.pop(sample.product_class_id, None)
+            self._recent_carried_by_context.pop(context, None)
             previous = None
+        if (
+            shelf_contact is not None
+            and now - shelf_contact.host_synced_seconds
+            > self.shelf_contact_transfer_window_seconds
+        ):
+            self._recent_shelf_contact_by_context.pop(context, None)
+            shelf_contact = None
+        if (
+            shelf_presence is not None
+            and now - shelf_presence.host_synced_seconds
+            > self.shelf_presence_transfer_window_seconds
+        ):
+            self._recent_shelf_presence_by_context.pop(context, None)
+            shelf_presence = None
+        if (
+            global_previous is not None
+            and now - global_previous.host_synced_seconds
+            > self.carry_transfer_window_seconds
+        ):
+            self._recent_carried_by_product_class.pop(
+                sample.product_class_id,
+                None,
+            )
+            global_previous = None
+        if (
+            placement is not None
+            and now - placement.last_seen_seconds
+            > self.placement_transfer_window_seconds
+        ):
+            self._recent_placement_by_context.pop(context, None)
+            if placement_key is not None:
+                self._recent_placement_by_product_shelf.pop(placement_key, None)
+            placement = None
+
+        if occupancy == SHELF_OCCUPANCY_ON:
+            presence_candidate = self._shelf_presence_candidates.get(contact_key)
+            if (
+                presence_candidate is None
+                or presence_candidate.last_sample.shelf_id != sample.shelf_id
+            ):
+                presence_candidate = _ShelfContactCandidate(
+                    first_seen_seconds=now,
+                    last_sample=sample,
+                )
+                self._shelf_presence_candidates[contact_key] = presence_candidate
+            else:
+                presence_candidate.last_sample = sample
+            if (
+                now - presence_candidate.first_seen_seconds
+                >= self.state_machine.shelf_stable_seconds
+            ):
+                self._recent_shelf_presence_by_context[context] = sample
+        else:
+            self._shelf_presence_candidates.pop(contact_key, None)
 
         if (
             occupancy in {SHELF_OCCUPANCY_OFF, SHELF_OCCUPANCY_OUTSIDE}
             and sample.product_depth is not None
             and sample.hand_score >= self.state_machine.contact_score
         ):
-            self._recent_carried_by_class[sample.product_class_id] = sample
-            return
+            self._shelf_contact_candidates.pop(contact_key, None)
+            self._recent_placement_by_context.pop(context, None)
+            if (
+                shelf_contact is not None
+                and 0.0 <= now - shelf_contact.host_synced_seconds
+                <= self.shelf_contact_transfer_window_seconds
+            ):
+                self.state_machine.prime_pick_departure(sample, shelf_contact)
+            elif (
+                shelf_presence is not None
+                and 0.0 <= now - shelf_presence.host_synced_seconds
+                <= self.shelf_presence_transfer_window_seconds
+            ):
+                # Product detectors commonly assign a new ID as the hand lifts
+                # an item. Stable shelf presence immediately followed by a
+                # hand-associated departure is sufficient continuity evidence.
+                self.state_machine.prime_pick_departure(sample, shelf_presence)
+            self._recent_carried_by_context[context] = sample
+            self._recent_carried_by_product_class[sample.product_class_id] = sample
+            return None
 
         if (
             occupancy == SHELF_OCCUPANCY_ON
             and sample.hand_score >= self.state_machine.contact_score
-            and previous is not None
-            and 0.0 <= now - previous.host_synced_seconds
-            <= self.carry_transfer_window_seconds
         ):
-            self.state_machine.prime_return(sample)
+            candidate = self._shelf_contact_candidates.get(contact_key)
+            if candidate is None or candidate.last_sample.shelf_id != sample.shelf_id:
+                candidate = _ShelfContactCandidate(
+                    first_seen_seconds=now,
+                    last_sample=sample,
+                )
+                self._shelf_contact_candidates[contact_key] = candidate
+            else:
+                candidate.last_sample = sample
+            if (
+                now - candidate.first_seen_seconds
+                >= self.state_machine.shelf_stable_seconds
+            ):
+                self._recent_shelf_contact_by_context[context] = sample
+        elif (
+            occupancy != SHELF_OCCUPANCY_ON
+            or sample.hand_score < self.state_machine.release_score
+        ):
+            self._shelf_contact_candidates.pop(contact_key, None)
+
+        return_carry = previous if previous is not None else global_previous
+        carry_has_ended_near_shelf = (
+            return_carry is not None
+            and return_carry.shelf_depth_reference.occupancy
+            in {SHELF_OCCUPANCY_OFF, SHELF_OCCUPANCY_OUTSIDE}
+            and self.carry_end_confirm_seconds
+            <= now - return_carry.host_synced_seconds
+            <= self.carry_transfer_window_seconds
+            and (
+                previous is not None
+                or sample.hand_score >= self.state_machine.contact_score
+            )
+        )
+        active_pick = max(
+            (
+                active
+                for (product_class_id, _shelf_id), active
+                in self._active_pick_by_product_shelf.items()
+                if product_class_id == sample.product_class_id
+            ),
+            key=lambda active: active.event.occurred_host_synced_seconds,
+            default=None,
+        )
+        active_pick_can_seed_return = (
+            active_pick is not None
+            and now - active_pick.event.occurred_host_synced_seconds
+            >= self.cross_camera_return_min_seconds
+            and sample.hand_score >= self.state_machine.contact_score
+        )
+        if (
+            occupancy == SHELF_OCCUPANCY_ON
+            and (carry_has_ended_near_shelf or active_pick_can_seed_return)
+            and placement is None
+        ):
+            carry_contact_score = (
+                return_carry.hand_score
+                if carry_has_ended_near_shelf and return_carry is not None
+                else active_pick.event.hand_score
+            )
+            placement = _ReturnPlacementCandidate(
+                shelf_id=sample.shelf_id,
+                first_seen_seconds=now,
+                last_seen_seconds=now,
+                carry_contact_score=carry_contact_score,
+                last_sample=sample,
+            )
+            self._recent_placement_by_context[context] = placement
+            if placement_key is not None:
+                self._recent_placement_by_product_shelf[placement_key] = placement
+            self.state_machine.prime_return_placing(
+                sample,
+                contact_score=placement.carry_contact_score,
+                stable_since=placement.first_seen_seconds,
+            )
+
+        if (
+            occupancy == SHELF_OCCUPANCY_ON
+            and placement is not None
+        ):
+            if placement.shelf_id != sample.shelf_id:
+                self._recent_placement_by_context.pop(context, None)
+                return None
+            placement.last_seen_seconds = now
+            placement.last_sample = sample
+            release_context = (
+                sample.camera_index,
+                sample.person_track_id,
+                sample.product_track_id,
+            )
+            if sample.hand_score >= self.state_machine.contact_score:
+                placement.weak_contact_since_by_context.pop(
+                    release_context,
+                    None,
+                )
+                return None
+            weak_contact_since = placement.weak_contact_since_by_context.get(
+                release_context
+            )
+            if weak_contact_since is None:
+                matching_release_times = (
+                    started_at
+                    for (camera_index, person_track_id, _product_track_id), started_at
+                    in placement.weak_contact_since_by_context.items()
+                    if camera_index == sample.camera_index
+                    and person_track_id == sample.person_track_id
+                )
+                weak_contact_since = min(matching_release_times, default=None)
+            if weak_contact_since is None:
+                weak_contact_since = now
+                placement.weak_contact_since_by_context[release_context] = (
+                    weak_contact_since
+                )
+                self.state_machine.prime_return_placing(
+                    sample,
+                    contact_score=placement.carry_contact_score,
+                    stable_since=now,
+                )
+                return None
+            placement.weak_contact_since_by_context[release_context] = (
+                weak_contact_since
+            )
+            self.state_machine.prime_return_placing(
+                sample,
+                contact_score=placement.carry_contact_score,
+                stable_since=weak_contact_since,
+            )
+            if (
+                now - weak_contact_since
+                < self.state_machine.return_confirm_seconds
+            ):
+                return None
+            return self.state_machine.confirm_return(
+                sample,
+                carry_contact_score=placement.carry_contact_score,
+            )
+        return None
+
+    def _accept_event(
+        self,
+        event: ProductInteractionEvent,
+        events: list[ProductInteractionEvent],
+    ) -> None:
+        self._expire_active_picks(event.occurred_host_synced_seconds)
+        cycle_key = (
+            None
+            if event.shelf_id is None
+            else (event.product_class_id, event.shelf_id)
+        )
+        if event.event_type == EVENT_PRODUCT_PICKED and cycle_key is not None:
+            active_pick = self._active_pick_by_product_shelf.get(cycle_key)
+            last_return = self._last_return_time_by_product_shelf.get(cycle_key)
+            in_return_cooldown = (
+                last_return is not None
+                and event.occurred_host_synced_seconds - last_return
+                < self.post_return_pick_cooldown_seconds
+            )
+            if active_pick is not None or in_return_cooldown:
+                self.state_machine.reset_product_class(event.product_class_id)
+                if in_return_cooldown:
+                    self._clear_interaction_context(event.product_class_id)
+                else:
+                    self._clear_pick_contact_context(event.product_class_id)
+                return
+
+        # Multiple cameras and unstable product tracks can complete the same
+        # physical transition. Once one event wins, stale sibling hypotheses
+        # must not emit the transition again later.
+        self.state_machine.reset_product_class(event.product_class_id)
+        if event.event_type == EVENT_PRODUCT_RETURNED:
+            self._clear_interaction_context(event.product_class_id)
+        elif event.event_type == EVENT_PRODUCT_PICKED:
+            self._clear_pick_contact_context(event.product_class_id)
+        signature = (
+            event.product_class_id,
+            event.event_type,
+            event.shelf_id,
+        )
+        previous_time = self._last_event_time_by_signature.get(signature)
+        if (
+            previous_time is None
+            or event.occurred_host_synced_seconds - previous_time
+            >= self.duplicate_event_window_seconds
+        ):
+            self._last_event_time_by_signature[signature] = (
+                event.occurred_host_synced_seconds
+            )
+            events.append(event)
+            if event.event_type == EVENT_PRODUCT_PICKED and cycle_key is not None:
+                self._active_pick_by_product_shelf[cycle_key] = _ActiveProductPickup(
+                    event=event,
+                    expires_at_seconds=(
+                        event.occurred_host_synced_seconds
+                        + self.active_pick_timeout_seconds
+                    ),
+                )
+            elif event.event_type == EVENT_PRODUCT_RETURNED and cycle_key is not None:
+                for active_key in tuple(self._active_pick_by_product_shelf):
+                    if active_key[0] == event.product_class_id:
+                        del self._active_pick_by_product_shelf[active_key]
+                self._last_return_time_by_product_shelf[cycle_key] = (
+                    event.occurred_host_synced_seconds
+                )
+
+    def _expire_active_picks(self, now: float) -> None:
+        for key, active_pick in tuple(self._active_pick_by_product_shelf.items()):
+            if now > active_pick.expires_at_seconds:
+                del self._active_pick_by_product_shelf[key]
+
+    def _clear_pick_contact_context(self, product_class_id: int) -> None:
+        self._clear_context_map_for_class(
+            self._recent_shelf_contact_by_context,
+            product_class_id,
+        )
+        self._clear_context_map_for_class(
+            self._recent_shelf_presence_by_context,
+            product_class_id,
+        )
+        for key, candidate in tuple(self._shelf_contact_candidates.items()):
+            if candidate.last_sample.product_class_id == product_class_id:
+                del self._shelf_contact_candidates[key]
+        for key, candidate in tuple(self._shelf_presence_candidates.items()):
+            if candidate.last_sample.product_class_id == product_class_id:
+                del self._shelf_presence_candidates[key]
+
+    @staticmethod
+    def _clear_context_map_for_class(
+        context_map: dict[tuple[int, int], Any],
+        product_class_id: int,
+    ) -> None:
+        for key in tuple(context_map):
+            if key[1] == product_class_id:
+                del context_map[key]
+
+    def _clear_interaction_context(self, product_class_id: int) -> None:
+        self._clear_context_map_for_class(
+            self._recent_carried_by_context,
+            product_class_id,
+        )
+        self._clear_context_map_for_class(
+            self._recent_shelf_contact_by_context,
+            product_class_id,
+        )
+        self._clear_context_map_for_class(
+            self._recent_placement_by_context,
+            product_class_id,
+        )
+        self._recent_carried_by_product_class.pop(product_class_id, None)
+        for key in tuple(self._recent_placement_by_product_shelf):
+            if key[0] == product_class_id:
+                del self._recent_placement_by_product_shelf[key]
 
     def current_payloads(self) -> tuple[dict[str, object], ...]:
         return tuple(

@@ -1,4 +1,5 @@
 import unittest
+from dataclasses import replace
 
 import numpy as np
 
@@ -36,9 +37,13 @@ def _sample(
     product_track_id: int = 1,
     visit_id: int = 4,
     person_track_id: int = 7,
+    occupancy: str | None = None,
 ) -> ProductInteractionSample:
-    on_shelf = shelf_id is not None
-    point = (100.0, 100.0, 4000.0) if on_shelf else (400.0, 100.0, 3600.0)
+    resolved_occupancy = occupancy or (
+        SHELF_OCCUPANCY_ON if shelf_id is not None else SHELF_OCCUPANCY_OUTSIDE
+    )
+    on_shelf = resolved_occupancy == SHELF_OCCUPANCY_ON
+    point = (100.0, 100.0, 4000.0) if on_shelf else (400.0, 100.0, 3400.0)
     depth = ProductDepthObservation(
         rgb_sequence_number=int(time_seconds * 10),
         depth_sequence_number=int(time_seconds * 10),
@@ -69,9 +74,9 @@ def _sample(
         product_depth=depth,
         shelf_depth_reference=ShelfDepthReference(
             shelf_id=shelf_id,
-            occupancy=(SHELF_OCCUPANCY_ON if on_shelf else SHELF_OCCUPANCY_OUTSIDE),
-            expected_depth_mm=4000.0 if on_shelf else None,
-            depth_residual_mm=0.0 if on_shelf else None,
+            occupancy=resolved_occupancy,
+            expected_depth_mm=4000.0 if shelf_id is not None else None,
+            depth_residual_mm=(point[2] - 4000.0) if shelf_id is not None else None,
         ),
     )
 
@@ -235,16 +240,17 @@ class ProductInteractionTests(unittest.TestCase):
         coordinator = ProductInteractionCoordinator()
         carried = _sample(
             0.0,
-            shelf_id=None,
+            shelf_id=3,
             hand_score=0.8,
             visit_id=4,
             person_track_id=7,
+            occupancy="OFF_SHELF_3D",
         )
         coordinator._apply_carry_context(carried)
         self.assertIsNone(coordinator.state_machine.update(carried))
 
         placing = _sample(
-            0.2,
+            0.6,
             shelf_id=3,
             hand_score=0.8,
             product_track_id=2,
@@ -256,7 +262,7 @@ class ProductInteractionTests(unittest.TestCase):
         self.assertIsNone(
             coordinator.state_machine.update(
                 _sample(
-                    0.3,
+                    0.7,
                     shelf_id=3,
                     hand_score=0.0,
                     product_track_id=2,
@@ -267,7 +273,7 @@ class ProductInteractionTests(unittest.TestCase):
         )
         returned = coordinator.state_machine.update(
             _sample(
-                0.8,
+                1.2,
                 shelf_id=3,
                 hand_score=0.0,
                 product_track_id=2,
@@ -279,6 +285,590 @@ class ProductInteractionTests(unittest.TestCase):
         assert returned is not None
         self.assertEqual(returned.event_type, EVENT_PRODUCT_RETURNED)
         self.assertEqual(returned.visit_id, 5)
+
+    def test_return_transfers_across_delayed_visit_and_product_track_split(self) -> None:
+        coordinator = ProductInteractionCoordinator()
+        carried = _sample(
+            0.0,
+            shelf_id=4,
+            hand_score=0.8,
+            visit_id=7,
+            person_track_id=1,
+            occupancy="OFF_SHELF_3D",
+        )
+        coordinator._apply_carry_context(carried)
+        self.assertIsNone(coordinator.state_machine.update(carried))
+
+        placing = _sample(
+            4.0,
+            shelf_id=4,
+            hand_score=0.8,
+            product_track_id=2,
+            visit_id=8,
+            person_track_id=3,
+        )
+        coordinator._apply_carry_context(placing)
+        self.assertIsNone(coordinator.state_machine.update(placing))
+
+        released = _sample(
+            4.6,
+            shelf_id=4,
+            hand_score=0.0,
+            product_track_id=3,
+            visit_id=8,
+            person_track_id=3,
+        )
+        coordinator._apply_carry_context(released)
+        self.assertIsNone(coordinator.state_machine.update(released))
+
+        stable_release = _sample(
+            5.1,
+            shelf_id=4,
+            hand_score=0.0,
+            product_track_id=4,
+            visit_id=8,
+            person_track_id=3,
+        )
+        returned = coordinator._apply_carry_context(stable_release)
+
+        assert returned is not None
+        self.assertEqual(returned.event_type, EVENT_PRODUCT_RETURNED)
+        self.assertEqual(returned.visit_id, 8)
+        self.assertEqual(returned.product_track_id, 4)
+
+    def test_return_survives_interleaved_carry_and_repeated_placement_track_churn(
+        self,
+    ) -> None:
+        coordinator = ProductInteractionCoordinator()
+        for time_seconds in (0.0, 0.3):
+            carried = _sample(
+                time_seconds,
+                shelf_id=3,
+                hand_score=0.81,
+                product_track_id=2,
+                occupancy="OFF_SHELF_3D",
+            )
+            coordinator._apply_carry_context(carried)
+            self.assertIsNone(coordinator.state_machine.update(carried))
+
+            shelf_product = _sample(
+                time_seconds,
+                shelf_id=3,
+                hand_score=0.79,
+                product_track_id=3,
+            )
+            coordinator._apply_carry_context(shelf_product)
+            self.assertIsNone(coordinator.state_machine.update(shelf_product))
+
+        for time_seconds, product_track_id, hand_score in (
+            (0.9, 4, 0.82),
+            (1.2, 4, 0.82),
+            (1.5, 5, 0.0),
+        ):
+            placement = _sample(
+                time_seconds,
+                shelf_id=3,
+                hand_score=hand_score,
+                product_track_id=product_track_id,
+            )
+            self.assertIsNone(coordinator._apply_carry_context(placement))
+            self.assertIsNone(coordinator.state_machine.update(placement))
+
+        stable_placement = _sample(
+            2.0,
+            shelf_id=3,
+            hand_score=0.0,
+            product_track_id=6,
+        )
+        returned = coordinator._apply_carry_context(stable_placement)
+        assert returned is not None
+        self.assertEqual(returned.event_type, EVENT_PRODUCT_RETURNED)
+        self.assertEqual(returned.shelf_id, 3)
+        self.assertEqual(returned.product_track_id, 6)
+
+    def test_active_pick_suppresses_cross_camera_duplicates_until_return(self) -> None:
+        coordinator = ProductInteractionCoordinator()
+        emitted = []
+        first_pick = coordinator.state_machine._event(
+            EVENT_PRODUCT_PICKED,
+            _sample(0.0, shelf_id=3, hand_score=0.8),
+            3,
+        )
+        coordinator._accept_event(first_pick, emitted)
+
+        duplicate_pick = coordinator.state_machine._event(
+            EVENT_PRODUCT_PICKED,
+            replace(
+                _sample(4.0, shelf_id=3, hand_score=0.7),
+                camera_index=1,
+                device_id="camera-b",
+            ),
+            3,
+        )
+        coordinator._accept_event(duplicate_pick, emitted)
+        self.assertEqual([event.event_type for event in emitted], [EVENT_PRODUCT_PICKED])
+
+        returned = coordinator.state_machine.confirm_return(
+            replace(
+                _sample(10.0, shelf_id=3, hand_score=0.0),
+                camera_index=1,
+                device_id="camera-b",
+            ),
+            carry_contact_score=0.8,
+        )
+        coordinator._accept_event(returned, emitted)
+        self.assertEqual(
+            [event.event_type for event in emitted],
+            [EVENT_PRODUCT_PICKED, EVENT_PRODUCT_RETURNED],
+        )
+
+        cooldown_pick = coordinator.state_machine._event(
+            EVENT_PRODUCT_PICKED,
+            _sample(12.0, shelf_id=3, hand_score=0.8),
+            3,
+        )
+        coordinator._accept_event(cooldown_pick, emitted)
+        self.assertEqual(len(emitted), 2)
+
+    def test_active_pick_can_return_on_another_camera_after_track_churn(self) -> None:
+        coordinator = ProductInteractionCoordinator()
+        emitted = []
+        picked = coordinator.state_machine._event(
+            EVENT_PRODUCT_PICKED,
+            _sample(0.0, shelf_id=3, hand_score=0.8),
+            3,
+        )
+        coordinator._accept_event(picked, emitted)
+
+        for time_seconds, product_track_id, hand_score in (
+            (2.0, 3, 0.75),
+            (2.2, 4, 0.30),
+        ):
+            placement = replace(
+                _sample(
+                    time_seconds,
+                    shelf_id=3,
+                    hand_score=hand_score,
+                    product_track_id=product_track_id,
+                ),
+                camera_index=1,
+                device_id="camera-b",
+            )
+            self.assertIsNone(coordinator._apply_carry_context(placement))
+            self.assertIsNone(coordinator.state_machine.update(placement))
+
+        stable_placement = replace(
+            _sample(2.7, shelf_id=3, hand_score=0.0, product_track_id=5),
+            camera_index=1,
+            device_id="camera-b",
+        )
+        returned = coordinator._apply_carry_context(stable_placement)
+        assert returned is not None
+        coordinator._accept_event(returned, emitted)
+
+        self.assertEqual(
+            [event.event_type for event in emitted],
+            [EVENT_PRODUCT_PICKED, EVENT_PRODUCT_RETURNED],
+        )
+        self.assertEqual(emitted[-1].camera_index, 1)
+
+    def test_pick_transfers_shelf_contact_across_product_track_split(self) -> None:
+        coordinator = ProductInteractionCoordinator()
+        first_shelf_contact = _sample(
+            0.0,
+            shelf_id=4,
+            hand_score=0.8,
+            product_track_id=1,
+        )
+        coordinator._apply_carry_context(first_shelf_contact)
+        self.assertIsNone(coordinator.state_machine.update(first_shelf_contact))
+
+        stable_shelf_contact = _sample(
+            0.5,
+            shelf_id=4,
+            hand_score=0.8,
+            product_track_id=1,
+        )
+        coordinator._apply_carry_context(stable_shelf_contact)
+        self.assertIsNone(coordinator.state_machine.update(stable_shelf_contact))
+
+        first_departure = _sample(
+            0.6,
+            shelf_id=None,
+            hand_score=0.8,
+            product_track_id=2,
+        )
+        coordinator._apply_carry_context(first_departure)
+        self.assertIsNone(coordinator.state_machine.update(first_departure))
+
+        confirmed_departure = _sample(
+            0.9,
+            shelf_id=None,
+            hand_score=0.8,
+            product_track_id=2,
+        )
+        coordinator._apply_carry_context(confirmed_departure)
+        picked = coordinator.state_machine.update(confirmed_departure)
+
+        assert picked is not None
+        self.assertEqual(picked.event_type, EVENT_PRODUCT_PICKED)
+        self.assertEqual(picked.shelf_id, 4)
+
+    def test_pick_transfers_stable_shelf_presence_when_contact_starts_after_split(self) -> None:
+        coordinator = ProductInteractionCoordinator()
+        for time_seconds in (0.0, 0.5):
+            shelf_product = _sample(
+                time_seconds,
+                shelf_id=3,
+                hand_score=0.0,
+                product_track_id=1,
+            )
+            coordinator._apply_carry_context(shelf_product)
+            self.assertIsNone(coordinator.state_machine.update(shelf_product))
+
+        first_departure = _sample(
+            1.0,
+            shelf_id=None,
+            hand_score=0.8,
+            product_track_id=2,
+        )
+        coordinator._apply_carry_context(first_departure)
+        self.assertIsNone(coordinator.state_machine.update(first_departure))
+
+        confirmed_departure = _sample(
+            1.3,
+            shelf_id=None,
+            hand_score=0.8,
+            product_track_id=2,
+        )
+        coordinator._apply_carry_context(confirmed_departure)
+        picked = coordinator.state_machine.update(confirmed_departure)
+
+        assert picked is not None
+        self.assertEqual(picked.event_type, EVENT_PRODUCT_PICKED)
+        self.assertEqual(picked.shelf_id, 3)
+
+    def test_pick_handoff_overrides_brief_on_shelf_state_on_new_track(self) -> None:
+        coordinator = ProductInteractionCoordinator()
+        for time_seconds in (0.0, 0.5):
+            stable_shelf_product = _sample(
+                time_seconds,
+                shelf_id=4,
+                hand_score=0.0,
+                product_track_id=1,
+            )
+            coordinator._apply_carry_context(stable_shelf_product)
+            self.assertIsNone(
+                coordinator.state_machine.update(stable_shelf_product)
+            )
+
+        new_track_on_shelf = _sample(
+            0.6,
+            shelf_id=4,
+            hand_score=0.6,
+            product_track_id=2,
+        )
+        coordinator._apply_carry_context(new_track_on_shelf)
+        self.assertIsNone(coordinator.state_machine.update(new_track_on_shelf))
+
+        first_departure = _sample(
+            0.7,
+            shelf_id=4,
+            hand_score=0.8,
+            product_track_id=2,
+            occupancy="OFF_SHELF_3D",
+        )
+        coordinator._apply_carry_context(first_departure)
+        self.assertIsNone(coordinator.state_machine.update(first_departure))
+
+        confirmed_departure = _sample(
+            1.0,
+            shelf_id=4,
+            hand_score=0.8,
+            product_track_id=2,
+            occupancy="OFF_SHELF_3D",
+        )
+        coordinator._apply_carry_context(confirmed_departure)
+        picked = coordinator.state_machine.update(confirmed_departure)
+
+        assert picked is not None
+        self.assertEqual(picked.event_type, EVENT_PRODUCT_PICKED)
+        self.assertEqual(picked.shelf_id, 4)
+
+    def test_pick_from_one_shelf_can_return_to_another_shelf_and_camera(self) -> None:
+        coordinator = ProductInteractionCoordinator()
+        emitted = []
+        picked = coordinator.state_machine._event(
+            EVENT_PRODUCT_PICKED,
+            _sample(0.0, shelf_id=3, hand_score=0.8),
+            3,
+        )
+        coordinator._accept_event(picked, emitted)
+
+        placing = replace(
+            _sample(2.0, shelf_id=4, hand_score=0.75, product_track_id=3),
+            camera_index=1,
+            device_id="camera-b",
+            visit_id=9,
+        )
+        self.assertIsNone(coordinator._apply_carry_context(placing))
+
+        first_release = replace(
+            _sample(2.2, shelf_id=4, hand_score=0.0, product_track_id=4),
+            camera_index=2,
+            device_id="camera-c",
+            visit_id=10,
+        )
+        self.assertIsNone(coordinator._apply_carry_context(first_release))
+
+        stable_release = replace(
+            _sample(2.7, shelf_id=4, hand_score=0.0, product_track_id=4),
+            camera_index=2,
+            device_id="camera-c",
+            visit_id=10,
+        )
+        returned = coordinator._apply_carry_context(stable_release)
+        assert returned is not None
+        coordinator._accept_event(returned, emitted)
+
+        self.assertEqual(
+            [(event.event_type, event.shelf_id) for event in emitted],
+            [(EVENT_PRODUCT_PICKED, 3), (EVENT_PRODUCT_RETURNED, 4)],
+        )
+        self.assertEqual(emitted[-1].visit_id, 10)
+
+    def test_release_view_is_not_reset_by_other_camera_hand_overlap(self) -> None:
+        coordinator = ProductInteractionCoordinator()
+        emitted = []
+        picked = coordinator.state_machine._event(
+            EVENT_PRODUCT_PICKED,
+            _sample(0.0, shelf_id=3, hand_score=0.8),
+            3,
+        )
+        coordinator._accept_event(picked, emitted)
+
+        placing = replace(
+            _sample(2.0, shelf_id=4, hand_score=0.75, product_track_id=2),
+            camera_index=0,
+            device_id="camera-a",
+        )
+        self.assertIsNone(coordinator._apply_carry_context(placing))
+
+        release_view = replace(
+            _sample(2.1, shelf_id=4, hand_score=0.1, product_track_id=3),
+            camera_index=2,
+            device_id="camera-c",
+        )
+        self.assertIsNone(coordinator._apply_carry_context(release_view))
+
+        obscured_view = replace(
+            _sample(2.4, shelf_id=4, hand_score=0.7, product_track_id=4),
+            camera_index=1,
+            device_id="camera-b",
+        )
+        self.assertIsNone(coordinator._apply_carry_context(obscured_view))
+
+        stable_release = replace(release_view, host_synced_seconds=2.6)
+        returned = coordinator._apply_carry_context(stable_release)
+        assert returned is not None
+        coordinator._accept_event(returned, emitted)
+
+        self.assertEqual(
+            [(event.event_type, event.shelf_id) for event in emitted],
+            [(EVENT_PRODUCT_PICKED, 3), (EVENT_PRODUCT_RETURNED, 4)],
+        )
+
+    def test_release_track_is_not_reset_by_same_camera_duplicate_track(self) -> None:
+        coordinator = ProductInteractionCoordinator()
+        emitted = []
+        picked = coordinator.state_machine._event(
+            EVENT_PRODUCT_PICKED,
+            _sample(0.0, shelf_id=4, hand_score=0.8),
+            4,
+        )
+        coordinator._accept_event(picked, emitted)
+
+        placing = _sample(
+            2.0,
+            shelf_id=3,
+            hand_score=0.7,
+            product_track_id=5,
+        )
+        self.assertIsNone(coordinator._apply_carry_context(placing))
+
+        release_track = _sample(
+            2.1,
+            shelf_id=3,
+            hand_score=0.05,
+            product_track_id=4,
+        )
+        self.assertIsNone(coordinator._apply_carry_context(release_track))
+
+        overlapping_duplicate = replace(placing, host_synced_seconds=2.4)
+        self.assertIsNone(
+            coordinator._apply_carry_context(overlapping_duplicate)
+        )
+
+        stable_release = replace(release_track, host_synced_seconds=2.6)
+        returned = coordinator._apply_carry_context(stable_release)
+        assert returned is not None
+        coordinator._accept_event(returned, emitted)
+
+        self.assertEqual(
+            [(event.event_type, event.shelf_id) for event in emitted],
+            [(EVENT_PRODUCT_PICKED, 4), (EVENT_PRODUCT_RETURNED, 3)],
+        )
+
+    def test_one_frame_shelf_contact_does_not_transfer_to_pick(self) -> None:
+        coordinator = ProductInteractionCoordinator()
+        shelf_contact = _sample(
+            0.0,
+            shelf_id=1,
+            hand_score=0.8,
+            product_track_id=1,
+        )
+        coordinator._apply_carry_context(shelf_contact)
+        self.assertIsNone(coordinator.state_machine.update(shelf_contact))
+
+        for time_seconds in (0.1, 0.5):
+            departure = _sample(
+                time_seconds,
+                shelf_id=None,
+                hand_score=0.8,
+                product_track_id=2,
+            )
+            coordinator._apply_carry_context(departure)
+            self.assertIsNone(coordinator.state_machine.update(departure))
+
+    def test_contacted_shelf_product_disappearance_confirms_pick(self) -> None:
+        machine = ProductInteractionStateMachine(
+            shelf_stable_seconds=0.4,
+            outside_confirm_seconds=0.25,
+            missing_confirm_seconds=0.75,
+        )
+        shelf = _sample(0.0, shelf_id=3, hand_score=0.0)
+        contact = _sample(0.5, shelf_id=3, hand_score=0.76)
+        self.assertIsNone(machine.update(shelf))
+        self.assertIsNone(machine.update(contact))
+        self.assertIsNone(machine.update_missing(contact, 1.2))
+
+        picked = machine.update_missing(contact, 1.3)
+        assert picked is not None
+        self.assertEqual(picked.event_type, EVENT_PRODUCT_PICKED)
+        self.assertEqual(picked.shelf_id, 3)
+        self.assertAlmostEqual(picked.occurred_host_synced_seconds, 1.3)
+
+    def test_return_accepts_stable_shelf_placement_after_contact_weakens(self) -> None:
+        machine = ProductInteractionStateMachine(return_confirm_seconds=0.4)
+        carried = _sample(
+            0.0,
+            shelf_id=3,
+            hand_score=0.8,
+            occupancy="OFF_SHELF_3D",
+        )
+        placing = _sample(0.5, shelf_id=3, hand_score=0.7)
+        weak_contact = _sample(0.8, shelf_id=3, hand_score=0.33)
+        stable = _sample(1.3, shelf_id=3, hand_score=0.33)
+        self.assertIsNone(machine.update(carried))
+        self.assertIsNone(machine.update(placing))
+        self.assertIsNone(machine.update(weak_contact))
+
+        returned = machine.update(stable)
+        assert returned is not None
+        self.assertEqual(returned.event_type, EVENT_PRODUCT_RETURNED)
+        self.assertEqual(returned.shelf_id, 3)
+
+    def test_visible_carry_prevents_static_shelf_product_return(self) -> None:
+        coordinator = ProductInteractionCoordinator()
+        for time_seconds in (0.0, 0.55, 1.1):
+            carried = _sample(
+                time_seconds,
+                shelf_id=4,
+                hand_score=0.8,
+                product_track_id=1,
+                occupancy="OFF_SHELF_3D",
+            )
+            coordinator._apply_carry_context(carried)
+            self.assertIsNone(coordinator.state_machine.update(carried))
+
+            shelf_product = _sample(
+                time_seconds + 0.1,
+                shelf_id=4,
+                hand_score=0.0,
+                product_track_id=2,
+            )
+            coordinator._apply_carry_context(shelf_product)
+            self.assertIsNone(coordinator.state_machine.update(shelf_product))
+
+        first_return_frame = _sample(
+            1.7,
+            shelf_id=4,
+            hand_score=0.0,
+            product_track_id=3,
+        )
+        coordinator._apply_carry_context(first_return_frame)
+        self.assertIsNone(coordinator.state_machine.update(first_return_frame))
+
+        stable_return_frame = _sample(
+            2.2,
+            shelf_id=4,
+            hand_score=0.0,
+            product_track_id=3,
+        )
+        coordinator._apply_carry_context(stable_return_frame)
+        returned = coordinator.state_machine.update(stable_return_frame)
+        assert returned is not None
+        self.assertEqual(returned.event_type, EVENT_PRODUCT_RETURNED)
+
+    def test_completed_return_clears_competing_product_track_hypotheses(self) -> None:
+        coordinator = ProductInteractionCoordinator()
+        carried = _sample(
+            0.0,
+            shelf_id=4,
+            hand_score=0.8,
+            occupancy="OFF_SHELF_3D",
+        )
+        coordinator._apply_carry_context(carried)
+        self.assertIsNone(coordinator.state_machine.update(carried))
+
+        for product_track_id in (2, 3):
+            placing = _sample(
+                0.6,
+                shelf_id=4,
+                hand_score=0.8,
+                product_track_id=product_track_id,
+            )
+            coordinator._apply_carry_context(placing)
+            self.assertIsNone(coordinator.state_machine.update(placing))
+
+        first_release = _sample(
+            1.2,
+            shelf_id=4,
+            hand_score=0.0,
+            product_track_id=2,
+        )
+        coordinator._apply_carry_context(first_release)
+        self.assertIsNone(coordinator.state_machine.update(first_release))
+
+        stable_release = _sample(
+            1.7,
+            shelf_id=4,
+            hand_score=0.0,
+            product_track_id=4,
+        )
+        returned = coordinator._apply_carry_context(stable_release)
+        assert returned is not None
+        coordinator.state_machine.reset_product_class(returned.product_class_id)
+        coordinator._clear_interaction_context(returned.product_class_id)
+
+        competing_release = _sample(
+            1.3,
+            shelf_id=4,
+            hand_score=0.0,
+            product_track_id=3,
+        )
+        coordinator._apply_carry_context(competing_release)
+        self.assertIsNone(coordinator.state_machine.update(competing_release))
 
     def test_missing_depth_never_advances_pick_state(self) -> None:
         machine = ProductInteractionStateMachine(shelf_stable_seconds=0.2)

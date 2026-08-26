@@ -3221,6 +3221,7 @@ def main() -> None:
                                                 "PRODUCT_INTERACTION_TRACE "
                                                 f"camera_number={product_result.camera_index + 1} "
                                                 f"track_id={product_result.track_id} "
+                                                f"product_track_id={interaction['productTrackId']} "
                                                 f"visit_id={assignment.visit_id} "
                                                 f"product={interaction['productLabel']} "
                                                 f"shelf_id={interaction['shelfId']} "
@@ -3254,7 +3255,8 @@ def main() -> None:
                                             f"shelf_id={event.shelf_id} "
                                             f"confidence={event.confidence:.3f} "
                                             f"camera_number={event.camera_index + 1} "
-                                            f"track_id={event.person_track_id}"
+                                            f"track_id={event.person_track_id} "
+                                            f"product_track_id={event.product_track_id}"
                                         )
                                     if stream_server is not None:
                                         stream_server.publish_product_interaction_event(

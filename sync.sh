@@ -14,6 +14,7 @@ rsync -avz --delete \
     --exclude='src/recordings/' \
     --exclude='src/state/' \
     --exclude='src/live_runs/' \
+    --exclude='src/test-runs/' \
     --exclude='src/plane_calibrations/' \
     --exclude='src/shelf_calibrations/' \
     --exclude='src/evidence/' \
