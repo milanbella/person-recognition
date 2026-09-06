@@ -135,6 +135,28 @@ class MjpegStreamServerTests(unittest.TestCase):
         finally:
             server.stop()
 
+    def test_face_capture_routes_are_opt_in(self) -> None:
+        default_paths = {getattr(route, "path", None) for route in self.server.app.routes}
+        self.assertNotIn("/face-captures", default_paths)
+
+        server = MjpegStreamServer(
+            camera_device_ids=["camera-a"],
+            enable_face_capture_api=True,
+            face_capture_api_token="secret",
+        )
+        try:
+            routes = list(server.app.routes)
+            for route in list(routes):
+                original_router = getattr(route, "original_router", None)
+                if original_router is not None:
+                    routes.extend(original_router.routes)
+            paths = {getattr(route, "path", None) for route in routes}
+            self.assertIn("/face-captures", paths)
+            self.assertIn("/face-captures/{capture_id}", paths)
+            self.assertIn("/face-captures/{capture_id}/image", paths)
+        finally:
+            server.stop()
+
     def test_stream_waits_for_first_frame(self) -> None:
         generator = self.server._generate_stream(0)
         result: list[bytes] = []

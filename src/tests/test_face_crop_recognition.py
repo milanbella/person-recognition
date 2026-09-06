@@ -17,6 +17,10 @@ class FakeAnalyzer:
             SimpleNamespace(
                 det_score=0.9,
                 bbox=np.array([10.0, 20.0, 80.0, 90.0]),
+                kps=np.array(
+                    [[25.0, 40.0], [60.0, 40.0], [42.0, 55.0], [30.0, 72.0], [55.0, 72.0]],
+                    dtype=np.float32,
+                ),
                 embedding=np.array([1.0, 0.0, 0.0], dtype=np.float32),
             )
         ]
@@ -46,6 +50,7 @@ class FaceCropRecognitionTests(unittest.TestCase):
         self.assertEqual(len(faces), 1)
         self.assertEqual(faces[0].track_id, 7)
         self.assertEqual(faces[0].bbox, (110, 70, 180, 140))
+        self.assertEqual(faces[0].landmarks[0], (125.0, 90.0))
         self.assertEqual(faces[0].identity_id, "face_person_001")
 
 

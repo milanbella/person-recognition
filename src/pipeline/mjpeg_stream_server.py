@@ -14,6 +14,8 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import Response, StreamingResponse
 
+from pipeline.face_capture import FaceCaptureCoordinator
+from pipeline.face_capture_api import create_face_capture_router
 from pipeline.observer_api import ObserverCameraSnapshot, observer_snapshot_payload
 from pipeline.operator_api import create_operator_router
 from pipeline.operator_state import OperatorState
@@ -72,6 +74,12 @@ class MjpegStreamServer:
         operator_runs_root: Path = Path("test-runs"),
         operator_api_token: str | None = None,
         operator_runtime_configuration: dict[str, object] | None = None,
+        enable_face_capture_api: bool = False,
+        face_capture_api_token: str | None = None,
+        face_capture_default_timeout_seconds: float = 30.0,
+        face_capture_ready_ttl_seconds: float = 120.0,
+        face_capture_max_active_sessions: int = 8,
+        face_capture_shop_id: int | None = None,
         shop_opener: Callable[[], Mapping[str, Any]] | None = None,
         shop_shelf_sync_provider: Callable[[int], Mapping[str, Any]] | None = None,
         product_training_capturer: Callable[[int], Mapping[str, Any]] | None = None,
@@ -172,7 +180,29 @@ class MjpegStreamServer:
                 event_sink=self.operator_store.enqueue_event,
             )
         )
+        self.face_capture_coordinator = (
+            FaceCaptureCoordinator(
+                camera_device_ids=camera_device_ids,
+                default_timeout_seconds=face_capture_default_timeout_seconds,
+                ready_ttl_seconds=face_capture_ready_ttl_seconds,
+                maximum_active_sessions=face_capture_max_active_sessions,
+                event_sink=self._publish_face_capture_event,
+            )
+            if enable_face_capture_api
+            else None
+        )
         self.app = self._build_app()
+        if self.face_capture_coordinator is not None:
+            if not face_capture_api_token:
+                raise ValueError("face_capture_api_token is required when face capture is enabled.")
+            self.app.include_router(
+                create_face_capture_router(
+                    coordinator=self.face_capture_coordinator,
+                    api_token=face_capture_api_token,
+                    operator_api_token=operator_api_token,
+                    shop_id=face_capture_shop_id,
+                )
+            )
         if self.world_state_store is not None:
             assert self.world_state is not None
             self.app.include_router(
@@ -195,8 +225,83 @@ class MjpegStreamServer:
                     shop_opener=shop_opener,
                     shop_shelf_sync_provider=shop_shelf_sync_provider,
                     product_training_capturer=product_training_capturer,
+                    face_capture_available=(
+                        self.face_capture_coordinator is not None
+                    ),
                 )
             )
+
+    def _publish_face_capture_event(
+        self,
+        event_type: str,
+        payload: Mapping[str, Any],
+    ) -> None:
+        if self.operator_state is None:
+            return
+        self.operator_state.publish_event(
+            event_type=event_type,
+            source="face_capture",
+            payload=dict(payload),
+            camera_index=(
+                None
+                if payload.get("cameraIndex") is None
+                else int(payload["cameraIndex"])
+            ),
+            device_id=(
+                None if payload.get("deviceId") is None else str(payload["deviceId"])
+            ),
+            rgb_sequence_number=(
+                None
+                if payload.get("rgbSequenceNumber") is None
+                else int(payload["rgbSequenceNumber"])
+            ),
+            track_id=(
+                None if payload.get("trackId") is None else int(payload["trackId"])
+            ),
+            visit_id=(
+                None if payload.get("visitId") is None else int(payload["visitId"])
+            ),
+        )
+
+    def face_capture_active(self) -> bool:
+        return (
+            self.face_capture_coordinator is not None
+            and self.face_capture_coordinator.has_active_sessions()
+        )
+
+    def update_face_capture_visit_state(
+        self,
+        visits: Mapping[int, tuple[str, str | None, str]],
+    ) -> None:
+        if self.face_capture_coordinator is not None:
+            self.face_capture_coordinator.update_visit_state(visits)
+
+    def observe_face_capture_frame(
+        self,
+        *,
+        camera_index: int,
+        device_id: str,
+        rgb_sequence_number: int,
+        observed_at_unix_milliseconds: int,
+        frame: np.ndarray,
+        tracks: tuple[Any, ...] | list[Any],
+        recognized_faces: tuple[Any, ...] | list[Any],
+        assignments: Mapping[int, Any],
+        customer_ids_by_visit: Mapping[int, str],
+    ) -> None:
+        if self.face_capture_coordinator is None:
+            return
+        self.face_capture_coordinator.observe_frame(
+            camera_index=camera_index,
+            device_id=device_id,
+            rgb_sequence_number=rgb_sequence_number,
+            observed_at_unix_milliseconds=observed_at_unix_milliseconds,
+            frame=frame,
+            tracks=tracks,
+            recognized_faces=recognized_faces,
+            assignments=assignments,
+            customer_ids_by_visit=customer_ids_by_visit,
+        )
 
     def _build_app(self) -> FastAPI:
         app = FastAPI()

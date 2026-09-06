@@ -14,6 +14,7 @@ from live_synced_rgbd_streams import (
     resolve_live_device,
     resolve_product_interaction_depth,
     validate_operator_console_args,
+    validate_face_capture_args,
     validate_product_interaction_args,
 )
 from pipeline.product_detection import ProductRecognitionResult
@@ -379,6 +380,28 @@ class LiveFrameConfigTests(unittest.TestCase):
         self.assertTrue(args.enable_operator_console)
         self.assertEqual(args.operator_api_token, "test-secret")
         validate_operator_console_args(args)
+
+    def test_face_capture_is_disabled_by_default_and_requires_its_token(self) -> None:
+        parser = build_argparser()
+        defaults = parser.parse_args([])
+        self.assertFalse(defaults.enable_face_capture_api)
+        self.assertIsNone(defaults.face_capture_api_token)
+        self.assertEqual(defaults.face_capture_default_timeout_seconds, 30.0)
+        self.assertEqual(defaults.face_capture_ready_ttl_seconds, 120.0)
+        validate_face_capture_args(defaults)
+
+        missing_token = parser.parse_args(["--enable-face-capture-api"])
+        with self.assertRaisesRegex(ValueError, "face-capture-api-token"):
+            validate_face_capture_args(missing_token)
+
+        enabled = parser.parse_args(
+            [
+                "--enable-face-capture-api",
+                "--face-capture-api-token",
+                "face-secret",
+            ]
+        )
+        validate_face_capture_args(enabled)
 
     def test_operator_console_can_run_with_mjpeg_disabled(self) -> None:
         args = build_argparser().parse_args(

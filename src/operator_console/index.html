@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#102f2b">
   <title>Shop Walk Test</title>
-  <link rel="stylesheet" href="/operator/assets/operator.css?v=product-interactions-2">
+  <link rel="stylesheet" href="/operator/assets/operator.css?v=product-interactions-2-face-capture-2">
 </head>
 <body>
   <header class="masthead">
@@ -48,6 +48,43 @@
           <button id="capture-training-image" class="button primary" disabled>Capture 4K</button>
           <span id="training-capture-status">Select an active camera.</span>
         </div>
+        <section class="face-capture-panel" aria-labelledby="face-capture-title">
+          <div class="face-capture-heading">
+            <div>
+              <span class="label">Identity photograph diagnostic</span>
+              <h2 id="face-capture-title">Face capture</h2>
+            </div>
+            <span id="face-capture-status" class="pill">Disabled</span>
+          </div>
+          <p id="face-capture-instruction" class="face-capture-instruction" aria-live="assertive">
+            Enable the face-capture API to test customer positioning and image quality.
+          </p>
+          <div class="face-capture-actions">
+            <button id="start-face-capture" class="button primary" disabled>Start face capture</button>
+            <button id="view-face-camera" class="button" hidden disabled>View camera</button>
+            <button id="delete-face-capture" class="button danger-soft" hidden disabled>Delete</button>
+          </div>
+          <div id="face-capture-live-wrap" class="face-capture-live-wrap" hidden>
+            <div class="face-capture-live-stage">
+              <img id="face-capture-live-image" alt="Live camera preview for positioning your face" draggable="false">
+              <div class="face-capture-guide" aria-hidden="true"></div>
+            </div>
+            <strong id="face-capture-live-caption">Position your face inside the oval.</strong>
+          </div>
+          <dl id="face-capture-details" class="details face-capture-details"></dl>
+          <div id="face-capture-image-wrap" class="face-capture-image-wrap" hidden>
+            <img id="face-capture-image" alt="Captured customer face" draggable="false">
+            <strong>Diagnostic only. Liveness was not performed.</strong>
+          </div>
+          <div id="face-capture-verdicts" class="face-capture-verdicts" hidden>
+            <button data-face-verdict="face_capture_acceptable" class="button primary">Acceptable</button>
+            <button data-face-verdict="face_capture_wrong_person" class="button danger-soft">Wrong person</button>
+            <button data-face-verdict="face_capture_not_frontal" class="button">Not frontal</button>
+            <button data-face-verdict="face_capture_blurry" class="button">Blurry</button>
+            <button data-face-verdict="face_capture_exposure_bad" class="button">Exposure bad</button>
+            <button data-face-verdict="face_capture_bad_framing" class="button">Bad framing</button>
+          </div>
+        </section>
         <div id="observation-choices" class="observation-choices camera-track-choices">
           <p>Detected tracks will appear here.</p>
         </div>
@@ -183,6 +220,6 @@
   </dialog>
 
   <div id="toast" class="toast" role="status"></div>
-  <script src="/operator/assets/operator.js?v=product-interactions-2"></script>
+  <script src="/operator/assets/operator.js?v=product-interactions-2-face-capture-2"></script>
 </body>
 </html>

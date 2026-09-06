@@ -41,6 +41,7 @@ class RecognizedFace:
     identity_id: str
     best_score: float | None
     track_id: int | None
+    landmarks: tuple[tuple[float, float], ...] = ()
 
 
 class FaceRecognizer(Protocol):
@@ -246,6 +247,7 @@ class InsightFaceFaceRecognizer:
                     identity_id=identity.identity_id,
                     best_score=score,
                     track_id=track_id,
+                    landmarks=self._landmarks_from_face(face),
                 )
             )
         return results
@@ -285,6 +287,7 @@ class InsightFaceFaceRecognizer:
                 crop_bbox[2] + x1,
                 crop_bbox[3] + y1,
             )
+            crop_landmarks = self._landmarks_from_face(face)
             normalized = l2_normalize(np.asarray(face.embedding, dtype=np.float32))
             identity, score = self._match_or_create(normalized)
             results.append(
@@ -294,6 +297,10 @@ class InsightFaceFaceRecognizer:
                     identity_id=identity.identity_id,
                     best_score=score,
                     track_id=track.track_id,
+                    landmarks=tuple(
+                        (point_x + x1, point_y + y1)
+                        for point_x, point_y in crop_landmarks
+                    ),
                 )
             )
         return results
@@ -335,6 +342,16 @@ class InsightFaceFaceRecognizer:
             max(0, min(height - 1, y2)),
         )
 
+    @staticmethod
+    def _landmarks_from_face(face: Any) -> tuple[tuple[float, float], ...]:
+        keypoints = getattr(face, "kps", None)
+        if keypoints is None:
+            return ()
+        values = np.asarray(keypoints, dtype=np.float32)
+        if values.shape != (5, 2) or not np.all(np.isfinite(values)):
+            return ()
+        return tuple((float(point[0]), float(point[1])) for point in values)
+
 
 LocalFaceIdentityMatcher = InsightFaceFaceRecognizer
 
@@ -366,6 +383,13 @@ def scale_recognized_faces(
             identity_id=face.identity_id,
             best_score=face.best_score,
             track_id=face.track_id,
+            landmarks=tuple(
+                (
+                    max(0.0, min(float(target_width - 1), point[0] * scale_x)),
+                    max(0.0, min(float(target_height - 1), point[1] * scale_y)),
+                )
+                for point in face.landmarks
+            ),
         )
         for face in faces
     ]

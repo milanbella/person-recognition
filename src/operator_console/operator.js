@@ -25,6 +25,13 @@
     shelfRegionsCamera: null,
     shelfRegions: [],
     trainingCapturePending: false,
+    faceCapture: null,
+    faceCapturePending: false,
+    faceCapturePollPending: false,
+    faceCaptureImageUrl: null,
+    faceCaptureImageId: null,
+    faceCaptureError: null,
+    faceCapturePreviewCamera: null,
     openShopPending: false,
     visitProposals: new Map(),
     automaticVisitMappings: new Set(),
@@ -62,13 +69,30 @@
       let message = `${response.status} ${response.statusText}`;
       try {
         const payload = await response.json();
-        message = payload.detail || message;
+        message = payload.detail?.message || payload.detail || message;
       } catch (_) {
         // Keep HTTP status when the body is not JSON.
       }
       throw new Error(message);
     }
     return response.json();
+  }
+
+  async function apiBlob(path) {
+    const headers = new Headers();
+    if (app.token) headers.set("Authorization", `Bearer ${app.token}`);
+    const response = await fetch(path, {headers, cache: "no-store"});
+    if (!response.ok) {
+      let message = `${response.status} ${response.statusText}`;
+      try {
+        const payload = await response.json();
+        message = payload.detail?.message || payload.detail || message;
+      } catch (_) {
+        // Keep HTTP status when the body is not JSON.
+      }
+      throw new Error(message);
+    }
+    return response.blob();
   }
 
   async function bootstrap() {
@@ -94,6 +118,7 @@
     renderRun();
     renderCameras();
     renderSubjects();
+    renderFaceCapture();
     mergeTimeline(app.state?.recentEvents || []);
     setActionAvailability();
     void pollWorldState();
@@ -324,6 +349,13 @@
       renderSelected();
       updateSystemAnswer();
       if (Date.now() - app.lastWorldPollAt >= 1000) void pollWorldState();
+      const faceCaptureNeedsPoll = app.faceCapture && (
+        ["locating_customer", "adjust_position", "capturing"].includes(app.faceCapture.status)
+        || (app.faceCapture.status === "ready" && app.faceCaptureImageId !== app.faceCapture.captureId)
+      );
+      if (faceCaptureNeedsPoll) {
+        void pollFaceCapture();
+      }
       if (Date.now() - app.lastProductInteractionPollAt >= 1000) {
         void pollProductInteractionEvents();
       }
@@ -331,6 +363,205 @@
       el("frame-age").textContent = "Observation unavailable";
       drawOverlay();
     }
+  }
+
+  function faceCaptureTarget() {
+    const selected = app.selectedObservation?.person;
+    if (Number.isInteger(selected?.visitId)) {
+      return {visitId: selected.visitId, customerId: selected.customerId || null};
+    }
+    const mapping = visitMappingState();
+    if (!Number.isInteger(mapping?.visitId)) return null;
+    return {
+      visitId: mapping.visitId,
+      customerId: app.worldState?.claims?.customerId || null,
+    };
+  }
+
+  function clearFaceCaptureImage() {
+    if (app.faceCaptureImageUrl) URL.revokeObjectURL(app.faceCaptureImageUrl);
+    app.faceCaptureImageUrl = null;
+    app.faceCaptureImageId = null;
+    el("face-capture-image").removeAttribute("src");
+  }
+
+  function updateFaceCaptureLivePreview(cameraIndex, visible) {
+    const wrap = el("face-capture-live-wrap");
+    const image = el("face-capture-live-image");
+    wrap.hidden = !visible;
+    if (!visible || !Number.isInteger(cameraIndex)) {
+      image.removeAttribute("src");
+      app.faceCapturePreviewCamera = null;
+      return;
+    }
+    if (app.faceCapturePreviewCamera !== cameraIndex) {
+      image.src = `/stream/${cameraIndex}`;
+      app.faceCapturePreviewCamera = cameraIndex;
+    }
+    el("face-capture-live-caption").textContent =
+      `Live Camera ${cameraIndex + 1}. Position your face inside the oval.`;
+  }
+
+  async function startFaceCapture() {
+    const target = faceCaptureTarget();
+    if (!target) return showToast("Select a person with an assigned visit first.");
+    if (!app.token) {
+      app.faceCaptureError = "Enter the operator secret and start a test before taking a face photograph.";
+      renderFaceCapture();
+      return showToast(app.faceCaptureError);
+    }
+    app.faceCapturePending = true;
+    app.faceCaptureError = null;
+    clearFaceCaptureImage();
+    renderFaceCapture();
+    try {
+      const body = {
+        visitId: target.visitId,
+        purpose: "operator_test",
+        timeoutSeconds: 30,
+      };
+      if (target.customerId) body.customerId = target.customerId;
+      app.faceCapture = await api("/face-captures", {
+        method: "POST",
+        headers: {"Idempotency-Key": `operator-${target.visitId}-${Date.now()}`},
+        body: JSON.stringify(body),
+      });
+      showToast(`Face capture started for visit ${target.visitId}.`);
+      renderFaceCapture();
+      void pollFaceCapture();
+    } catch (error) {
+      app.faceCaptureError = `Could not start face capture: ${error.message}`;
+      showToast(error.message);
+    } finally {
+      app.faceCapturePending = false;
+      renderFaceCapture();
+    }
+  }
+
+  async function pollFaceCapture() {
+    const captureId = app.faceCapture?.captureId;
+    if (!captureId || app.faceCapturePollPending) return;
+    app.faceCapturePollPending = true;
+    try {
+      app.faceCapture = await api(`/face-captures/${encodeURIComponent(captureId)}`);
+      app.faceCaptureError = null;
+      renderFaceCapture();
+      if (app.faceCapture.status === "ready" && app.faceCaptureImageId !== captureId) {
+        const blob = await apiBlob(`/face-captures/${encodeURIComponent(captureId)}/image`);
+        if (app.faceCapture?.captureId !== captureId) return;
+        clearFaceCaptureImage();
+        app.faceCaptureImageUrl = URL.createObjectURL(blob);
+        app.faceCaptureImageId = captureId;
+        el("face-capture-image").src = app.faceCaptureImageUrl;
+        renderFaceCapture();
+      }
+    } catch (error) {
+      app.faceCaptureError = `Face capture status unavailable: ${error.message}`;
+      renderFaceCapture();
+      showToast(error.message);
+    } finally {
+      app.faceCapturePollPending = false;
+    }
+  }
+
+  async function deleteFaceCapture() {
+    const captureId = app.faceCapture?.captureId;
+    if (!captureId) return;
+    app.faceCapturePending = true;
+    renderFaceCapture();
+    try {
+      await api(`/face-captures/${encodeURIComponent(captureId)}`, {method: "DELETE"});
+      app.faceCapture = null;
+      app.faceCaptureError = null;
+      clearFaceCaptureImage();
+      showToast("Face capture deleted.");
+    } catch (error) {
+      showToast(error.message);
+    } finally {
+      app.faceCapturePending = false;
+      renderFaceCapture();
+    }
+  }
+
+  function renderFaceCapture() {
+    const enabled = Boolean(app.state?.capabilities?.faceCapture);
+    const capture = app.faceCapture;
+    const target = faceCaptureTarget();
+    const status = el("face-capture-status");
+    const instruction = el("face-capture-instruction");
+    const details = el("face-capture-details");
+    const start = el("start-face-capture");
+    const remove = el("delete-face-capture");
+    const viewCamera = el("view-face-camera");
+    const imageWrap = el("face-capture-image-wrap");
+    const verdicts = el("face-capture-verdicts");
+
+    const active = capture && !["expired", "cancelled", "failed"].includes(capture.status);
+    start.disabled = !enabled || !target || app.faceCapturePending || Boolean(active);
+    start.textContent = app.faceCapturePending ? "Working..." : "Start face capture";
+    remove.hidden = !capture;
+    remove.disabled = app.faceCapturePending;
+    viewCamera.hidden = !Number.isInteger(capture?.feedback?.cameraIndex);
+    viewCamera.disabled = !Number.isInteger(capture?.feedback?.cameraIndex);
+    imageWrap.hidden = !(capture?.status === "ready" && app.faceCaptureImageUrl);
+    verdicts.hidden = capture?.status !== "ready";
+    const suggestedCamera = capture?.feedback?.cameraIndex;
+    const previewCamera = Number.isInteger(suggestedCamera)
+      ? suggestedCamera
+      : app.selectedCamera;
+    updateFaceCaptureLivePreview(
+      previewCamera,
+      Boolean(capture && active && capture.status !== "ready")
+    );
+
+    if (!enabled) {
+      status.textContent = "Disabled";
+      instruction.textContent = "Start the live service with --enable-face-capture-api.";
+      details.replaceChildren();
+      return;
+    }
+    if (app.faceCaptureError) {
+      status.textContent = "Action needed";
+      instruction.textContent = app.faceCaptureError;
+      instruction.dataset.feedback = "error";
+      details.replaceChildren();
+      return;
+    }
+    if (!capture) {
+      status.textContent = target ? "Ready" : "Select visit";
+      instruction.textContent = target
+        ? `Ready to capture visit ${target.visitId}${target.customerId ? `, customer ${target.customerId}` : " (unbound diagnostic)"}.`
+        : "Select a visible person or wait for one unambiguous active visit.";
+      details.replaceChildren();
+      instruction.dataset.feedback = "idle";
+      return;
+    }
+
+    status.textContent = capture.status.replaceAll("_", " ");
+    instruction.textContent = capture.feedback?.message || "Waiting for face evidence.";
+    instruction.dataset.feedback = capture.feedback?.code || "waiting";
+    const quality = capture.quality || {};
+    const pose = quality.yawDegrees == null
+      ? "unknown"
+      : `yaw ${quality.yawDegrees.toFixed(1)} / pitch ${quality.pitchDegrees.toFixed(1)} / roll ${quality.rollDegrees.toFixed(1)}`;
+    const rows = [
+      ["Target", `visit ${capture.visitId ?? "?"} / customer ${capture.customerId ?? "unbound"}`],
+      ["Camera", capture.feedback?.cameraNumber ?? capture.cameraNumber ?? "unknown"],
+      ["Face", quality.faceWidthPixels ? `${quality.faceWidthPixels} x ${quality.faceHeightPixels} px` : "not detected"],
+      ["Pose", pose],
+      ["Sharpness", quality.sharpness == null ? "unknown" : quality.sharpness.toFixed(1)],
+      ["Brightness", quality.brightness == null ? "unknown" : quality.brightness.toFixed(1)],
+      ["Stable frames", `${quality.acceptedObservations ?? 0} / ${quality.requiredObservations ?? 3}`],
+      ["Rejected by", (quality.failures || []).join(", ") || "none"],
+    ];
+    details.replaceChildren();
+    rows.forEach(([label, value]) => {
+      const term = document.createElement("dt");
+      term.textContent = label;
+      const description = document.createElement("dd");
+      description.textContent = String(value);
+      details.append(term, description);
+    });
   }
 
   function drawOverlay() {
@@ -629,6 +860,7 @@
     if (!observation) return;
     app.selectedObservation = observation;
     renderSelected();
+    renderFaceCapture();
     drawOverlay();
     showToast(`Selected track ${app.selectedObservation.person.trackId}`);
   }
@@ -799,6 +1031,7 @@
       app.productCameraEvidence = null;
       resetProductSnapshots();
       renderWorldState();
+      renderFaceCapture();
       return;
     }
     try {
@@ -831,6 +1064,7 @@
         app.shelfSync = null;
       }
       renderWorldState();
+      renderFaceCapture();
     } catch (error) {
       el("world-state-summary").textContent = error.message;
     }
@@ -1206,6 +1440,27 @@
     if (response) await pollWorldState();
   });
   el("capture-training-image").addEventListener("click", captureTrainingImage);
+  el("start-face-capture").addEventListener("click", startFaceCapture);
+  el("delete-face-capture").addEventListener("click", deleteFaceCapture);
+  el("view-face-camera").addEventListener("click", () => {
+    const cameraIndex = app.faceCapture?.feedback?.cameraIndex;
+    if (Number.isInteger(cameraIndex)) selectCamera(cameraIndex);
+  });
+  document.querySelectorAll("[data-face-verdict]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const capture = app.faceCapture;
+      if (!capture) return;
+      void annotate(button.dataset.faceVerdict, {
+        captureId: capture.captureId,
+        visitId: capture.visitId,
+        customerId: capture.customerId,
+        cameraIndex: capture.cameraIndex,
+        rgbSequenceNumber: capture.rgbSequenceNumber,
+        qualityScore: capture.qualityScore,
+        quality: capture.quality,
+      });
+    });
+  });
   el("subject-select").addEventListener("change", () => {
     resetProductSnapshots();
     void pollWorldState();

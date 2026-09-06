@@ -21,6 +21,12 @@ PHYSICAL_ANNOTATION_TYPES = {
     "world_state_claim_incorrect",
     "physical_subject_state",
     "subject_visit_mapping",
+    "face_capture_acceptable",
+    "face_capture_wrong_person",
+    "face_capture_not_frontal",
+    "face_capture_blurry",
+    "face_capture_exposure_bad",
+    "face_capture_bad_framing",
 }
 
 OBSERVATION_ANNOTATION_TYPES = {

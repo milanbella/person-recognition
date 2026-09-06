@@ -582,6 +582,36 @@ def build_argparser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--enable-face-capture-api",
+        action="store_true",
+        help=(
+            "Enable authenticated, short-lived customer face capture routes on "
+            "the streaming HTTP server. Requires --face-capture-api-token."
+        ),
+    )
+    parser.add_argument(
+        "--face-capture-api-token",
+        help="Dedicated bearer token for the face-capture API.",
+    )
+    parser.add_argument(
+        "--face-capture-default-timeout-seconds",
+        type=float,
+        default=30.0,
+        help="Default time allowed to obtain an acceptable face. Default: 30.",
+    )
+    parser.add_argument(
+        "--face-capture-ready-ttl-seconds",
+        type=float,
+        default=120.0,
+        help="Seconds a completed face JPEG remains available. Default: 120.",
+    )
+    parser.add_argument(
+        "--face-capture-max-active-sessions",
+        type=int,
+        default=8,
+        help="Maximum concurrent face captures. Default: 8.",
+    )
+    parser.add_argument(
         "--product-training-captures-dir",
         type=Path,
         default=DEFAULT_PRODUCT_TRAINING_CAPTURES_DIR,
@@ -857,6 +887,37 @@ def validate_operator_console_args(args: argparse.Namespace) -> None:
     if args.capture_plane_crossing_evidence and not args.enable_operator_console:
         raise ValueError(
             "--capture-plane-crossing-evidence requires --enable-operator-console."
+        )
+
+
+def validate_face_capture_args(args: argparse.Namespace) -> None:
+    if args.enable_face_capture_api and not args.face_capture_api_token:
+        raise ValueError(
+            "--face-capture-api-token is required with --enable-face-capture-api."
+        )
+    if args.face_capture_api_token and not args.enable_face_capture_api:
+        raise ValueError(
+            "--face-capture-api-token requires --enable-face-capture-api."
+        )
+    if args.enable_face_capture_api and args.disable_streaming:
+        raise ValueError(
+            "--enable-face-capture-api cannot be used with --disable-streaming."
+        )
+    if args.enable_face_capture_api and not args.enable_face_recognition:
+        raise ValueError(
+            "--enable-face-capture-api requires face recognition to remain enabled."
+        )
+    if args.face_capture_default_timeout_seconds < 5.0:
+        raise ValueError(
+            "--face-capture-default-timeout-seconds must be at least 5."
+        )
+    if args.face_capture_ready_ttl_seconds <= 0.0:
+        raise ValueError(
+            "--face-capture-ready-ttl-seconds must be greater than zero."
+        )
+    if args.face_capture_max_active_sessions <= 0:
+        raise ValueError(
+            "--face-capture-max-active-sessions must be greater than zero."
         )
 
 
@@ -1184,7 +1245,7 @@ def write_live_config(
         "args": {
             key: str(value) if isinstance(value, Path) else value
             for key, value in vars(args).items()
-            if key not in {"shop_api_key", "operator_api_token"}
+            if key not in {"shop_api_key", "operator_api_token", "face_capture_api_token"}
         },
     }
     (artifact_writer.output_dir / "live_config.json").write_text(
@@ -1217,7 +1278,7 @@ def operator_runtime_configuration(
         "arguments": {
             key: str(value) if isinstance(value, Path) else value
             for key, value in vars(args).items()
-            if key not in {"shop_api_key", "operator_api_token"}
+            if key not in {"shop_api_key", "operator_api_token", "face_capture_api_token"}
         },
     }
 
@@ -1400,6 +1461,9 @@ def process_latest_rgb_pair(
     body_evidence_extractor: BodyEvidenceExtractor,
     product_worker: ProductRecognitionWorker | None,
     pose_worker: PoseEstimationWorker | None,
+    visit_registry: VisitRegistry,
+    customer_ids_by_visit: dict[int, str],
+    stream_server: MjpegStreamServer | None,
     args: argparse.Namespace,
     performance: LivePerformanceLogger,
 ) -> bool:
@@ -1596,6 +1660,42 @@ def process_latest_rgb_pair(
             tracks=eligible_display_tracks,
         )
     performance.record_duration("face", face_started)
+
+    if stream_server is not None and stream_server.face_capture_active():
+        face_capture_started = performance.start()
+        stream_server.update_face_capture_visit_state(
+            {
+                visit_id: (
+                    visit.origin,
+                    customer_ids_by_visit.get(visit_id),
+                    visit.status,
+                )
+                for visit_id, visit in visit_registry.visits.items()
+            }
+        )
+        current_assignments = {
+            track.track_id: assignment
+            for track in display_tracks
+            if (
+                assignment := visit_registry.assignment_for_track(
+                    device_id=state.device_id,
+                    track_id=track.track_id,
+                )
+            )
+            is not None
+        }
+        stream_server.observe_face_capture_frame(
+            camera_index=camera_index,
+            device_id=state.device_id,
+            rgb_sequence_number=rgb_sequence,
+            observed_at_unix_milliseconds=time.time_ns() // 1_000_000,
+            frame=raw_rgb_frame,
+            tracks=display_tracks,
+            recognized_faces=recognized_faces,
+            assignments=current_assignments,
+            customer_ids_by_visit=customer_ids_by_visit,
+        )
+        performance.record_duration("face_capture", face_capture_started)
 
     body_started = performance.start()
     processing_body_evidence_by_track = body_evidence_extractor.extract(
@@ -2623,6 +2723,7 @@ def product_training_capture_context(
 def main() -> None:
     args = build_argparser().parse_args()
     validate_operator_console_args(args)
+    validate_face_capture_args(args)
     validate_product_interaction_args(args)
     if args.frame_width <= 0 or args.frame_height <= 0:
         raise ValueError("--frame-width and --frame-height must be greater than zero.")
@@ -2853,6 +2954,14 @@ def main() -> None:
                 ),
                 operator_runs_root=args.operator_runs_root,
                 operator_api_token=args.operator_api_token,
+                enable_face_capture_api=args.enable_face_capture_api,
+                face_capture_api_token=args.face_capture_api_token,
+                face_capture_default_timeout_seconds=(
+                    args.face_capture_default_timeout_seconds
+                ),
+                face_capture_ready_ttl_seconds=args.face_capture_ready_ttl_seconds,
+                face_capture_max_active_sessions=args.face_capture_max_active_sessions,
+                face_capture_shop_id=args.shop_id,
                 operator_runtime_configuration=operator_runtime_configuration(
                     args=args,
                     camera_roles=camera_roles,
@@ -2888,6 +2997,12 @@ def main() -> None:
                 print(
                     f"Operator console available at "
                     f"http://{args.stream_host}:{args.stream_port}/operator/ "
+                    "(bearer token required)"
+                )
+            if args.enable_face_capture_api:
+                print(
+                    f"Face capture API available at "
+                    f"http://{args.stream_host}:{args.stream_port}/face-captures "
                     "(bearer token required)"
                 )
 
@@ -2984,6 +3099,9 @@ def main() -> None:
                         body_evidence_extractor=body_evidence_extractor,
                         product_worker=product_worker,
                         pose_worker=pose_worker,
+                        visit_registry=visit_registry,
+                        customer_ids_by_visit=customer_ids_by_visit,
+                        stream_server=stream_server,
                         args=args,
                         performance=performance,
                     )
