@@ -28,7 +28,10 @@ class YoloDatasetExporter:
         if final_path.exists() or temporary.exists():
             raise RuntimeError(f"Dataset destination already exists: {final_path}")
 
-        classes = sorted({str(row["productCode"]) for row in rows})
+        classes = sorted({box["productCode"] for row in rows for box in row["annotations"]}
+                         | {row["productCode"] for row in rows if row["productCode"]})
+        if not classes:
+            raise ValueError("Label at least one product before exporting a dataset.")
         class_ids = {code: index for index, code in enumerate(classes)}
         model_labels = _model_labels(self.store, classes)
         assignments, warning = _session_assignments(rows)
@@ -60,6 +63,9 @@ class YoloDatasetExporter:
                         "sessionId": row["sessionId"],
                         "split": split,
                         "productCode": row["productCode"],
+                        "cameraIndex": row["cameraIndex"],
+                        "deviceId": row["deviceId"],
+                        "scenario": row["scenario"],
                         "reviewOutcome": row["reviewOutcome"],
                         "sha256": row["sha256"],
                         "annotationCount": len(row["annotations"]),
@@ -138,24 +144,25 @@ def _model_labels(
 
 
 def _session_assignments(rows: list[Mapping[str, Any]]) -> tuple[dict[str, str], str | None]:
-    sessions_by_product: dict[str, set[str]] = defaultdict(set)
-    gold_sessions: set[str] = set()
-    for row in rows:
-        session_id = str(row["sessionId"])
-        sessions_by_product[str(row["productCode"])].add(session_id)
-        if row["datasetIntent"] == "gold_test":
-            gold_sessions.add(session_id)
-    development = {code: sorted(items - gold_sessions) for code, items in sessions_by_product.items()}
-    if any(len(items) < 3 for items in development.values()):
-        return ({str(row["sessionId"]): "test" if str(row["sessionId"]) in gold_sessions else "train" for row in rows},
-                "Insufficient independent development sessions for validation/test; exported development data as train-only.")
-    assignments: dict[str, str] = {session_id: "test" for session_id in gold_sessions}
-    for sessions in development.values():
-        for session_id in sessions[:-2]:
-            assignments[session_id] = "train"
-        assignments[sessions[-2]] = "val"
-        assignments[sessions[-1]] = "test"
-    return assignments, None
+    gold = {str(row["sessionId"]) for row in rows if row["datasetIntent"] == "gold_test"}
+    development = sorted({str(row["sessionId"]) for row in rows} - gold)
+    assignments = {session: "test" for session in gold}
+    assignments.update({session: "train" for session in development})
+    if len(development) >= 3:
+        assignments[development[-2]] = "val"
+        assignments[development[-1]] = "test"
+        coverage: dict[str, set[str]] = defaultdict(set)
+        for row in rows:
+            codes = {box["productCode"] for box in row["annotations"]}
+            for code in codes:
+                coverage[code].add(assignments[str(row["sessionId"])])
+        if coverage and all({"train", "val", "test"} <= splits for splits in coverage.values()):
+            return assignments, None
+    assignments.update({session: "train" for session in development})
+    return assignments, (
+        "Insufficient independent development sessions or per-product split coverage; "
+        "exported development data as train-only. Gold-test sessions remain held out."
+    )
 
 
 def _link_or_copy(source: Path, destination: Path) -> None:

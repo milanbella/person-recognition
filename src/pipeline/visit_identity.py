@@ -1,4 +1,5 @@
 from __future__ import annotations
+from pipeline.camera_logging import camera_log_fields
 
 import argparse
 from dataclasses import dataclass, field
@@ -350,7 +351,7 @@ class VisitIdentityManager:
         score_text = "none" if matched_score is None else f"{matched_score:.3f}"
         matched_text = "none" if matched_visit_id is None else str(matched_visit_id)
         print(
-            f"VISIT_IDENTITY device_id={device_id} track_id={track_id} "
+            f"VISIT_IDENTITY {camera_log_fields(device_id)} track_id={track_id} "
             f"visit_id={visit_id} decision={decision} "
             f"matched_visit_id={matched_text} matched_score={score_text} "
             f"threshold={self.match_threshold:.3f} time={host_seconds:.3f}"

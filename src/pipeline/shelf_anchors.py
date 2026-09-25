@@ -1,4 +1,5 @@
 from __future__ import annotations
+from pipeline.camera_logging import camera_log_fields
 
 import json
 import math
@@ -283,7 +284,7 @@ class ShelfAnchorManager:
                 if log_trace:
                     print(
                         f"SHELF_ANCHOR_TRACE shelf_id={detection.shelf_id} "
-                        f"marker_id={detection.marker_id} device_id={self.device_id} "
+                        f"marker_id={detection.marker_id} {camera_log_fields(self.device_id)} "
                         "status=invalid_depth"
                     )
                 continue
@@ -300,7 +301,7 @@ class ShelfAnchorManager:
                 if log_trace:
                     print(
                         f"SHELF_ANCHOR_TRACE shelf_id={observation.shelf_id} "
-                        f"marker_id={observation.marker_id} device_id={self.device_id} "
+                        f"marker_id={observation.marker_id} {camera_log_fields(self.device_id)} "
                         "status=rejected_movement "
                         f"delta_mm={_point_distance_mm(observation.point_3d_mm, current.point_3d_mm):.0f}"
                     )
@@ -333,7 +334,7 @@ class ShelfAnchorManager:
                 if log_trace:
                     print(
                         f"SHELF_ANCHOR_TRACE shelf_id={candidate.shelf_id} "
-                        f"marker_id={candidate.marker_id} device_id={self.device_id} "
+                        f"marker_id={candidate.marker_id} {camera_log_fields(self.device_id)} "
                         f"status=accepted samples={candidate.sample_count} "
                         f"spread_mm={candidate.rms_spread_mm:.1f}"
                     )
@@ -341,7 +342,7 @@ class ShelfAnchorManager:
                 spread = float("nan") if candidate is None else candidate.rms_spread_mm
                 print(
                     f"SHELF_ANCHOR_TRACE shelf_id={observation.shelf_id} "
-                    f"marker_id={observation.marker_id} device_id={self.device_id} "
+                    f"marker_id={observation.marker_id} {camera_log_fields(self.device_id)} "
                     f"status=collecting samples={len(samples)} spread_mm={spread:.1f}"
                 )
         if changed and self.auto_save:

@@ -1,4 +1,5 @@
 from __future__ import annotations
+from pipeline.camera_logging import camera_log_fields
 
 import argparse
 from dataclasses import dataclass, field
@@ -814,7 +815,7 @@ class VisitRegistry:
                 f" bonus={float(score_breakdown.get('entrance_bonus', 0.0)):.3f}"
             )
         print(
-            f"VISIT_REGISTRY device_id={observation.device_id} track_id={observation.track_id} "
+            f"VISIT_REGISTRY {camera_log_fields(observation.device_id)} track_id={observation.track_id} "
             f"visit_id=none origin=provisional decision=observer_provisional "
             f"reason={reason} score={score_text} time={observation.host_seconds:.3f} "
             f"candidate_visit_id={candidate_visit_id} provisional_age={provisional_age:.3f}"
@@ -972,7 +973,7 @@ class VisitRegistry:
                         f" handoff_candidates={int(score_breakdown.get('handoff_candidate_count', 0))}"
                     )
             print(
-                f"VISIT_REGISTRY device_id={observation.device_id} track_id={observation.track_id} "
+                f"VISIT_REGISTRY {camera_log_fields(observation.device_id)} track_id={observation.track_id} "
                 f"visit_id={visit.visit_id} origin={visit.origin} decision={decision} "
                 f"reason={reason} score={score_text} time={observation.host_seconds:.3f}"
                 f"{breakdown_text}"

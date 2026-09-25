@@ -1,4 +1,5 @@
 import argparse
+from pipeline.camera_logging import camera_log_fields, configure_camera_logging
 import json
 import math
 import signal
@@ -582,34 +583,16 @@ def build_argparser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
-        "--enable-face-capture-api",
+        "--enable-person-photo-api",
         action="store_true",
         help=(
-            "Enable authenticated, short-lived customer face capture routes on "
-            "the streaming HTTP server. Requires --face-capture-api-token."
+            "Enable authenticated, person photo routes on "
+            "the streaming HTTP server. Requires --person-photo-api-token."
         ),
     )
     parser.add_argument(
-        "--face-capture-api-token",
-        help="Dedicated bearer token for the face-capture API.",
-    )
-    parser.add_argument(
-        "--face-capture-default-timeout-seconds",
-        type=float,
-        default=30.0,
-        help="Default time allowed to obtain an acceptable face. Default: 30.",
-    )
-    parser.add_argument(
-        "--face-capture-ready-ttl-seconds",
-        type=float,
-        default=120.0,
-        help="Seconds a completed face JPEG remains available. Default: 120.",
-    )
-    parser.add_argument(
-        "--face-capture-max-active-sessions",
-        type=int,
-        default=8,
-        help="Maximum concurrent face captures. Default: 8.",
+        "--person-photo-api-token",
+        help="Dedicated bearer token for the person-photo API.",
     )
     parser.add_argument(
         "--product-training-captures-dir",
@@ -890,34 +873,18 @@ def validate_operator_console_args(args: argparse.Namespace) -> None:
         )
 
 
-def validate_face_capture_args(args: argparse.Namespace) -> None:
-    if args.enable_face_capture_api and not args.face_capture_api_token:
+def validate_person_photo_args(args: argparse.Namespace) -> None:
+    if args.enable_person_photo_api and not args.person_photo_api_token:
         raise ValueError(
-            "--face-capture-api-token is required with --enable-face-capture-api."
+            "--person-photo-api-token is required with --enable-person-photo-api."
         )
-    if args.face_capture_api_token and not args.enable_face_capture_api:
+    if args.person_photo_api_token and not args.enable_person_photo_api:
         raise ValueError(
-            "--face-capture-api-token requires --enable-face-capture-api."
+            "--person-photo-api-token requires --enable-person-photo-api."
         )
-    if args.enable_face_capture_api and args.disable_streaming:
+    if args.enable_person_photo_api and args.disable_streaming:
         raise ValueError(
-            "--enable-face-capture-api cannot be used with --disable-streaming."
-        )
-    if args.enable_face_capture_api and not args.enable_face_recognition:
-        raise ValueError(
-            "--enable-face-capture-api requires face recognition to remain enabled."
-        )
-    if args.face_capture_default_timeout_seconds < 5.0:
-        raise ValueError(
-            "--face-capture-default-timeout-seconds must be at least 5."
-        )
-    if args.face_capture_ready_ttl_seconds <= 0.0:
-        raise ValueError(
-            "--face-capture-ready-ttl-seconds must be greater than zero."
-        )
-    if args.face_capture_max_active_sessions <= 0:
-        raise ValueError(
-            "--face-capture-max-active-sessions must be greater than zero."
+            "--enable-person-photo-api cannot be used with --disable-streaming."
         )
 
 
@@ -983,7 +950,7 @@ def resolve_live_device(device_id: str) -> dai.Device:
             configure_live_device(device)
             if attempt > 1:
                 print(
-                    f"CAMERA_CONNECT_RECOVERED device_id={device_id} "
+                    f"CAMERA_CONNECT_RECOVERED {camera_log_fields(device_id)} "
                     f"attempt={attempt}/{CAMERA_CONNECT_ATTEMPTS}"
                 )
             return device
@@ -997,7 +964,7 @@ def resolve_live_device(device_id: str) -> dai.Device:
             if attempt >= CAMERA_CONNECT_ATTEMPTS:
                 break
             print(
-                f"CAMERA_CONNECT_RETRY device_id={device_id} "
+                f"CAMERA_CONNECT_RETRY {camera_log_fields(device_id)} "
                 f"attempt={attempt}/{CAMERA_CONNECT_ATTEMPTS} "
                 f"retry_in_seconds={CAMERA_CONNECT_RETRY_DELAY_SECONDS:.1f} "
                 f"error={exc}"
@@ -1120,7 +1087,7 @@ def create_live_stream_state(
         if shelf_anchor_manager is not None:
             state.shelf_anchor_manager = shelf_anchor_manager
             print(
-                f"Configured shelf watching device_id={device_id} "
+                f"Configured shelf watching {camera_log_fields(device_id)} "
                 f"catalog_shelves={len(shelf_anchor_manager.shelves)} "
                 f"anchors={len(shelf_anchor_manager.anchors)} mode=saved_anchors"
             )
@@ -1130,7 +1097,7 @@ def create_live_stream_state(
                 / f"shelf_anchors_{device_id}.json"
             )
             print(
-                f"Skipping shelf watching device_id={device_id} "
+                f"Skipping shelf watching {camera_log_fields(device_id)} "
                 f"reason=no_saved_anchors calibration={calibration_path}"
             )
     if args.enable_product_interactions and is_observer_enabled(camera_role):
@@ -1174,12 +1141,12 @@ def create_live_stream_state(
                     )
             state.shelf_regions = regions.by_shelf_id()
             print(
-                f"Loaded shelf regions device_id={device_id} "
+                f"Loaded shelf regions {camera_log_fields(device_id)} "
                 f"regions={len(state.shelf_regions)} calibration={regions_path}"
             )
         else:
             print(
-                f"Skipping product interactions device_id={device_id} "
+                f"Skipping product interactions {camera_log_fields(device_id)} "
                 f"reason=no_shelf_regions calibration={regions_path}"
             )
 
@@ -1204,7 +1171,7 @@ def create_live_stream_state(
 
     pipeline.start()
     print(
-        f"Started live RGBD stream device_id={device_id} role={camera_role} "
+        f"Started live RGBD stream {camera_log_fields(device_id)} role={camera_role} "
         f"{format_usb_connection(device)}"
     )
     return state
@@ -1245,7 +1212,7 @@ def write_live_config(
         "args": {
             key: str(value) if isinstance(value, Path) else value
             for key, value in vars(args).items()
-            if key not in {"shop_api_key", "operator_api_token", "face_capture_api_token"}
+            if key not in {"shop_api_key", "operator_api_token", "person_photo_api_token"}
         },
     }
     (artifact_writer.output_dir / "live_config.json").write_text(
@@ -1278,7 +1245,7 @@ def operator_runtime_configuration(
         "arguments": {
             key: str(value) if isinstance(value, Path) else value
             for key, value in vars(args).items()
-            if key not in {"shop_api_key", "operator_api_token", "face_capture_api_token"}
+            if key not in {"shop_api_key", "operator_api_token", "person_photo_api_token"}
         },
     }
 
@@ -1661,9 +1628,9 @@ def process_latest_rgb_pair(
         )
     performance.record_duration("face", face_started)
 
-    if stream_server is not None and stream_server.face_capture_active():
-        face_capture_started = performance.start()
-        stream_server.update_face_capture_visit_state(
+    if stream_server is not None and stream_server.person_photo_active():
+        person_photo_started = performance.start()
+        stream_server.update_person_photo_visit_state(
             {
                 visit_id: (
                     visit.origin,
@@ -1684,18 +1651,17 @@ def process_latest_rgb_pair(
             )
             is not None
         }
-        stream_server.observe_face_capture_frame(
+        stream_server.observe_person_photo_frame(
             camera_index=camera_index,
             device_id=state.device_id,
             rgb_sequence_number=rgb_sequence,
             observed_at_unix_milliseconds=time.time_ns() // 1_000_000,
             frame=raw_rgb_frame,
             tracks=display_tracks,
-            recognized_faces=recognized_faces,
             assignments=current_assignments,
             customer_ids_by_visit=customer_ids_by_visit,
         )
-        performance.record_duration("face_capture", face_capture_started)
+        performance.record_duration("person_photo", person_photo_started)
 
     body_started = performance.start()
     processing_body_evidence_by_track = body_evidence_extractor.extract(
@@ -1763,7 +1729,7 @@ def process_latest_depth_frame(
                 or latest_depth_seconds - state.last_depth_sync_warning_seconds >= 5.0
             ):
                 print(
-                    f"LIVE_RGB_DEPTH_MATCH_PENDING device_id={state.device_id} "
+                    f"LIVE_RGB_DEPTH_MATCH_PENDING {camera_log_fields(state.device_id)} "
                     f"latest_depth_sequence_num={int(latest_depth_msg.getSequenceNum())} "
                     f"buffered_rgb_snapshots={len(state.recent_rgb_track_snapshots)}"
                 )
@@ -1785,7 +1751,7 @@ def process_latest_depth_frame(
         ):
             delta_text = "none" if matched_delta_ms is None else f"{matched_delta_ms:.1f}"
             print(
-                f"LIVE_RGB_DEPTH_SYNC_REJECTED device_id={state.device_id} "
+                f"LIVE_RGB_DEPTH_SYNC_REJECTED {camera_log_fields(state.device_id)} "
                 f"depth_sequence_num={depth_sequence} delta_ms={delta_text} "
                 f"max_delta_ms={args.max_rgb_depth_delta_ms:.1f} "
                 f"buffered_rgb_snapshots={len(state.recent_rgb_track_snapshots)}"
@@ -1936,12 +1902,12 @@ def capture_plane_crossing_evidence(
     except Exception as exc:
         print(
             f"PLANE_CROSSING_EVIDENCE_ERROR event={event_type} "
-            f"device_id={state.device_id} track_id={track_id} error={exc}"
+            f"{camera_log_fields(state.device_id)} track_id={track_id} error={exc}"
         )
         return None
     if evidence_path is not None:
         print(
-            f"PLANE_CROSSING_EVIDENCE event={event_type} device_id={state.device_id} "
+            f"PLANE_CROSSING_EVIDENCE event={event_type} {camera_log_fields(state.device_id)} "
             f"track_id={track_id} visit_id={visit_id} path={evidence_path}"
         )
     return evidence_path
@@ -2250,7 +2216,7 @@ def build_processed_live_rgb_frame(
             )
         if args.depth_trigger_mode == "plane":
             print(
-                f"LIVE_DEPTH_PLANE_ENTRY_EVENT device_id={state.device_id} "
+                f"LIVE_DEPTH_PLANE_ENTRY_EVENT {camera_log_fields(state.device_id)} "
                 f"track_id={track_id} visit_id={visit_id} "
                 f"reason={entry_reasons_by_track.get(track_id, 'direct_crossing')} "
                 f"source_track_id={recovered_entry_source_track_ids.get(track_id)} "
@@ -2270,7 +2236,7 @@ def build_processed_live_rgb_frame(
                 visit_plane_state.last_seen_seconds = rgb_host_synced_seconds
         else:
             print(
-                f"LIVE_DEPTH_ENTRY_EVENT device_id={state.device_id} "
+                f"LIVE_DEPTH_ENTRY_EVENT {camera_log_fields(state.device_id)} "
                 f"track_id={track_id} visit_id={visit_id} "
                 f"host_synced_seconds={rgb_host_synced_seconds:.3f} depth_mm={sample.depth_mm:.0f}"
             )
@@ -2448,7 +2414,7 @@ def build_processed_live_rgb_frame(
                 visit_plane_state.last_track_id = track_id
                 visit_plane_state.last_seen_seconds = rgb_host_synced_seconds
             print(
-                f"LIVE_DEPTH_PLANE_LEAVE_EVENT device_id={state.device_id} "
+                f"LIVE_DEPTH_PLANE_LEAVE_EVENT {camera_log_fields(state.device_id)} "
                 f"track_id={track_id} visit_id={visit_id} "
                 f"reason={leave_reasons_by_track.get(track_id, 'direct_crossing')} "
                 f"source_track_id={recovered_source_track_id} "
@@ -2458,7 +2424,7 @@ def build_processed_live_rgb_frame(
             )
         else:
             print(
-                f"LIVE_DEPTH_LEAVE_EVENT device_id={state.device_id} "
+                f"LIVE_DEPTH_LEAVE_EVENT {camera_log_fields(state.device_id)} "
                 f"track_id={track_id} visit_id={visit_id} "
                 f"host_synced_seconds={rgb_host_synced_seconds:.3f} depth_mm={sample.depth_mm:.0f}"
             )
@@ -2523,7 +2489,7 @@ def build_processed_live_rgb_frame(
                     f"SHELF_DISTANCE_TRACE shelf_id={observation.shelf_id} "
                     f"marker_id={observation.marker_id} "
                     f"camera_index={observation.camera_index} "
-                    f"visit_id={observation.visit_id} device_id={observation.device_id} "
+                    f"visit_id={observation.visit_id} {camera_log_fields(observation.device_id)} "
                     f"track_id={observation.track_id} "
                     f"host_synced_seconds={observation.host_synced_seconds:.3f} "
                     f"rgb_sequence={observation.rgb_sequence_number} "
@@ -2723,7 +2689,7 @@ def product_training_capture_context(
 def main() -> None:
     args = build_argparser().parse_args()
     validate_operator_console_args(args)
-    validate_face_capture_args(args)
+    validate_person_photo_args(args)
     validate_product_interaction_args(args)
     if args.frame_width <= 0 or args.frame_height <= 0:
         raise ValueError("--frame-width and --frame-height must be greater than zero.")
@@ -2746,6 +2712,9 @@ def main() -> None:
         return
     if not args.device_id:
         raise ValueError("--device-id is required unless --list-devices is set.")
+    configure_camera_logging(args.device_id)
+    for device_id in args.device_id:
+        print(f"CAMERA_MAPPING {camera_log_fields(device_id)}", flush=True)
     if not 1 <= args.stream_port <= 65535:
         raise ValueError("--stream-port must be between 1 and 65535.")
     if not 1 <= args.stream_jpeg_quality <= 100:
@@ -2954,14 +2923,8 @@ def main() -> None:
                 ),
                 operator_runs_root=args.operator_runs_root,
                 operator_api_token=args.operator_api_token,
-                enable_face_capture_api=args.enable_face_capture_api,
-                face_capture_api_token=args.face_capture_api_token,
-                face_capture_default_timeout_seconds=(
-                    args.face_capture_default_timeout_seconds
-                ),
-                face_capture_ready_ttl_seconds=args.face_capture_ready_ttl_seconds,
-                face_capture_max_active_sessions=args.face_capture_max_active_sessions,
-                face_capture_shop_id=args.shop_id,
+                enable_person_photo_api=args.enable_person_photo_api,
+                person_photo_api_token=args.person_photo_api_token,
                 operator_runtime_configuration=operator_runtime_configuration(
                     args=args,
                     camera_roles=camera_roles,
@@ -2999,10 +2962,10 @@ def main() -> None:
                     f"http://{args.stream_host}:{args.stream_port}/operator/ "
                     "(bearer token required)"
                 )
-            if args.enable_face_capture_api:
+            if args.enable_person_photo_api:
                 print(
-                    f"Face capture API available at "
-                    f"http://{args.stream_host}:{args.stream_port}/face-captures "
+                    f"Person photo API available at "
+                    f"http://{args.stream_host}:{args.stream_port}/cameras/<index>/person "
                     "(bearer token required)"
                 )
 
@@ -3051,7 +3014,7 @@ def main() -> None:
                     print(
                         "PRODUCT_TRAINING_CAPTURE_READY "
                         f"camera_number={camera_index + 1} "
-                        f"device_id={state.device_id} "
+                        f"{camera_log_fields(state.device_id)} "
                         f"size={PRODUCT_TRAINING_CAPTURE_WIDTH}x"
                         f"{PRODUCT_TRAINING_CAPTURE_HEIGHT}"
                     )

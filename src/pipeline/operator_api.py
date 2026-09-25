@@ -25,7 +25,7 @@ def create_operator_router(
     shop_opener: Callable[[], Mapping[str, Any]] | None = None,
     shop_shelf_sync_provider: Callable[[int], Mapping[str, Any]] | None = None,
     product_training_capturer: Callable[[int], Mapping[str, Any]] | None = None,
-    face_capture_available: bool = False,
+    person_photo_available: bool = False,
 ) -> APIRouter:
     router = APIRouter()
 
@@ -51,7 +51,7 @@ def create_operator_router(
             active_run=store.active_run(),
             persisted_visits=store.load_visit_states(),
         )
-        payload["capabilities"] = {"faceCapture": face_capture_available}
+        payload["capabilities"] = {"personPhoto": person_photo_available}
         return payload
 
     def analyze(run_id: str) -> dict[str, Any]:

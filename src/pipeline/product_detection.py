@@ -1,4 +1,5 @@
 from __future__ import annotations
+from pipeline.camera_logging import camera_log_fields
 
 import ast
 import threading
@@ -534,7 +535,7 @@ class ProductRecognitionWorker:
                     print(
                         "PRODUCT_RECOGNITION_TRACE "
                         f"camera_index={request.camera_index} "
-                        f"device_id={request.device_id} scope={request.scope} "
+                        f"{camera_log_fields(request.device_id)} scope={request.scope} "
                         f"track_id={request.track_id} "
                         f"rgb_sequence={request.rgb_sequence_number} "
                         f"inference_ms={inference_ms} products={summary}"

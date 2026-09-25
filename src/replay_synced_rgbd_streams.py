@@ -1,4 +1,5 @@
 import argparse
+from pipeline.camera_logging import camera_log_fields
 import csv
 import json
 import math
@@ -732,7 +733,7 @@ def log_plane_trace(
         elif track.track_id in exited_track_ids:
             event = "leave"
         print(
-            f"{prefix} device_id={device_id} "
+            f"{prefix} {camera_log_fields(device_id)} "
             f"track_id={track.track_id} status={track.status} "
             f"time={host_seconds:.3f} plane_mm={signed_mm:.0f} "
             f"depth_mm={sample.depth_mm:.0f} entered_state={entered_state} "
@@ -1102,7 +1103,7 @@ def build_processed_rgb_frame(
         artifact_writer.write_entrance_event(event_payload)
         if args.depth_trigger_mode == "plane":
             print(
-                f"SYNC_DEPTH_PLANE_ENTRY_EVENT device_id={state.stream.info.device_id} "
+                f"SYNC_DEPTH_PLANE_ENTRY_EVENT {camera_log_fields(state.stream.info.device_id)} "
                 f"track_id={track_id} "
                 f"visit_id={None if visit_assignment is None else visit_assignment.visit_id} "
                 f"reason={entry_reasons_by_track.get(track_id, 'direct_crossing')} "
@@ -1124,7 +1125,7 @@ def build_processed_rgb_frame(
                 visit_plane_state.last_seen_seconds = host_seconds
         else:
             print(
-                f"SYNC_DEPTH_ENTRY_EVENT device_id={state.stream.info.device_id} "
+                f"SYNC_DEPTH_ENTRY_EVENT {camera_log_fields(state.stream.info.device_id)} "
                 f"track_id={track_id} "
                 f"visit_id={None if visit_assignment is None else visit_assignment.visit_id} "
                 f"reason={entry_reasons_by_track.get(track_id, 'direct_crossing')} "
@@ -1222,7 +1223,7 @@ def build_processed_rgb_frame(
                 visit_plane_state.last_track_id = track_id
                 visit_plane_state.last_seen_seconds = host_seconds
             print(
-                f"SYNC_DEPTH_PLANE_LEAVE_EVENT device_id={state.stream.info.device_id} "
+                f"SYNC_DEPTH_PLANE_LEAVE_EVENT {camera_log_fields(state.stream.info.device_id)} "
                 f"track_id={track_id} "
                 f"visit_id={None if visit_assignment is None else visit_assignment.visit_id} "
                 f"reason={leave_reasons_by_track.get(track_id, 'direct_crossing')} "
@@ -1234,7 +1235,7 @@ def build_processed_rgb_frame(
             )
         else:
             print(
-                f"SYNC_DEPTH_LEAVE_EVENT device_id={state.stream.info.device_id} "
+                f"SYNC_DEPTH_LEAVE_EVENT {camera_log_fields(state.stream.info.device_id)} "
                 f"track_id={track_id} "
                 f"visit_id={None if visit_assignment is None else visit_assignment.visit_id} "
                 f"host_synced_seconds="

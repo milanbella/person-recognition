@@ -37,9 +37,19 @@ async function connect() {
   app.connected = false;
   app.token = el.token.value.trim();
   localStorage.setItem("modelTrainingToken", app.token);
+  app.products = [];
+  renderProducts();
+  el.connect.disabled = true;
+  el.connect.textContent = "Loading...";
+  el.product.disabled = true;
+  el["product-search"].disabled = true;
+  el["start-session"].disabled = true;
+  el["product-loading"].hidden = false;
+  el.product.setAttribute("aria-busy", "true");
+  status("Loading current products from aishopS...");
   try {
     const [products, cameras] = await Promise.all([
-      api("/model-training/api/products"), api("/model-training/api/cameras")
+      api("/model-training/api/products", {cache: "no-store"}), api("/model-training/api/cameras")
     ]);
     app.products = products.products;
     renderProducts();
@@ -52,14 +62,17 @@ async function connect() {
     await refreshSessionLists(false);
     await loadQueue();
     app.connected = true;
-    status(products.products.length ? "Connected." : "Connected. Refreshing product catalog...");
-    if (!products.products.length) {
-      const refreshed = await api("/model-training/api/products/refresh", { method: "POST", headers: authHeaders() });
-      app.products = refreshed.products;
-      renderProducts();
-      status(`Loaded ${refreshed.count} products.`);
-    }
+    status(`Connected. Loaded ${products.products.length} current products.`);
   } catch (error) { status(error.message, true); }
+  finally {
+    el.connect.disabled = false;
+    el.connect.textContent = "Connect";
+    el.product.disabled = !app.connected;
+    el["product-search"].disabled = !app.connected;
+    el["start-session"].disabled = !app.connected;
+    el["product-loading"].hidden = true;
+    el.product.setAttribute("aria-busy", "false");
+  }
 }
 
 function renderOptions(select, items, value, label) {
@@ -69,7 +82,7 @@ function renderOptions(select, items, value, label) {
 }
 
 function sessionLabel(session, exported = false) {
-  const base = `${session.productName} · Camera ${session.cameraNumber} · ${session.scenario}`;
+  const base = session.productCode ? `${session.productName} · Camera ${session.cameraNumber} · ${session.scenario}` : `Walk ${new Date(session.startedAtUnixMilliseconds).toLocaleString()} · ${session.sessionId.slice(0, 8)}`;
   if (exported) return `${base} · ${session.exportedCount} frames · ${session.datasetVersions.join(", ")}`;
   return `${base} · ${session.pendingCount} pending · ${session.unexportedCount} ready`;
 }
@@ -135,9 +148,12 @@ function renderProducts() {
       .some(value => String(value).toLocaleLowerCase().includes(query));
   });
   renderOptions(el.product, matches, item => item.code, item => `${item.name} (${item.code})`);
-  if (matches.some(item => item.code === selected)) el.product.value = selected;
+  const placeholder = document.createElement("option");
+  placeholder.value = ""; placeholder.textContent = "Select product while reviewing";
+  el.product.prepend(placeholder);
+  el.product.value = matches.some(item => item.code === selected) ? selected : "";
   el["product-match-count"].textContent = `${matches.length} of ${app.products.length} products`;
-  el["start-session"].disabled = matches.length === 0;
+  
 }
 
 function updateCamera() {
@@ -157,19 +173,7 @@ function restoreCameraSelection() {
 }
 
 function selectedSessionConfig() {
-  return {
-    productCode: el.product.value,
-    cameraIndex: Number(el.camera.value),
-    scenario: el.scenario.value
-  };
-}
-
-function sessionMatchesSelection() {
-  if (!app.session || app.session.status !== "active") return false;
-  const selected = selectedSessionConfig();
-  return app.session.productCode === selected.productCode
-    && Number(app.session.cameraIndex) === selected.cameraIndex
-    && app.session.scenario === selected.scenario;
+  return { cameraIndex: Number(el.camera.value) };
 }
 
 async function createSessionFromSelection() {
@@ -190,25 +194,18 @@ async function startSession() {
   try {
     await createSessionFromSelection();
     await loadQueue();
-    status(`Session started for ${app.session.productName}.`);
+    status("Collection walk started. Capture any products; label them later.");
   } catch (error) { status(error.message, true); }
 }
 
 function renderSession() {
   const active = app.session && app.session.status === "active";
-  if (active) {
-    el["product-search"].value = "";
-    renderProducts();
-    el.product.value = app.session.productCode;
-    el.camera.value = String(app.session.cameraIndex);
-    localStorage.setItem("modelTrainingCameraIndex", String(app.session.cameraIndex));
-    el.scenario.value = app.session.scenario;
-    updateCamera();
-  }
+
   el.capture.disabled = !active || app.captureInFlight;
   el["clear-session"].disabled = !active;
+  el["stop-session"].disabled = !active || app.captureInFlight;
   el["session-summary"].textContent = active
-    ? `${app.session.productName} / camera ${app.session.cameraNumber} / ${app.session.scenario} / ${app.session.frameCount} captures`
+    ? `${app.session.productCode ? app.session.productName : "Collection walk"} / ${app.session.frameCount} captures`
     : "No active session";
 }
 
@@ -217,18 +214,13 @@ async function captureOne() {
   app.captureInFlight = true;
   renderSession();
   try {
-    if (!sessionMatchesSelection()) {
-      const selectedScenario = el.scenario.value;
-      status(`Starting a new ${selectedScenario} session...`);
-      await createSessionFromSelection();
-    }
     status("Requesting native 4K still...");
-    const frame = await api(`/model-training/api/sessions/${app.session.sessionId}/captures`, { method: "POST", headers: authHeaders() });
+    const frame = await api(`/model-training/api/sessions/${app.session.sessionId}/captures`, { method: "POST", headers: authHeaders(true), body: JSON.stringify({cameraIndex: Number(el.camera.value)}) });
     app.session.frameCount += 1; renderSession();
     app.reviewMode = "working"; app.readOnly = false; app.reviewSessionId = app.session.sessionId;
     await refreshSessionLists();
     await loadQueue();
-    await showFrame(frame); status("Capture registered. Draw one tight box.");
+    status("Capture saved. Continue collecting or review later.");
   } catch (error) { status(error.message, true); }
   finally { app.captureInFlight = false; renderSession(); }
 }
@@ -281,11 +273,15 @@ async function showFrame(frame) {
   resetView();
   app.frame = frame; app.image = null; app.imageVariant = null; app.originalLoading = false;
   app.box = frame.annotations[0] || null;
+  el["product-search"].value = "";
+  renderProducts();
+  el.product.value = app.box?.productCode || frame.productCode || "";
+  el.scenario.value = frame.scenario === "other" ? "" : frame.scenario;
   app.frameIndex = app.frames.findIndex(item => item.frameId === frame.frameId);
   loadFrameImage("review");
   const position = app.frameIndex >= 0 ? ` / frame ${app.frameIndex + 1} of ${app.frames.length}` : "";
   const mode = app.readOnly ? " / exported read-only" : "";
-  el["frame-caption"].textContent = `${frame.productName} / camera ${frame.cameraNumber} / ${frame.scenario}${position}${mode}`;
+  el["frame-caption"].textContent = `${frame.productName || "Unlabeled"} / camera ${frame.cameraNumber} / ${frame.scenario}${position}${mode}`;
   el["canvas-wrap"].classList.remove("empty"); el["empty-review"].hidden = true; el["review-canvas"].style.display = "block";
   setReviewEnabled(true);
 }
@@ -299,6 +295,7 @@ function clearFrame() {
 }
 
 function setReviewEnabled(enabled) {
+  ["product", "product-search", "scenario"].forEach(id => el[id].disabled = !enabled || app.readOnly);
   ["accept", "redraw", "not-visible", "uncertain", "reject"].forEach(id => el[id].disabled = !enabled || app.readOnly);
   ["draw-mode", "pan-mode", "zoom-in", "zoom-out", "zoom-reset"].forEach(id => el[id].disabled = !enabled);
   el["previous-frame"].disabled = !enabled || app.frameIndex <= 0;
@@ -403,7 +400,7 @@ function renderCanvas() {
   const displayScale = canvas.width / renderedWidth;
   ctx.strokeStyle = "#d8f26a"; ctx.lineWidth = Math.max(2 * displayScale, canvas.width / 800); ctx.strokeRect(x, y, w, h);
   ctx.fillStyle = "#d8f26a"; ctx.fillRect(x, Math.max(0, y - 30), Math.min(w, 260), 30);
-  ctx.fillStyle = "#17211c"; ctx.font = "bold 20px sans-serif"; ctx.fillText(app.frame.productCode, x + 7, Math.max(21, y - 8));
+  ctx.fillStyle = "#17211c"; ctx.font = "bold 20px sans-serif"; ctx.fillText(app.box.productCode || "Select product", x + 7, Math.max(21, y - 8));
   if (!app.readOnly) {
     const radius = 8 * displayScale;
     ctx.fillStyle = "#fffdf7"; ctx.strokeStyle = "#12634a"; ctx.lineWidth = 2 * displayScale;
@@ -515,7 +512,7 @@ el["review-canvas"].addEventListener("pointermove", event => {
   const current = point(event);
   if (!app.drawing && Math.hypot(event.clientX - app.dragOrigin.x, event.clientY - app.dragOrigin.y) < 3) return;
   if (!app.drawing) { app.box = null; app.drawing = true; }
-  app.box = { productCode: app.frame.productCode, x1: Math.min(app.dragStart.x, current.x), y1: Math.min(app.dragStart.y, current.y), x2: Math.max(app.dragStart.x, current.x), y2: Math.max(app.dragStart.y, current.y) }; renderCanvas();
+  app.box = { productCode: el.product.value, x1: Math.min(app.dragStart.x, current.x), y1: Math.min(app.dragStart.y, current.y), x2: Math.max(app.dragStart.x, current.x), y2: Math.max(app.dragStart.y, current.y) }; renderCanvas();
 });
 function endPointer(event) {
   event.preventDefault(); app.pointers.delete(event.pointerId);
@@ -533,8 +530,10 @@ el["review-canvas"].addEventListener("contextmenu", event => event.preventDefaul
 
 async function accept() {
   if (!app.frame || !app.box || app.box.x2 - app.box.x1 < .003 || app.box.y2 - app.box.y1 < .003) { status("Draw a non-empty product box first.", true); return; }
+  if (!el.product.value) { status("Select the product before accepting.", true); return; }
+  app.box.productCode = el.product.value;
   try {
-    await api(`/model-training/api/frames/${app.frame.frameId}/annotations`, { method: "PUT", headers: authHeaders(true), body: JSON.stringify({ boxes: [app.box] }) });
+    await api(`/model-training/api/frames/${app.frame.frameId}/annotations`, { method: "PUT", headers: authHeaders(true), body: JSON.stringify({ boxes: [app.box], productCode: el.product.value, scenario: el.scenario.value || "other" }) });
     await api(`/model-training/api/frames/${app.frame.frameId}/accept`, { method: "POST", headers: authHeaders() });
     await advance("Frame accepted.", "pan");
   } catch (error) { status(error.message, true); }
@@ -542,7 +541,9 @@ async function accept() {
 
 async function finalize(action, message) {
   if (!app.frame) return;
-  try { await api(`/model-training/api/frames/${app.frame.frameId}/${action}`, { method: "POST", headers: authHeaders() }); await advance(message); }
+  try {
+    await api(`/model-training/api/frames/${app.frame.frameId}/annotations`, { method: "PUT", headers: authHeaders(true), body: JSON.stringify({boxes: [], productCode: el.product.value || null, scenario: el.scenario.value || "other"}) });
+    await api(`/model-training/api/frames/${app.frame.frameId}/${action}`, { method: "POST", headers: authHeaders() }); await advance(message); }
   catch (error) { status(error.message, true); }
 }
 
@@ -599,12 +600,20 @@ async function clearAllTrainingData() {
 }
 
 el.token.value = app.token;
+el["stop-session"].addEventListener("click", async () => {
+  if (!app.session) return;
+  try {
+    app.session = await api(`/model-training/api/sessions/${app.session.sessionId}/stop`, {method: "POST", headers: authHeaders()});
+    renderSession(); await refreshSessionLists(); status("Collection stopped. Review anytime.");
+  } catch (error) { status(error.message, true); }
+});
 el.connect.addEventListener("click", connect); el["start-session"].addEventListener("click", startSession); el.capture.addEventListener("click", captureOne); el.camera.addEventListener("change", updateCamera);
 el["working-session"].addEventListener("change", () => selectReviewSession("working"));
 el["exported-session"].addEventListener("change", () => selectReviewSession("exported"));
 el["previous-frame"].addEventListener("click", () => moveFrame(-1));
 el["next-frame"].addEventListener("click", () => moveFrame(1));
 el["product-search"].addEventListener("input", renderProducts);
+el.product.addEventListener("change", () => { if (app.box) { app.box.productCode = el.product.value; renderCanvas(); } });
 el["draw-mode"].addEventListener("click", () => setMode("draw"));
 el["pan-mode"].addEventListener("click", () => setMode("pan"));
 el["zoom-in"].addEventListener("click", () => setZoom(app.view.zoom * 1.5));

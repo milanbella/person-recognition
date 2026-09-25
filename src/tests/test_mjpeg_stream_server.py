@@ -135,14 +135,14 @@ class MjpegStreamServerTests(unittest.TestCase):
         finally:
             server.stop()
 
-    def test_face_capture_routes_are_opt_in(self) -> None:
+    def test_person_photo_routes_are_opt_in(self) -> None:
         default_paths = {getattr(route, "path", None) for route in self.server.app.routes}
-        self.assertNotIn("/face-captures", default_paths)
+        self.assertNotIn("/cameras/{camera_index}/person", default_paths)
 
         server = MjpegStreamServer(
             camera_device_ids=["camera-a"],
-            enable_face_capture_api=True,
-            face_capture_api_token="secret",
+            enable_person_photo_api=True,
+            person_photo_api_token="secret",
         )
         try:
             routes = list(server.app.routes)
@@ -151,9 +151,9 @@ class MjpegStreamServerTests(unittest.TestCase):
                 if original_router is not None:
                     routes.extend(original_router.routes)
             paths = {getattr(route, "path", None) for route in routes}
-            self.assertIn("/face-captures", paths)
-            self.assertIn("/face-captures/{capture_id}", paths)
-            self.assertIn("/face-captures/{capture_id}/image", paths)
+            self.assertNotIn("/face-captures", paths)
+            self.assertIn("/cameras/{camera_index}/person", paths)
+            self.assertIn("/cameras/{camera_index}/person.jpg", paths)
         finally:
             server.stop()
 

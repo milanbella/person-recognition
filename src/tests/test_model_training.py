@@ -1,11 +1,14 @@
 import json
+import sqlite3
+from contextlib import closing
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import cv2
 import numpy as np
-from fastapi import HTTPException
+from fastapi import HTTPException, Response
 
 from model_training.api import ModelTrainingService
 from model_training.capture import CaptureRegistrar
@@ -91,6 +94,71 @@ class ModelTrainingTests(unittest.TestCase):
         self.assertEqual(frame["width"], 3840)
         self.assertEqual(len(frame["perceptualHash"]), 16)
 
+    def test_collection_walk_supports_multiple_cameras_and_review_products(self) -> None:
+        self.store.replace_products(1, _CatalogClient().products() + [
+            {"id": 8, "code": "cola", "name": "Cola"},
+        ])
+        session = self.store.create_session(shop_id=1)
+        registrar = CaptureRegistrar(self.root / "state", self.store)
+        frames = []
+        for index, code in enumerate(("oil-1l", "cola")):
+            source = self.source_capture()
+            source.update(cameraIndex=index, deviceId=f"camera-{index}")
+            frame = registrar.register(session, source, capture_request_id=f"walk-{index}")
+            self.assertIsNone(frame["productCode"])
+            self.store.save_annotations(frame["frameId"], [
+                {"x1": .1, "y1": .1, "x2": .6, "y2": .6},
+            ], product_code=code, scenario="hand")
+            reviewed = self.store.finalize_frame(frame["frameId"], "accepted")
+            self.assertEqual(reviewed["productCode"], code)
+            self.assertEqual(reviewed["scenario"], "hand")
+            self.assertEqual(reviewed["cameraIndex"], index)
+            frames.append(frame)
+        dataset = YoloDatasetExporter(self.root / "state", self.store).export()
+        self.assertEqual(set(dataset["modelLabels"]), {"oil-1l", "cola"})
+        for frame in frames:
+            self.assertTrue((Path(dataset["path"]) / "labels/train" / f"{frame['frameId']}.txt").exists())
+        with self.assertRaises(ValueError):
+            self.store.save_annotations(frames[0]["frameId"], [], product_code="unknown")
+
+    def test_legacy_session_migration_preserves_annotations(self) -> None:
+        frame = CaptureRegistrar(self.root / "state", self.store).register(
+            self.session, self.source_capture(), capture_request_id="migration")
+        self.store.save_annotations(frame["frameId"], [{"x1": .1, "y1": .1, "x2": .5, "y2": .5}])
+        with closing(sqlite3.connect(self.root / "model_training.sqlite")) as connection:
+            dump = "\n".join(connection.iterdump())
+        dump = dump.replace("\n                    product_code TEXT,", "\n                    product_code TEXT NOT NULL,")
+        dump = dump.replace("product_name_snapshot TEXT,", "product_name_snapshot TEXT NOT NULL,")
+        path = self.root / "legacy.sqlite"
+        with closing(sqlite3.connect(path)) as connection:
+            connection.executescript(dump)
+        for _ in range(2):
+            migrated = ModelTrainingStore(path)
+            preserved = migrated.get_frame(frame["frameId"])
+            self.assertEqual(preserved["productCode"], "oil-1l")
+            self.assertEqual(len(preserved["annotations"]), 1)
+        self.assertIsNone(migrated.create_session(shop_id=1)["productCode"])
+
+    def test_capture_api_selects_camera_per_frame(self) -> None:
+        live = _LiveClient()
+        service = ModelTrainingService(
+            state_root=self.root / "api-state", api_token="secret", shop_id=1,
+            live_client=live, catalog_client=_CatalogClient(),
+            assets_root=Path(__file__).resolve().parent.parent / "model_training_ui")
+        session = service.store.create_session(shop_id=1)
+        source = self.source_capture()
+        source.update(cameraIndex=1, deviceId="camera-b")
+        capture = _route_endpoint(service, "/model-training/api/sessions/{session_id}/captures", "POST")
+        with patch.object(live, "cameras", return_value=[{"id": 1, "deviceId": "camera-b"}]), patch.object(live, "capture", return_value=source) as request:
+            frame = capture(session["sessionId"], "Bearer secret", {"cameraIndex": 1})
+            request.assert_called_once_with(1)
+            self.assertEqual(frame["cameraIndex"], 1)
+            self.assertEqual(frame["sessionId"], session["sessionId"])
+            source["deviceId"] = "wrong-camera"
+            with self.assertRaises(HTTPException) as mismatch:
+                capture(session["sessionId"], "Bearer secret", {"cameraIndex": 1})
+            self.assertEqual(mismatch.exception.status_code, 502)
+
     def test_annotations_export_to_normalized_yolo_label(self) -> None:
         frame = CaptureRegistrar(self.root / "state", self.store).register(
             self.session, self.source_capture(), capture_request_id="request-2"
@@ -147,6 +215,18 @@ class ModelTrainingTests(unittest.TestCase):
         self.assertEqual(unauthorized.exception.status_code, 401)
         refreshed = routes["/model-training/api/products/refresh"]("Bearer secret")
         self.assertEqual(refreshed["products"][0]["code"], "oil-1l")
+        with patch.object(service.catalog_client, "products", return_value=[]) as fetch:
+            response = Response()
+            self.assertEqual(routes["/model-training/api/products"](response)["products"], [])
+            self.assertEqual(response.headers["Cache-Control"], "no-store")
+            routes["/model-training/api/products"](Response())
+            self.assertEqual(fetch.call_count, 2)
+        service.store.replace_products(1, _CatalogClient().products())
+        with patch.object(service.catalog_client, "products", side_effect=RuntimeError("401 Unauthorized")):
+            with self.assertRaises(HTTPException) as unavailable:
+                routes["/model-training/api/products"](Response())
+            self.assertEqual(unavailable.exception.status_code, 502)
+            self.assertEqual(len(service.store.list_products()), 1)
         cameras = routes["/model-training/api/cameras"]()
         self.assertEqual(cameras["cameras"][0]["cameraNumber"], 1)
 
@@ -160,7 +240,8 @@ class ModelTrainingTests(unittest.TestCase):
         self.assertIn('localStorage.setItem("modelTrainingCameraIndex"', script)
         self.assertIn("refreshQueueState", script)
         self.assertIn("window.setInterval(refreshQueueState, 2000)", script)
-        self.assertIn("function sessionMatchesSelection()", script)
+        self.assertNotIn("function sessionMatchesSelection()", script)
+        self.assertIn('id="stop-session"', page)
         self.assertIn("await createSessionFromSelection();", script)
         self.assertIn('id="working-session"', page)
         self.assertIn('id="exported-session"', page)

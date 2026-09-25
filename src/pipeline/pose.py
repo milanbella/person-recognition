@@ -1,4 +1,5 @@
 from __future__ import annotations
+from pipeline.camera_logging import camera_log_fields
 
 import threading
 import time
@@ -417,7 +418,7 @@ class PoseEstimationWorker:
                     for landmark in observation.landmarks
                 )
                 print(
-                    f"POSE_TRACE device_id={observation.device_id} "
+                    f"POSE_TRACE {camera_log_fields(observation.device_id)} "
                     f"track_id={observation.track_id} "
                     f"sequence={observation.rgb_sequence_number} "
                     f"visible_landmarks={visible} inference_ms={inference_ms} "

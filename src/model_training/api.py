@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from fastapi import APIRouter, Body, FastAPI, Header, HTTPException, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 
 from model_training.capture import CaptureRegistrar
 from model_training.clients import LiveServiceClient, ShopCatalogClient
@@ -87,18 +87,24 @@ class ModelTrainingService:
             return {"cameras": items}
 
         @router.get("/model-training/api/products")
-        def products() -> dict[str, Any]:
-            return {"products": self.store.list_products()}
+        def products(response: Response) -> dict[str, Any]:
+            response.headers["Cache-Control"] = "no-store"
+            return load_current_products()
+
+        def load_current_products() -> dict[str, Any]:
+            try:
+                with self._mutation_lock:
+                    products = self.catalog_client.products()
+                    # Retain identities for session creation/export, never as an offline fallback.
+                    count = self.store.replace_products(self.shop_id, products)
+                    return {"count": count, "products": self.store.list_products()}
+            except (RuntimeError, ValueError) as exc:
+                raise HTTPException(status_code=502, detail=str(exc)) from exc
 
         @router.post("/model-training/api/products/refresh")
         def refresh_products(authorization: str | None = Header(default=None)) -> dict[str, Any]:
             require_auth(authorization)
-            try:
-                products = self.catalog_client.products()
-                count = self.store.replace_products(self.shop_id, products)
-            except (RuntimeError, ValueError) as exc:
-                raise HTTPException(status_code=502, detail=str(exc)) from exc
-            return {"count": count, "products": self.store.list_products()}
+            return load_current_products()
 
         @router.get("/model-training/api/sessions/active")
         def active_session() -> dict[str, Any]:
@@ -121,15 +127,15 @@ class ModelTrainingService:
         ) -> dict[str, Any]:
             require_auth(authorization)
             try:
-                camera_index = int(payload["cameraIndex"])
+                camera_index = int(payload.get("cameraIndex", 0))
                 configured = {int(item.get("id", item.get("cameraIndex", -1))): item for item in self.live_client.cameras()}
                 camera = configured.get(camera_index)
                 if camera is None:
                     raise ValueError(f"Unknown camera index: {camera_index}")
                 return self.store.create_session(
                     shop_id=self.shop_id,
-                    product_code=str(payload["productCode"]),
-                    scenario=str(payload["scenario"]),
+                    product_code=payload.get("productCode") or None,
+                    scenario=str(payload.get("scenario") or "other"),
                     camera_index=camera_index,
                     device_id=str(camera["deviceId"]),
                     dataset_intent=str(payload.get("datasetIntent", "development")),
@@ -192,6 +198,7 @@ class ModelTrainingService:
         def capture(
             session_id: str,
             authorization: str | None = Header(default=None),
+            payload: dict[str, Any] | None = None,
         ) -> dict[str, Any]:
             require_auth(authorization)
             try:
@@ -200,10 +207,15 @@ class ModelTrainingService:
                     if session["status"] != "active":
                         raise ValueError("Capture session is not active.")
                     request_id = str(uuid.uuid4())
-                    live_capture = self.live_client.capture(int(session["cameraIndex"]))
-                    if int(live_capture["cameraIndex"]) != int(session["cameraIndex"]):
+                    camera_index = int((payload or {}).get("cameraIndex", session["cameraIndex"]))
+                    cameras = {int(item.get("id", item.get("cameraIndex", -1))): item for item in self.live_client.cameras()}
+                    camera = cameras.get(camera_index)
+                    if camera is None:
+                        raise ValueError(f"Unknown camera index: {camera_index}")
+                    live_capture = self.live_client.capture(camera_index)
+                    if int(live_capture["cameraIndex"]) != camera_index:
                         raise RuntimeError("Live capture camera does not match the session camera.")
-                    if str(live_capture["deviceId"]) != str(session["deviceId"]):
+                    if str(live_capture["deviceId"]) != str(camera["deviceId"]):
                         raise RuntimeError("Live capture device does not match the session device.")
                     return self.registrar.register(session, live_capture, capture_request_id=request_id)
             except KeyError as exc:
@@ -271,7 +283,11 @@ class ModelTrainingService:
         ) -> dict[str, Any]:
             require_auth(authorization)
             try:
-                return self.store.save_annotations(frame_id, list(payload.get("boxes", [])))
+                return self.store.save_annotations(
+                    frame_id, list(payload.get("boxes", [])),
+                    product_code=payload.get("productCode") or None,
+                    scenario=payload.get("scenario") or None,
+                )
             except KeyError as exc:
                 raise HTTPException(status_code=404, detail="Unknown frame.") from exc
             except ValueError as exc:

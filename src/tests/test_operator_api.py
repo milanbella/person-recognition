@@ -71,7 +71,7 @@ class OperatorApiTests(unittest.TestCase):
     def test_state_and_authenticated_run_lifecycle(self) -> None:
         state = self.route("/operator/api/state")()
         self.assertEqual(state["cameras"][0]["deviceId"], "camera-a")
-        self.assertFalse(state["capabilities"]["faceCapture"])
+        self.assertFalse(state["capabilities"]["personPhoto"])
 
         payload = {
             "scenario": "route",
@@ -193,12 +193,12 @@ class OperatorApiTests(unittest.TestCase):
         self.assertIn("/operator/api/shop/open", script_source)
         self.assertNotIn("/operator/voice/", script_source)
         self.assertNotIn("disconnectVoice", script_source)
-        self.assertIn("product-interactions-2", page_source)
+        self.assertIn("person-photo-3", page_source)
         self.assertIn('href="/model-training/"', page_source)
         self.assertIn("Model training", page_source)
         self.assertIn('id="capture-training-image"', page_source)
-        self.assertIn('id="start-face-capture"', page_source)
-        self.assertIn("/face-captures", script_source)
+        self.assertNotIn('id="start-face-capture"', page_source)
+        self.assertNotIn("/face-captures", script_source)
 
     def test_shop_leave_persistence_result_is_published_to_operator_events(self) -> None:
         self.server.publish_shop_api_leave_result(

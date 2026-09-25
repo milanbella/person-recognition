@@ -66,8 +66,8 @@ class ModelTrainingStore:
                 CREATE TABLE IF NOT EXISTS mt_capture_sessions (
                     session_id TEXT PRIMARY KEY,
                     shop_id INTEGER NOT NULL,
-                    product_code TEXT NOT NULL,
-                    product_name_snapshot TEXT NOT NULL,
+                    product_code TEXT,
+                    product_name_snapshot TEXT,
                     source_product_id_snapshot INTEGER,
                     scenario TEXT NOT NULL,
                     camera_index INTEGER NOT NULL,
@@ -169,7 +169,40 @@ class ModelTrainingStore:
                 ON mt_dataset_frames(frame_id);
                 """
             )
+            self._migrate_collection_walks(connection)
             self._backfill_dataset_memberships(connection)
+
+    @staticmethod
+    def _migrate_collection_walks(connection: sqlite3.Connection) -> None:
+        columns = {row["name"]: row for row in connection.execute("PRAGMA table_info(mt_capture_sessions)")}
+        if columns["product_code"]["notnull"]:
+            # Rebuild only the session table, keeping child foreign-key names and IDs intact.
+            connection.execute("PRAGMA foreign_keys=OFF")
+            connection.execute("BEGIN IMMEDIATE")
+            try:
+                sql = connection.execute(
+                    "SELECT sql FROM sqlite_master WHERE name = 'mt_capture_sessions'"
+                ).fetchone()[0]
+                sql = sql.replace("mt_capture_sessions", "mt_capture_sessions_new", 1)
+                sql = sql.replace("product_code TEXT NOT NULL", "product_code TEXT")
+                sql = sql.replace("product_name_snapshot TEXT NOT NULL", "product_name_snapshot TEXT")
+                connection.execute(sql)
+                connection.execute("INSERT INTO mt_capture_sessions_new SELECT * FROM mt_capture_sessions")
+                connection.execute("DROP TABLE mt_capture_sessions")
+                connection.execute("ALTER TABLE mt_capture_sessions_new RENAME TO mt_capture_sessions")
+                connection.execute("CREATE UNIQUE INDEX idx_mt_one_active_session ON mt_capture_sessions(status) WHERE status = 'active'")
+                if connection.execute("PRAGMA foreign_key_check").fetchone():
+                    raise RuntimeError("Collection-session migration failed foreign-key validation.")
+                connection.commit()
+            except BaseException:
+                connection.rollback()
+                raise
+            finally:
+                connection.execute("PRAGMA foreign_keys=ON")
+        frame_columns = {row["name"] for row in connection.execute("PRAGMA table_info(mt_captured_frames)")}
+        for name in ("review_product_code", "review_scenario"):
+            if name not in frame_columns:
+                connection.execute(f"ALTER TABLE mt_captured_frames ADD COLUMN {name} TEXT")
 
     @staticmethod
     def _backfill_dataset_memberships(connection: sqlite3.Connection) -> None:
@@ -258,10 +291,10 @@ class ModelTrainingStore:
         self,
         *,
         shop_id: int,
-        product_code: str,
-        scenario: str,
-        camera_index: int,
-        device_id: str,
+        product_code: str | None = None,
+        scenario: str = "other",
+        camera_index: int = 0,
+        device_id: str = "",
         dataset_intent: str = "development",
         notes: str | None = None,
     ) -> dict[str, Any]:
@@ -277,7 +310,7 @@ class ModelTrainingStore:
                 "SELECT * FROM mt_products WHERE product_code = ? AND active = 1",
                 (product_code,),
             ).fetchone()
-            if product is None:
+            if product_code is not None and product is None:
                 raise ValueError(f"Unknown active product code: {product_code}")
             connection.execute("UPDATE mt_capture_sessions SET status = 'stopped', stopped_at_unix_ms = ? WHERE status = 'active'", (_now_ms(),))
             connection.execute(
@@ -292,8 +325,8 @@ class ModelTrainingStore:
                     session_id,
                     shop_id,
                     product_code,
-                    product["name"],
-                    product["source_product_id"],
+                    None if product is None else product["name"],
+                    None if product is None else product["source_product_id"],
                     scenario,
                     camera_index,
                     device_id,
@@ -486,7 +519,8 @@ class ModelTrainingStore:
         with self._connection() as connection:
             row = connection.execute(
                 """
-                SELECT f.*, s.product_code, s.product_name_snapshot, s.scenario,
+                SELECT f.*, COALESCE(f.review_product_code, s.product_code) AS product_code,
+                       s.product_name_snapshot, COALESCE(f.review_scenario, s.scenario) AS scenario,
                        s.dataset_intent
                 FROM mt_captured_frames f
                 JOIN mt_capture_sessions s ON s.session_id = f.session_id
@@ -501,6 +535,10 @@ class ModelTrainingStore:
                 (frame_id,),
             ).fetchall()
         payload = _frame_payload(row)
+        if row["review_product_code"]:
+            with self._connection() as connection:
+                product = connection.execute("SELECT name FROM mt_products WHERE product_code = ?", (row["review_product_code"],)).fetchone()
+            payload["productName"] = None if product is None else product["name"]
         payload["annotations"] = [_annotation_payload(item) for item in annotations]
         return payload
 
@@ -590,11 +628,23 @@ class ModelTrainingStore:
         boxes: Sequence[Mapping[str, Any]],
         *,
         actor: str = "operator",
+        scenario: str | None = None,
+        product_code: str | None = None,
     ) -> dict[str, Any]:
         frame = self.get_frame(frame_id)
-        normalized = [_validate_box(box, str(frame["productCode"])) for box in boxes]
+        if scenario is not None and scenario not in SESSION_SCENARIOS:
+            raise ValueError(f"Unsupported scenario: {scenario}")
+        default_code = product_code or frame["productCode"] or ""
+        normalized = [_validate_box(box, default_code) for box in boxes]
         now_ms = _now_ms()
         with self._connection() as connection:
+            for code in {box["productCode"] for box in normalized} | ({default_code} if default_code else set()):
+                if not connection.execute("SELECT 1 FROM mt_products WHERE product_code = ?", (code,)).fetchone():
+                    raise ValueError(f"Unknown product code: {code}")
+            connection.execute(
+                "UPDATE mt_captured_frames SET review_product_code = COALESCE(?, review_product_code), review_scenario = COALESCE(?, review_scenario) WHERE frame_id = ?",
+                (product_code, scenario, frame_id),
+            )
             revision = int(connection.execute(
                 "SELECT COALESCE(MAX(revision), 0) + 1 FROM mt_annotation_revisions WHERE frame_id = ?",
                 (frame_id,),
