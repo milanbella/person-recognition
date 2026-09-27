@@ -94,6 +94,40 @@ class ModelTrainingTests(unittest.TestCase):
         self.assertEqual(frame["width"], 3840)
         self.assertEqual(len(frame["perceptualHash"]), 16)
 
+    def test_delete_selected_session_preserves_other_sessions_and_exports(self) -> None:
+        service = ModelTrainingService(
+            state_root=self.root / "delete-api", api_token="secret", shop_id=1,
+            live_client=_LiveClient(), catalog_client=_CatalogClient(),
+            assets_root=Path(__file__).resolve().parent.parent / "model_training_ui")
+        service.store.replace_products(1, _CatalogClient().products())
+        selected = service.store.create_session(shop_id=1, product_code="oil-1l")
+        frame = service.registrar.register(selected, self.source_capture(), capture_request_id="delete-export")
+        service.store.save_annotations(frame["frameId"], [{"x1": .1, "y1": .1, "x2": .5, "y2": .5}])
+        service.store.finalize_frame(frame["frameId"], "accepted")
+        dataset = service.exporter.export()
+        original = service.store.frame_image_path(frame["frameId"], "original")
+        exported = Path(dataset["path"]) / "images/train" / f"{frame['frameId']}.jpg"
+        saved_bytes = exported.read_bytes()
+        active = service.store.create_session(shop_id=1, product_code="oil-1l")
+        delete = _route_endpoint(service, "/model-training/api/sessions/{session_id}", "DELETE")
+        confirmation = {"confirmation": "DELETE SELECTED SESSION"}
+        with self.assertRaises(HTTPException) as unauthorized:
+            delete(selected["sessionId"], confirmation, None)
+        self.assertEqual(unauthorized.exception.status_code, 401)
+        with self.assertRaises(HTTPException) as unconfirmed:
+            delete(selected["sessionId"], {}, "Bearer secret")
+        self.assertEqual(unconfirmed.exception.status_code, 422)
+        result = delete(selected["sessionId"], confirmation, "Bearer secret")
+        self.assertEqual(result["frameCount"], 1)
+        self.assertFalse(original.exists())
+        self.assertEqual(exported.read_bytes(), saved_bytes)
+        self.assertEqual(service.store.active_session()["sessionId"], active["sessionId"])
+        with self.assertRaises(HTTPException) as missing:
+            delete(selected["sessionId"], confirmation, "Bearer secret")
+        self.assertEqual(missing.exception.status_code, 404)
+        self.assertEqual(delete(active["sessionId"], confirmation, "Bearer secret")["frameCount"], 0)
+        self.assertIsNone(service.store.active_session())
+
     def test_collection_walk_supports_multiple_cameras_and_review_products(self) -> None:
         self.store.replace_products(1, _CatalogClient().products() + [
             {"id": 8, "code": "cola", "name": "Cola"},
@@ -158,6 +192,35 @@ class ModelTrainingTests(unittest.TestCase):
             with self.assertRaises(HTTPException) as mismatch:
                 capture(session["sessionId"], "Bearer secret", {"cameraIndex": 1})
             self.assertEqual(mismatch.exception.status_code, 502)
+
+    def test_new_sessions_require_product_and_camera_and_keep_them_fixed(self) -> None:
+        live = _LiveClient()
+        service = ModelTrainingService(
+            state_root=self.root / "fixed-api", api_token="secret", shop_id=1,
+            live_client=live, catalog_client=_CatalogClient(),
+            assets_root=Path(__file__).resolve().parent.parent / "model_training_ui")
+        service.store.replace_products(1, _CatalogClient().products())
+        create = _route_endpoint(service, "/model-training/api/sessions", "POST")
+        for payload in ({}, {"cameraIndex": 0}, {"productCode": "oil-1l"}):
+            with self.assertRaises(HTTPException) as missing:
+                create(payload, "Bearer secret")
+            self.assertEqual(missing.exception.status_code, 422)
+        session = create({"cameraIndex": 0, "productCode": "oil-1l"}, "Bearer secret")
+        capture = _route_endpoint(service, "/model-training/api/sessions/{session_id}/captures", "POST")
+        with patch.object(live, "capture") as request:
+            with self.assertRaises(HTTPException) as wrong_camera:
+                capture(session["sessionId"], "Bearer secret", {"cameraIndex": 1})
+            self.assertEqual(wrong_camera.exception.status_code, 409)
+            request.assert_not_called()
+        live.capture_payload = self.source_capture()
+        frame = capture(session["sessionId"], "Bearer secret")
+        self.assertEqual(frame["productCode"], "oil-1l")
+        self.assertEqual(frame["cameraIndex"], 0)
+        with self.assertRaisesRegex(ValueError, "Product is fixed"):
+            service.store.save_annotations(frame["frameId"], [], product_code="cola")
+        with self.assertRaisesRegex(ValueError, "Product is fixed"):
+            service.store.save_annotations(frame["frameId"], [
+                {"productCode": "cola", "x1": .1, "y1": .1, "x2": .5, "y2": .5}])
 
     def test_annotations_export_to_normalized_yolo_label(self) -> None:
         frame = CaptureRegistrar(self.root / "state", self.store).register(

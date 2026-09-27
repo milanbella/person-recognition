@@ -939,11 +939,11 @@ def resolve_live_device(device_id: str) -> dai.Device:
             ]
             if not matching:
                 available_ids = (
-                    ", ".join(device_identifier(info) for info in available)
+                    ", ".join(camera_log_fields(device_identifier(info)) for info in available)
                     or "none"
                 )
                 raise RuntimeError(
-                    f"Requested device-id '{device_id}' not found. "
+                    f"Requested camera {camera_log_fields(device_id)} not found. "
                     f"Available device ids: {available_ids}"
                 )
             device = dai.Device(device_id)
@@ -972,7 +972,7 @@ def resolve_live_device(device_id: str) -> dai.Device:
             time.sleep(CAMERA_CONNECT_RETRY_DELAY_SECONDS)
 
     raise RuntimeError(
-        f"Failed to connect to device '{device_id}' after "
+        f"Failed to connect to camera {camera_log_fields(device_id)} after "
         f"{CAMERA_CONNECT_ATTEMPTS} attempts. Last error: {last_error}"
     ) from last_error
 
@@ -1137,7 +1137,7 @@ def create_live_stream_state(
                 if model.camera_calibration_id != expected_calibration_id:
                     raise ValueError(
                         f"Shelf {region.shelf_id} calibration identity does not match "
-                        f"the current camera/alignment configuration. Recalibrate {device_id}."
+                        f"the current camera/alignment configuration. Recalibrate {camera_log_fields(device_id)}."
                     )
             state.shelf_regions = regions.by_shelf_id()
             print(
@@ -1161,13 +1161,13 @@ def create_live_stream_state(
         if args_for_stream.plane_json is None:
             raise FileNotFoundError(
                 "Plane mode requested, but no plane JSON was provided and "
-                f"no calibration was found for device {device_id}."
+                f"no calibration was found for {camera_log_fields(device_id)}."
             )
         state.plane = plane_from_args(args_for_stream)
         state.plane_enter_direction = plane_enter_direction_from_args(args_for_stream)
-        print(f"Loaded plane for {device_id} from {args_for_stream.plane_json}")
+        print(f"Loaded plane for {camera_log_fields(device_id)} from {args_for_stream.plane_json}")
     elif args.depth_trigger_mode == "plane":
-        print(f"Skipping plane load for observer-only device {device_id}.")
+        print(f"Skipping plane load for observer-only {camera_log_fields(device_id)}.")
 
     pipeline.start()
     print(
@@ -2998,7 +2998,7 @@ def main() -> None:
                     ):
                         raise RuntimeError(
                             "Operator 4K capture queues were not created for "
-                            f"device {state.device_id}."
+                            f"{camera_log_fields(state.device_id)}."
                         )
                     product_training_capture.register_camera(
                         camera_index,
@@ -3013,7 +3013,6 @@ def main() -> None:
                     )
                     print(
                         "PRODUCT_TRAINING_CAPTURE_READY "
-                        f"camera_number={camera_index + 1} "
                         f"{camera_log_fields(state.device_id)} "
                         f"size={PRODUCT_TRAINING_CAPTURE_WIDTH}x"
                         f"{PRODUCT_TRAINING_CAPTURE_HEIGHT}"
@@ -3035,7 +3034,7 @@ def main() -> None:
                 )
             print(
                 "Camera roles: "
-                + ", ".join(f"{state.device_id}={state.camera_role}" for state in states)
+                + ", ".join(f"{camera_log_fields(state.device_id)} role={state.camera_role}" for state in states)
             )
             if args.headless:
                 print("Running headless: OpenCV windows are disabled.")
@@ -3051,7 +3050,7 @@ def main() -> None:
                     camera_iteration_started = performance.start()
                     performance.record_camera_poll()
                     if state.device.isClosed() or not state.pipeline.isRunning():
-                        raise RuntimeError(f"Live pipeline stopped for device {state.device_id}.")
+                        raise RuntimeError(f"Live pipeline stopped for {camera_log_fields(state.device_id)}.")
                     previous_raw_rgb_sequence = state.last_raw_rgb_sequence
                     previous_processed_rgb_sequence = state.last_processed_rgb_sequence
                     process_latest_rgb_pair(

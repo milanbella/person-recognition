@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Shop Model Training</title>
-  <link rel="stylesheet" href="/model-training/assets/model-training.css?v=collection-walk-1">
+  <link rel="stylesheet" href="/model-training/assets/model-training.css?v=delete-session-1">
 </head>
 <body>
   <header>
@@ -16,11 +16,13 @@
   <main>
     <section class="panel setup-panel">
       <label>Training token<input id="token" type="password" autocomplete="current-password"></label>
-      <label>Capture camera<select id="camera"></select></label>
+      <label>Session product search<input id="session-product-search" type="search" placeholder="Search product name or code"></label>
+      <label>Session product<select id="session-product"></select></label>
+      <label>Session camera<select id="camera"></select></label>
       <div class="actions">
         <button id="connect" class="secondary">Connect</button>
-        <button id="start-session">Start collection walk</button>
-        <button id="stop-session" class="secondary" disabled>Stop collection walk</button>
+        <button id="start-session">Start session</button>
+        <button id="stop-session" class="secondary" disabled>Stop session</button>
       </div>
       <div id="session-summary" class="summary">No active session</div>
     </section>
@@ -35,6 +37,7 @@
 
     <section class="panel session-browser-panel">
       <div><p class="eyebrow">Collection history</p><h2>Sessions</h2></div>
+      <button id="delete-selected-session" class="danger" disabled>Delete selected session</button>
       <div class="two-up session-selectors">
         <label>Working sessions
           <select id="working-session"><option value="">No working sessions</option></select>
@@ -108,6 +111,6 @@
       </div>
     </section>
   </main>
-  <script src="/model-training/assets/model-training.js?v=collection-walk-1"></script>
+  <script src="/model-training/assets/model-training.js?v=delete-session-1"></script>
 </body>
 </html>

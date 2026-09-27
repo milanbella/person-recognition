@@ -53,6 +53,7 @@ async function connect() {
     ]);
     app.products = products.products;
     renderProducts();
+    renderSessionProducts();
     renderOptions(el.camera, cameras.cameras, item => item.cameraIndex, item => `Camera ${item.cameraNumber} - ${item.status}`);
     el.camera.dataset.items = JSON.stringify(cameras.cameras);
     restoreCameraSelection();
@@ -72,6 +73,8 @@ async function connect() {
     el["start-session"].disabled = !app.connected;
     el["product-loading"].hidden = true;
     el.product.setAttribute("aria-busy", "false");
+    renderSession();
+    setReviewEnabled(Boolean(app.frame));
   }
 }
 
@@ -172,8 +175,19 @@ function restoreCameraSelection() {
   if (available) el.camera.value = storedCameraIndex;
 }
 
+function renderSessionProducts() {
+  const selected = el["session-product"].value;
+  const query = el["session-product-search"].value.trim().toLocaleLowerCase();
+  const matches = app.products.filter(item => [item.name, item.code, item.barCode].some(value => String(value || "").toLocaleLowerCase().includes(query)));
+  renderOptions(el["session-product"], matches, item => item.code, item => item.name);
+  const empty = document.createElement("option"); empty.value = ""; empty.textContent = "Select product";
+  el["session-product"].prepend(empty);
+  el["session-product"].value = matches.some(item => item.code === selected) ? selected : "";
+}
+
 function selectedSessionConfig() {
-  return { cameraIndex: Number(el.camera.value) };
+  if (!el["session-product"].value || el.camera.value === "") throw new Error("Select product and camera first.");
+  return { cameraIndex: Number(el.camera.value), productCode: el["session-product"].value };
 }
 
 async function createSessionFromSelection() {
@@ -194,18 +208,33 @@ async function startSession() {
   try {
     await createSessionFromSelection();
     await loadQueue();
-    status("Collection walk started. Capture any products; label them later.");
+    status("Session started. Product and camera are fixed until you stop this session.");
   } catch (error) { status(error.message, true); }
 }
 
 function renderSession() {
   const active = app.session && app.session.status === "active";
 
-  el.capture.disabled = !active || app.captureInFlight;
+  el.camera.disabled = Boolean(active);
+  el["session-product"].disabled = !app.connected || Boolean(active);
+  el["session-product-search"].disabled = !app.connected || Boolean(active);
+  el["start-session"].disabled = !app.connected || Boolean(active);
+  if (active && app.session.productCode) {
+    el["session-product-search"].value = "";
+    renderSessionProducts();
+    if (![...el["session-product"].options].some(option => option.value === app.session.productCode)) {
+      el["session-product"].add(new Option(app.session.productName, app.session.productCode));
+    }
+    el["session-product"].value = app.session.productCode;
+    if (el.camera.value !== String(app.session.cameraIndex)) {
+      el.camera.value = String(app.session.cameraIndex); updateCamera();
+    }
+  }
+  el.capture.disabled = !active || !app.session.productCode || app.captureInFlight;
   el["clear-session"].disabled = !active;
   el["stop-session"].disabled = !active || app.captureInFlight;
   el["session-summary"].textContent = active
-    ? `${app.session.productCode ? app.session.productName : "Collection walk"} / ${app.session.frameCount} captures`
+    ? `${app.session.productName || "Legacy mixed session: stop and create a new session"} / Camera ${app.session.cameraNumber} / ${app.session.frameCount} captures`
     : "No active session";
 }
 
@@ -215,7 +244,7 @@ async function captureOne() {
   renderSession();
   try {
     status("Requesting native 4K still...");
-    const frame = await api(`/model-training/api/sessions/${app.session.sessionId}/captures`, { method: "POST", headers: authHeaders(true), body: JSON.stringify({cameraIndex: Number(el.camera.value)}) });
+    const frame = await api(`/model-training/api/sessions/${app.session.sessionId}/captures`, { method: "POST", headers: authHeaders(true), body: JSON.stringify({cameraIndex: app.session.cameraIndex}) });
     app.session.frameCount += 1; renderSession();
     app.reviewMode = "working"; app.readOnly = false; app.reviewSessionId = app.session.sessionId;
     await refreshSessionLists();
@@ -226,6 +255,7 @@ async function captureOne() {
 }
 
 async function loadQueue(preserveCurrent = false, pendingCount = null) {
+  el["delete-selected-session"].disabled = !app.reviewSessionId;
   const currentFrameId = app.frame && app.frame.frameId;
   if (!app.reviewSessionId) { app.frames = []; clearFrame(); return; }
   const session = encodeURIComponent(app.reviewSessionId);
@@ -295,7 +325,9 @@ function clearFrame() {
 }
 
 function setReviewEnabled(enabled) {
-  ["product", "product-search", "scenario"].forEach(id => el[id].disabled = !enabled || app.readOnly);
+  const reviewSession = [...app.workingSessions, ...app.exportedSessions].find(item => item.sessionId === app.frame?.sessionId);
+  ["product", "product-search"].forEach(id => el[id].disabled = !enabled || app.readOnly || Boolean(reviewSession?.productCode));
+  el.scenario.disabled = !enabled || app.readOnly;
   ["accept", "redraw", "not-visible", "uncertain", "reject"].forEach(id => el[id].disabled = !enabled || app.readOnly);
   ["draw-mode", "pan-mode", "zoom-in", "zoom-out", "zoom-reset"].forEach(id => el[id].disabled = !enabled);
   el["previous-frame"].disabled = !enabled || app.frameIndex <= 0;
@@ -567,6 +599,28 @@ async function exportDataset() {
   } catch (error) { status(error.message, true); }
 }
 
+async function deleteSelectedSession() {
+  const sessionId = app.reviewSessionId;
+  const session = [...app.workingSessions, ...app.exportedSessions].find(item => item.sessionId === sessionId);
+  if (!session || app.captureInFlight) return;
+  const label = session.productCode
+    ? `${session.productName} / Camera ${session.cameraNumber}`
+    : `Legacy mixed session ${session.sessionId}`;
+  if (!confirm(`Delete selected session?\n${label}\n${session.frameCount} images\nSession ID: ${sessionId}\n\nCaptures and annotations will be deleted. Exported datasets remain unchanged.`)) return;
+  el["delete-selected-session"].disabled = true;
+  try {
+    await api(`/model-training/api/sessions/${encodeURIComponent(sessionId)}`, {
+      method: "DELETE", headers: authHeaders(true),
+      body: JSON.stringify({confirmation: "DELETE SELECTED SESSION"})
+    });
+    if (app.session?.sessionId === sessionId) app.session = null;
+    app.reviewSessionId = null; app.frames = []; clearFrame();
+    await refreshSessionLists(false); await loadQueue(); renderSession();
+    status(`Deleted ${label}. Exported datasets were preserved.`);
+  } catch (error) { status(error.message, true); }
+  finally { el["delete-selected-session"].disabled = !app.reviewSessionId; }
+}
+
 async function clearCurrentSession() {
   if (!confirm("Delete the active session and all of its captured training files? Exported datasets remain unchanged.")) return;
   try {
@@ -600,11 +654,13 @@ async function clearAllTrainingData() {
 }
 
 el.token.value = app.token;
+el["delete-selected-session"].addEventListener("click", deleteSelectedSession);
+el["session-product-search"].addEventListener("input", renderSessionProducts);
 el["stop-session"].addEventListener("click", async () => {
   if (!app.session) return;
   try {
     app.session = await api(`/model-training/api/sessions/${app.session.sessionId}/stop`, {method: "POST", headers: authHeaders()});
-    renderSession(); await refreshSessionLists(); status("Collection stopped. Review anytime.");
+    renderSession(); await refreshSessionLists(); status("Session stopped. Select a product and camera to start the next session.");
   } catch (error) { status(error.message, true); }
 });
 el.connect.addEventListener("click", connect); el["start-session"].addEventListener("click", startSession); el.capture.addEventListener("click", captureOne); el.camera.addEventListener("change", updateCamera);

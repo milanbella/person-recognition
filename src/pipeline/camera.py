@@ -5,6 +5,7 @@ import time
 from typing import List
 
 import depthai as dai
+from pipeline.camera_logging import camera_log_fields
 
 
 _USB_SPEED_DETAILS = {
@@ -76,9 +77,9 @@ def resolve_device(device_id: str | None) -> dai.Device:
     available = list_available_devices()
     matching = [info for info in available if device_identifier(info) == device_id]
     if not matching:
-        available_ids = ", ".join(device_identifier(info) for info in available) or "none"
+        available_ids = ", ".join(camera_log_fields(device_identifier(info)) for info in available) or "none"
         raise RuntimeError(
-            f"Requested device-id '{device_id}' not found. Available device ids: {available_ids}"
+            f"Requested camera {camera_log_fields(device_id)} not found. Available device ids: {available_ids}"
         )
     return dai.Device(device_id)
 
@@ -93,7 +94,7 @@ def open_or_list_devices(args: argparse.Namespace) -> dai.Device | None:
 def print_connected_device(device: dai.Device) -> None:
     platform = device.getPlatform().name
     print(
-        f"Device: {device.getDeviceId()} Platform: {platform} "
+        f"Device: {camera_log_fields(device.getDeviceId())} Platform: {platform} "
         f"{format_usb_connection(device)}"
     )
 

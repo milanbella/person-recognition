@@ -127,7 +127,9 @@ class ModelTrainingService:
         ) -> dict[str, Any]:
             require_auth(authorization)
             try:
-                camera_index = int(payload.get("cameraIndex", 0))
+                if not payload.get("productCode") or payload.get("cameraIndex") is None:
+                    raise ValueError("Select a product and camera before starting a session.")
+                camera_index = int(payload["cameraIndex"])
                 configured = {int(item.get("id", item.get("cameraIndex", -1))): item for item in self.live_client.cameras()}
                 camera = configured.get(camera_index)
                 if camera is None:
@@ -178,6 +180,29 @@ class ModelTrainingService:
                     pass
             return {"status": "cleared", **result, "ownedPaths": None}
 
+        @router.delete("/model-training/api/sessions/{session_id}")
+        def delete_selected_session(
+            session_id: str,
+            payload: dict[str, Any] = Body(...),
+            authorization: str | None = Header(default=None),
+        ) -> dict[str, Any]:
+            require_auth(authorization)
+            if payload.get("confirmation") != "DELETE SELECTED SESSION":
+                raise HTTPException(status_code=422, detail="Confirmation must be DELETE SELECTED SESSION.")
+            with self._mutation_lock:
+                try:
+                    result = self.store.delete_session(session_id)
+                except KeyError as exc:
+                    raise HTTPException(status_code=404, detail="Unknown capture session.") from exc
+                self._delete_owned_files(result["ownedPaths"])
+                directory = (self.registrar.captures_root / session_id).resolve()
+                if directory.is_relative_to(self.registrar.captures_root.resolve()):
+                    try:
+                        directory.rmdir()
+                    except OSError:
+                        pass
+            return {"status": "deleted", **result, "ownedPaths": None}
+
         @router.delete("/model-training/api/training-data")
         def clear_all_training_data(
             payload: dict[str, Any] = Body(...),
@@ -208,10 +233,14 @@ class ModelTrainingService:
                         raise ValueError("Capture session is not active.")
                     request_id = str(uuid.uuid4())
                     camera_index = int((payload or {}).get("cameraIndex", session["cameraIndex"]))
+                    if session["productCode"] and camera_index != session["cameraIndex"]:
+                        raise ValueError("Camera is fixed for this session. Start a new session to change it.")
                     cameras = {int(item.get("id", item.get("cameraIndex", -1))): item for item in self.live_client.cameras()}
                     camera = cameras.get(camera_index)
                     if camera is None:
                         raise ValueError(f"Unknown camera index: {camera_index}")
+                    if session["productCode"] and str(camera["deviceId"]) != session["deviceId"]:
+                        raise ValueError("Session camera device has changed. Start a new session.")
                     live_capture = self.live_client.capture(camera_index)
                     if int(live_capture["cameraIndex"]) != camera_index:
                         raise RuntimeError("Live capture camera does not match the session camera.")

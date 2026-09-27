@@ -636,6 +636,13 @@ class ModelTrainingStore:
             raise ValueError(f"Unsupported scenario: {scenario}")
         default_code = product_code or frame["productCode"] or ""
         normalized = [_validate_box(box, default_code) for box in boxes]
+        session = self.get_session(frame["sessionId"])
+        fixed_product = session["productCode"]
+        if fixed_product and (
+            (product_code and product_code != fixed_product)
+            or any(box["productCode"] != fixed_product for box in normalized)
+        ):
+            raise ValueError("Product is fixed for this session. Start a new session to change it.")
         now_ms = _now_ms()
         with self._connection() as connection:
             for code in {box["productCode"] for box in normalized} | ({default_code} if default_code else set()):
