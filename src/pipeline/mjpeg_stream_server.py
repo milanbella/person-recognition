@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import copy
+import json
 import threading
 import time
 import uuid
@@ -11,10 +13,11 @@ from typing import Any, Callable, Iterator, Mapping
 import cv2
 import numpy as np
 import uvicorn
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import Response, StreamingResponse
 
 from pipeline.person_photo import PersonPhotoCapture
+from pipeline.camera_stats import CameraStats
 from pipeline.person_photo_api import create_person_photo_router
 from pipeline.observer_api import ObserverCameraSnapshot, observer_snapshot_payload
 from pipeline.operator_api import create_operator_router
@@ -111,6 +114,11 @@ class MjpegStreamServer:
             for index, device_id in enumerate(camera_device_ids)
         }
         self._condition = threading.Condition()
+        self.camera_stats = {
+            index: CameraStats(device_id) for index, device_id in enumerate(camera_device_ids)
+        }
+        self._stats_cycle_start: float | None = None
+        self._stats_cycle_count = 0
         self._stopping = False
         self._server: uvicorn.Server | None = None
         self._thread: threading.Thread | None = None
@@ -222,6 +230,20 @@ class MjpegStreamServer:
                 )
             )
 
+    def record_processing_cycle(self) -> None:
+        """Called by the live loop, matching checkout's one-second loop FPS."""
+        now = time.monotonic()
+        if self._stats_cycle_start is None:
+            self._stats_cycle_start = now
+        self._stats_cycle_count += 1
+        elapsed = now - self._stats_cycle_start
+        if elapsed >= 1.0:
+            fps = self._stats_cycle_count / elapsed
+            for stats in self.camera_stats.values():
+                stats.set_processing_fps(fps)
+            self._stats_cycle_start = now
+            self._stats_cycle_count = 0
+
     def person_photo_active(self) -> bool:
         return (
             self.person_photo_coordinator is not None
@@ -281,6 +303,23 @@ class MjpegStreamServer:
         @app.get("/cameras-status")
         def cameras_status() -> dict[str, list[dict[str, int | str]]]:
             return self.camera_status_payload()
+
+        @app.get("/stats/{cam_index}")
+        async def camera_stats(cam_index: int, request: Request) -> StreamingResponse:
+            if cam_index < 0:
+                raise HTTPException(status_code=400, detail="Camera index cannot be negative.")
+            if cam_index not in self.camera_stats:
+                raise HTTPException(status_code=404, detail="Camera index is not configured.")
+
+            async def generate():
+                while not self._stopping and not await request.is_disconnected():
+                    yield json.dumps(self.camera_stats[cam_index].payload(cam_index)) + "\n"
+                    await asyncio.sleep(2)
+
+            return StreamingResponse(
+                generate(), media_type="application/x-ndjson",
+                headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+            )
 
         @app.get("/observer-cameras/{cam_index}/observations")
         def observer_camera_observations(cam_index: int) -> dict[str, object]:
@@ -658,19 +697,22 @@ class MjpegStreamServer:
     def camera_status_payload(self) -> dict[str, list[dict[str, int | str]]]:
         now = time.monotonic()
         with self._condition:
-            cameras = [
-                {
+            cameras = []
+            for index, camera in self._cameras.items():
+                last_frame = self.camera_stats[index].last_received_monotonic
+                # Replay/standalone publishers may not report raw packet receipt.
+                if last_frame is None:
+                    last_frame = camera.last_frame_monotonic
+                cameras.append({
                     "id": index,
                     "deviceId": camera.device_id,
                     "status": (
                         "active"
-                        if camera.last_frame_monotonic is not None
-                        and now - camera.last_frame_monotonic <= self.camera_timeout_seconds
+                        if last_frame is not None
+                        and now - last_frame <= self.camera_timeout_seconds
                         else "offline"
                     ),
-                }
-                for index, camera in self._cameras.items()
-            ]
+                })
         return {"cameras": cameras}
 
     def publish_observer_snapshot(

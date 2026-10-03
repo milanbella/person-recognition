@@ -69,13 +69,16 @@ class LiveQueueSelectionTests(unittest.TestCase):
             FakeDepthMessage(sequence_num=3, host_seconds=10.1, frame_value=3),
         ]
         buffered_messages = deque(maxlen=2)
+        received = []
 
         drained = drain_messages_into_buffer(
             FakeQueue(messages),
             buffered_messages,
+            on_received=received.append,
         )
 
         self.assertEqual(drained, 3)
+        self.assertEqual(received, messages)
         self.assertEqual(
             [message.sequence_num for message in buffered_messages],
             [2, 3],

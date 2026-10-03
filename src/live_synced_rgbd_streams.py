@@ -13,7 +13,7 @@ from collections import deque
 from contextlib import ExitStack
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import cv2
 import depthai as dai
@@ -239,6 +239,7 @@ class LiveSyncedStreamState:
     training_capture_control_queue: dai.MessageQueue | None = None
     training_capture_frame_queue: dai.MessageQueue | None = None
     depth_states: dict[int, DepthEntranceState] = field(default_factory=dict)
+    telemetry_queue: dai.MessageQueue | None = None
     visit_plane_states: dict[int, VisitPlaneState] = field(default_factory=dict)
     recent_raw_rgb_messages: deque[Any] = field(default_factory=deque)
     recent_processing_rgb_messages: deque[Any] = field(default_factory=deque)
@@ -1058,6 +1059,11 @@ def create_live_stream_state(
         blocking=False,
     )
     tracker = build_person_tracker(args)
+    telemetry_queue = None
+    if not args.disable_streaming:
+        system_logger = pipeline.create(dai.node.SystemLogger)
+        system_logger.setRate(0.5)
+        telemetry_queue = system_logger.out.createOutputQueue(maxSize=1, blocking=False)
     state = LiveSyncedStreamState(
         device_id=device_id,
         camera_role=camera_role,
@@ -1068,6 +1074,7 @@ def create_live_stream_state(
         depth_queue=depth_queue,
         intrinsics=intrinsics,
         tracker=tracker,
+        telemetry_queue=telemetry_queue,
         training_capture_control_queue=training_capture_control_queue,
         training_capture_frame_queue=training_capture_frame_queue,
         recent_raw_rgb_messages=deque(maxlen=8),
@@ -1250,10 +1257,15 @@ def operator_runtime_configuration(
     }
 
 
-def drain_messages_into_buffer(queue: dai.MessageQueue, messages: deque[Any]) -> int:
+def drain_messages_into_buffer(
+    queue: dai.MessageQueue, messages: deque[Any],
+    on_received: Callable[[Any], None] | None = None,
+) -> int:
     drained = 0
     message = queue.tryGet()
     while message is not None:
+        if on_received is not None:
+            on_received(message)
         messages.append(message)
         drained += 1
         message = queue.tryGet()
@@ -1438,6 +1450,8 @@ def process_latest_rgb_pair(
     raw_drained = drain_messages_into_buffer(
         state.rgb_queue,
         state.recent_raw_rgb_messages,
+        on_received=(stream_server.camera_stats[camera_index].record_rgb_packet
+                     if stream_server is not None else None),
     )
     processing_drained = drain_messages_into_buffer(
         state.processing_rgb_queue,
@@ -1487,9 +1501,15 @@ def process_latest_rgb_pair(
     if state.cached_rgb_overlay is None:
         state.cached_rgb_overlay = raw_rgb_frame
 
+    inference_started = time.monotonic()
     yolo_started = performance.start()
     detections = detector.detect(processing_rgb_frame)
     performance.record_duration("yolo", yolo_started)
+    if stream_server is not None:
+        stream_server.camera_stats[camera_index].record_inference(
+            detections=len(detections),
+            inference_ms=(time.monotonic() - inference_started) * 1000,
+        )
     tracking_started = performance.start()
     current_processing_tracks = state.tracker.update(detections)
     processing_height, processing_width = processing_rgb_frame.shape[:2]
@@ -3051,6 +3071,10 @@ def main() -> None:
                     performance.record_camera_poll()
                     if state.device.isClosed() or not state.pipeline.isRunning():
                         raise RuntimeError(f"Live pipeline stopped for {camera_log_fields(state.device_id)}.")
+                    if stream_server is not None and state.telemetry_queue is not None:
+                        telemetry = drain_latest_message(state.telemetry_queue)
+                        if telemetry is not None:
+                            stream_server.camera_stats[camera_index].record_telemetry(telemetry)
                     previous_raw_rgb_sequence = state.last_raw_rgb_sequence
                     previous_processed_rgb_sequence = state.last_processed_rgb_sequence
                     process_latest_rgb_pair(
@@ -3436,6 +3460,8 @@ def main() -> None:
                         break
                 time.sleep(0.001)
                 performance.complete_cycle(cycle_started)
+                if stream_server is not None:
+                    stream_server.record_processing_cycle()
     except KeyboardInterrupt:
         print("Interrupted by user.")
     finally:
