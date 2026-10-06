@@ -9,6 +9,13 @@ def _iso(timestamp: float | None) -> str | None:
     return None if timestamp is None else datetime.fromtimestamp(timestamp, timezone.utc).isoformat()
 
 
+def _utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+_TELEMETRY_STARTED_AT = _utc_now().isoformat()
+
+
 class CameraStats:
     """Checkout-compatible counters measured when raw RGB packets reach Python."""
 
@@ -21,6 +28,9 @@ class CameraStats:
         self._count = 0
         self._dropped = 0
         self._gaps = 0
+        self._dropped_minute = 0
+        self._gaps_minute = 0
+        self._telemetry_minute = _utc_now().strftime("%Y-%m-%dT%H:%MZ")
         self._fps = 0.0
         self._detections = 0
         self._inference_ms: float | None = None
@@ -42,12 +52,20 @@ class CameraStats:
     def record_received_frame(self, *, sequence: int, exposure_us: float | None) -> None:
         now = time.monotonic()
         unix = time.time()
+        minute = _utc_now().strftime("%Y-%m-%dT%H:%MZ")
         with self._lock:
+            if minute != self._telemetry_minute:
+                self._telemetry_minute = minute
+                self._dropped_minute = 0
+                self._gaps_minute = 0
             if sequence == self._sequence:
                 return
             if self._sequence is not None and sequence > self._sequence + 1:
-                self._dropped += sequence - self._sequence - 1
+                missing = sequence - self._sequence - 1
+                self._dropped += missing
                 self._gaps += 1
+                self._dropped_minute += missing
+                self._gaps_minute += 1
             self._frame_time = now
             self._frame_unix = unix
             self._sequence = sequence
@@ -93,8 +111,11 @@ class CameraStats:
                 "frameAgeMs": None if age is None else round(age, 1),
                 "frameCount": self._count,
                 "sequenceNumber": self._sequence,
-                "droppedFrames": self._dropped,
-                "sequenceGaps": self._gaps,
+                "droppedFrames": self._dropped_minute,
+                "sequenceGaps": self._gaps_minute,
+                "droppedFramesTotal": self._dropped,
+                "sequenceGapsTotal": self._gaps,
+                "telemetryStartedAt": _TELEMETRY_STARTED_AT,
                 "exposureUs": self._exposure_us,
                 "detections": self._detections,
                 "processingFps": round(self._fps, 2),

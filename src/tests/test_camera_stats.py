@@ -1,6 +1,7 @@
 import asyncio
 import json
 import unittest
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
@@ -52,6 +53,9 @@ class CameraStatsTests(unittest.TestCase):
             self.assertEqual(data["frameCount"], 2)
             self.assertEqual(data["droppedFrames"], 2)
             self.assertEqual(data["sequenceGaps"], 1)
+            self.assertEqual(data["droppedFramesTotal"], 2)
+            self.assertEqual(data["sequenceGapsTotal"], 1)
+            self.assertIsNotNone(datetime.fromisoformat(data["telemetryStartedAt"]).tzinfo)
             self.assertEqual(data["processingFps"], 2)
             self.assertEqual(data["cpuLoad"], 23)
             self.assertEqual(data["memoryLoad"], 25)
@@ -77,6 +81,31 @@ class CameraStatsTests(unittest.TestCase):
         data = stats.payload(0)
         self.assertIsNone(data["memoryLoad"])
         self.assertEqual(data["droppedFrames"], 0)
+
+    def test_minute_counters_reset_on_next_received_frame_but_totals_continue(self):
+        first = datetime(2026, 10, 3, 16, 35, 59, tzinfo=timezone.utc)
+        second = datetime(2026, 10, 3, 16, 36, 0, tzinfo=timezone.utc)
+        with patch("pipeline.camera_stats._utc_now", return_value=first):
+            stats = CameraStats("oak")
+            stats.record_received_frame(sequence=10, exposure_us=None)
+            stats.record_received_frame(sequence=13, exposure_us=None)
+        with patch("pipeline.camera_stats._utc_now", return_value=second):
+            # Checkout resets on the first packet of a new UTC minute, not on a read.
+            self.assertEqual(stats.payload(0)["droppedFrames"], 2)
+            stats.record_received_frame(sequence=13, exposure_us=None)
+            self.assertEqual(stats.payload(0)["droppedFrames"], 0)
+            stats.record_received_frame(sequence=16, exposure_us=None)
+            data = stats.payload(0)
+        self.assertEqual((data["droppedFrames"], data["sequenceGaps"]), (2, 1))
+        self.assertEqual((data["droppedFramesTotal"], data["sequenceGapsTotal"]), (4, 2))
+
+    def test_restart_gives_fresh_totals_and_a_shared_start_timestamp(self):
+        first = CameraStats("first")
+        first.record_received_frame(sequence=1, exposure_us=None)
+        first.record_received_frame(sequence=4, exposure_us=None)
+        second = CameraStats("second")
+        self.assertEqual(second.payload(1)["droppedFramesTotal"], 0)
+        self.assertEqual(first.payload(0)["telemetryStartedAt"], second.payload(1)["telemetryStartedAt"])
 
     def test_received_packets_count_even_without_inference(self):
         stats = CameraStats("oak")
@@ -125,7 +154,8 @@ class CameraStatsTests(unittest.TestCase):
                 self.assertEqual(set(payload), {
                     "camera", "timestamp", "temperature", "cpuLoad", "memoryLoad",
                     "status", "checkoutActive", "deviceId", "frameAgeMs", "frameCount",
-                    "sequenceNumber", "droppedFrames", "sequenceGaps", "exposureUs",
+                    "sequenceNumber", "droppedFrames", "sequenceGaps",
+                    "droppedFramesTotal", "sequenceGapsTotal", "telemetryStartedAt", "exposureUs",
                     "detections", "processingFps", "inferenceMs", "lastFrameTimestamp",
                     "lastDetectionTimestamp", "lastInferenceTimestamp",
                 })
