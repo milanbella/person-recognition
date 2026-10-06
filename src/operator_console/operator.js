@@ -339,6 +339,10 @@
     const button = el("capture-person-photo");
     const status = el("person-photo-status");
     const image = el("person-photo-image");
+    const pathRow = el("person-photo-path-row");
+    const pathText = el("person-photo-path");
+    pathRow.hidden = true;
+    pathText.textContent = "";
     if (!Number.isInteger(app.selectedCamera)) {
       status.textContent = "Select a camera first.";
       return;
@@ -359,6 +363,8 @@
       personPhotoUrl = URL.createObjectURL(blob);
       image.src = personPhotoUrl;
       image.hidden = false;
+      pathText.textContent = photo.photoPath || "";
+      pathRow.hidden = !photo.photoPath;
       status.textContent = `Camera ${photo.cameraNumber} · track ${photo.trackId} · visit ${photo.visitId ?? "unknown"} · customer ${photo.customerId ?? "unbound"} · ${photo.visitOrigin ?? "unassigned"} · ${photo.width} x ${photo.height} px · frame ${photo.rgbSequenceNumber}`;
     } catch (error) {
       status.textContent = error.message;

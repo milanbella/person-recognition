@@ -44,6 +44,7 @@ def create_person_photo_router(
             "MULTIPLE_PEOPLE": 409,
             "CAMERA_TIMEOUT": 504,
             "CAPTURE_ENCODING_FAILED": 500,
+            "CAPTURE_STORAGE_FAILED": 500,
         }.get(error.code, 422)
         return HTTPException(
             status_code=status,
@@ -76,14 +77,15 @@ def create_person_photo_router(
     ) -> Response:
         require_auth(authorization)
         try:
-            jpeg, selected_track, sequence = coordinator.capture_person(camera_index, track_id)
+            jpeg, evidence = coordinator.capture_person_evidence(camera_index, track_id)
         except PersonPhotoError as error:
             raise translate_error(error) from error
         return Response(content=jpeg, media_type="image/jpeg", headers={
             "Cache-Control": "no-store",
             "X-Camera-Index": str(camera_index),
-            "X-Track-Id": str(selected_track),
-            "X-Rgb-Sequence-Number": str(sequence),
+            "X-Track-Id": str(evidence["trackId"]),
+            "X-Rgb-Sequence-Number": str(evidence["rgbSequenceNumber"]),
+            "X-Photo-Path": evidence["photoPath"],
         })
 
     return router

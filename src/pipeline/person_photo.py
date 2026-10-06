@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import threading
 import uuid
+import logging
+from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 import cv2
@@ -18,8 +20,10 @@ class PersonPhotoError(ValueError):
 
 
 class PersonPhotoCapture:
-    def __init__(self, *, camera_device_ids: Sequence[str], maximum_pending_requests: int = 8):
+    def __init__(self, *, camera_device_ids: Sequence[str], maximum_pending_requests: int = 8,
+                 photo_directory: Path = Path("state/person-photos")):
         self.camera_device_ids = tuple(camera_device_ids)
+        self.photo_directory = Path(photo_directory).resolve()
         self.maximum_pending_requests = maximum_pending_requests
         self._lock = threading.RLock()
         self._person_requests: dict[str, dict[str, Any]] = {}
@@ -49,7 +53,31 @@ class PersonPhotoCapture:
             success, encoded = cv2.imencode(".jpg", crop, [cv2.IMWRITE_JPEG_QUALITY, 95])
             if not success:
                 raise PersonPhotoError("CAPTURE_ENCODING_FAILED", "Could not encode the person image.")
-            return encoded.tobytes(), evidence
+            jpeg = encoded.tobytes()
+            path = self.photo_directory / (
+                f"{evidence['observedAtUnixMilliseconds']}_camera-{camera_index + 1}"
+                f"_track-{evidence['trackId']}_{request_id}.jpg"
+            )
+            temporary = path.with_suffix(".tmp")
+            try:
+                self.photo_directory.mkdir(parents=True, exist_ok=True)
+                self.photo_directory.chmod(0o755)
+                with temporary.open("xb") as output:
+                    output.write(jpeg)
+                # Set explicit permissions regardless of the service's umask.
+                temporary.chmod(0o666)
+                temporary.replace(path)
+            except OSError as error:
+                logging.getLogger(__name__).exception(
+                    "PersonPhotoCapture.capture_person_evidence: failed to save photo %s", path,
+                )
+                try:
+                    temporary.unlink(missing_ok=True)
+                except OSError:
+                    pass
+                raise PersonPhotoError("CAPTURE_STORAGE_FAILED", "Could not save the person image.") from error
+            evidence = {**evidence, "photoPath": str(path)}
+            return jpeg, evidence
         finally:
             with self._lock:
                 self._person_requests.pop(request_id, None)

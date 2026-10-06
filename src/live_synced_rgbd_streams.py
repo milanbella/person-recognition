@@ -596,6 +596,10 @@ def build_argparser() -> argparse.ArgumentParser:
         help="Dedicated bearer token for the person-photo API.",
     )
     parser.add_argument(
+        "--person-photo-directory", type=Path, default=Path("state/person-photos"),
+        help="Directory retaining captured person JPEGs for troubleshooting (no automatic cleanup).",
+    )
+    parser.add_argument(
         "--product-training-captures-dir",
         type=Path,
         default=DEFAULT_PRODUCT_TRAINING_CAPTURES_DIR,
@@ -2945,6 +2949,7 @@ def main() -> None:
                 operator_api_token=args.operator_api_token,
                 enable_person_photo_api=args.enable_person_photo_api,
                 person_photo_api_token=args.person_photo_api_token,
+                person_photo_directory=args.person_photo_directory,
                 operator_runtime_configuration=operator_runtime_configuration(
                     args=args,
                     camera_roles=camera_roles,

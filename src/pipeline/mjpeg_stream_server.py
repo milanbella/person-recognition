@@ -79,6 +79,7 @@ class MjpegStreamServer:
         operator_runtime_configuration: dict[str, object] | None = None,
         enable_person_photo_api: bool = False,
         person_photo_api_token: str | None = None,
+        person_photo_directory: Path = Path("state/person-photos"),
         shop_opener: Callable[[], Mapping[str, Any]] | None = None,
         shop_shelf_sync_provider: Callable[[int], Mapping[str, Any]] | None = None,
         product_training_capturer: Callable[[int], Mapping[str, Any]] | None = None,
@@ -187,6 +188,7 @@ class MjpegStreamServer:
         self.person_photo_coordinator = (
             PersonPhotoCapture(
                 camera_device_ids=camera_device_ids,
+                photo_directory=person_photo_directory,
             )
             if enable_person_photo_api
             else None
