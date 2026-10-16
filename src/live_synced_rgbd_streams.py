@@ -34,7 +34,6 @@ from pipeline.camera import (
     print_available_devices,
 )
 from pipeline.config import (
-    DEFAULT_CAMERA_FPS,
     DEFAULT_DETECTION_INPUT_HEIGHT,
     DEFAULT_DETECTION_INPUT_WIDTH,
     DEFAULT_DETECTION_NMS_THRESHOLD,
@@ -159,6 +158,7 @@ from replay_synced_rgbd_streams import (
 )
 
 
+DEFAULT_LIVE_CAMERA_FPS = 15
 DEFAULT_LIVE_FRAME_WIDTH = 1920
 DEFAULT_LIVE_FRAME_HEIGHT = 1080
 DEFAULT_LIVE_PROCESSING_WIDTH = 1280
@@ -465,7 +465,9 @@ def build_argparser() -> argparse.ArgumentParser:
         help="One or more OAK device ids/MXIDs to process together.",
     )
     parser.add_argument("--list-devices", action="store_true", help="List available OAK devices and exit.")
-    parser.add_argument("--fps", type=int, default=DEFAULT_CAMERA_FPS, help="Camera output FPS.")
+    parser.add_argument(
+        "--fps", type=int, default=DEFAULT_LIVE_CAMERA_FPS, help="Camera output FPS. Default: 15."
+    )
     parser.add_argument(
         "--frame-width",
         type=int,

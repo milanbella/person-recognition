@@ -1,0 +1,25 @@
+[Unit]
+Description=Person Recognition Camera Drop Frame Test
+After=network-online.target
+Wants=network-online.target
+Conflicts=person-recognition-live.service
+
+[Service]
+Type=simple
+User=ovie1
+WorkingDirectory=/home/ovie1/person-recognition/src
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/ovie1/person-recognition/src/.venv/bin/python ./drop_frames_test.py \
+  --device-id 194430107110B32F00 194430103142B32F00 1944301051851C1300 1944301061B0B32F00 194430105114AF2F00 194430104166DA1700 \
+  --profile full \
+  --queue-mode drain \
+  --fps 30 \
+  --frame-width 1920 --frame-height 1080 \
+  --processing-width 1280 --processing-height 720 \
+  --host 100.70.25.21 \
+  --skip-unavailable \
+  --report-seconds 10
+Restart=no
+
+[Install]
+WantedBy=multi-user.target
