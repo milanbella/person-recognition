@@ -21,11 +21,11 @@ from pipeline.product_detection import ProductRecognitionResult
 
 
 class LiveFrameConfigTests(unittest.TestCase):
-    def test_camera_fps_defaults_to_15_and_can_be_overridden(self) -> None:
+    def test_camera_fps_defaults_to_30_and_can_be_overridden(self) -> None:
         parser = build_argparser()
 
-        self.assertEqual(parser.parse_args([]).fps, 15)
-        self.assertEqual(parser.parse_args(["--fps", "30"]).fps, 30)
+        self.assertEqual(parser.parse_args([]).fps, 30)
+        self.assertEqual(parser.parse_args(["--fps", "15"]).fps, 15)
 
     @staticmethod
     def _product_result(sequence: int) -> ProductRecognitionResult:

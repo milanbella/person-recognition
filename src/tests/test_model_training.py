@@ -12,7 +12,7 @@ from fastapi import HTTPException, Response
 
 from model_training.api import ModelTrainingService
 from model_training.capture import CaptureRegistrar
-from model_training.exporter import YoloDatasetExporter
+from model_training.exporter import YoloDatasetExporter, _session_assignments
 from model_training.store import ModelTrainingStore
 
 
@@ -93,6 +93,91 @@ class ModelTrainingTests(unittest.TestCase):
         self.assertTrue(owned.is_file())
         self.assertEqual(frame["width"], 3840)
         self.assertEqual(len(frame["perceptualHash"]), 16)
+
+    def test_explicit_intents_export_without_reassigning_old_collections(self) -> None:
+        registrar = CaptureRegistrar(self.root / "state", self.store)
+        frames = []
+        for index, intent in enumerate(("development", "training", "training", "validation", "gold_test")):
+            session = self.store.create_session(shop_id=1, product_code="oil-1l", dataset_intent=intent)
+            if intent == "development":
+                # Simulate the persisted value from an installation before explicit splits.
+                with self.store._connection() as connection:
+                    connection.execute("UPDATE mt_capture_sessions SET dataset_intent='development' WHERE session_id=?", (session["sessionId"],))
+            frame = registrar.register(session, self.source_capture(), capture_request_id=f"intent-{index}")
+            self.store.save_annotations(frame["frameId"], [{"x1": .1, "y1": .1, "x2": .5, "y2": .5}])
+            self.store.finalize_frame(frame["frameId"], "accepted")
+            frames.append(frame)
+        exporter = YoloDatasetExporter(self.root / "state", self.store)
+        dataset = exporter.export()
+        self.assertEqual(dataset["counts"], {"train": 3, "val": 1, "test": 1})
+        self.assertIsNone(dataset["splitWarning"])
+        self.assertEqual(dataset["splitPolicy"], "explicit_session_intent_v1")
+        for frame, split in zip(frames, ("train", "train", "train", "val", "test")):
+            self.assertTrue((Path(dataset["path"]) / "labels" / split / f"{frame['frameId']}.txt").exists())
+        reopened = ModelTrainingStore(self.root / "model_training.sqlite")
+        self.assertEqual(reopened.get_frame(frames[0]["frameId"])["datasetIntent"], "training")
+        self.assertEqual(reopened.get_frame(frames[3]["frameId"])["datasetIntent"], "validation")
+        manifest_path = Path(dataset["path"]) / "manifest.json"
+        original_manifest = manifest_path.read_bytes()
+        second = exporter.export()
+        self.assertEqual(second["counts"], dataset["counts"])
+        self.assertEqual(manifest_path.read_bytes(), original_manifest)
+
+    def test_session_api_accepts_validation_and_rejects_invalid_intent(self) -> None:
+        service = ModelTrainingService(
+            state_root=self.root / "intent-api", api_token="secret", shop_id=1,
+            live_client=_LiveClient(), catalog_client=_CatalogClient(),
+            assets_root=Path(__file__).resolve().parent.parent / "model_training_ui")
+        service.store.replace_products(1, _CatalogClient().products())
+        create = _route_endpoint(service, "/model-training/api/sessions", "POST")
+        payload = {"cameraIndex": 0, "productCode": "oil-1l"}
+        self.assertEqual(create(payload, "Bearer secret")["datasetIntent"], "training")
+        validation = create({**payload, "datasetIntent": "validation"}, "Bearer secret")
+        self.assertEqual(validation["datasetIntent"], "validation")
+        self.assertEqual(service.store.active_session()["datasetIntent"], "validation")
+        with self.assertRaises(HTTPException) as invalid:
+            create({**payload, "datasetIntent": "random"}, "Bearer secret")
+        self.assertEqual(invalid.exception.status_code, 422)
+        self.assertEqual(service.store.active_session()["sessionId"], validation["sessionId"])
+        self.assertEqual(create({**payload, "datasetIntent": "development"}, "Bearer secret")["datasetIntent"], "training")
+
+    def test_explicit_split_coverage_and_legacy_training_only(self) -> None:
+        def row(session, intent, code, positive=True):
+            return {"sessionId": session, "datasetIntent": intent, "productCode": code,
+                    "annotations": [{"productCode": code}] if positive else []}
+
+        legacy = [row(str(i), "development", "oil-1l") for i in range(12)]
+        assignments, warning = _session_assignments(legacy)
+        self.assertEqual(set(assignments.values()), {"train"})
+        self.assertIn("train-only", warning)
+        rows = [row("oil-train", "training", "oil-1l"), row("oil-val", "validation", "oil-1l"),
+                row("cola-train", "training", "cola"), row("cola-val", "validation", "cola")]
+        assignments, warning = _session_assignments(rows)
+        self.assertEqual(assignments, {"oil-train": "train", "oil-val": "val", "cola-train": "train", "cola-val": "val"})
+        self.assertIsNone(warning)
+        self.assertEqual(_session_assignments(list(reversed(rows))), (assignments, warning))
+        rows[-1] = row("cola-val", "validation", "cola", positive=False)
+        assignments, warning = _session_assignments(rows)
+        self.assertIn("Missing labeled validation examples for: cola", warning)
+        self.assertEqual(assignments["cola-val"], "val")
+        _, warning = _session_assignments([row("only-val", "validation", "oil-1l")])
+        self.assertIn("Missing labeled training examples", warning)
+        with self.assertRaises(ValueError):
+            _session_assignments([row("bad", "unknown", "oil-1l")])
+        with self.assertRaises(ValueError):
+            _session_assignments([row("same", "training", "oil-1l"), row("same", "validation", "oil-1l")])
+
+    def test_training_validation_ui_controls(self) -> None:
+        ui = Path(__file__).resolve().parent.parent / "model_training_ui"
+        page = (ui / "index.html").read_text(encoding="utf-8")
+        script = (ui / "model-training.js").read_text(encoding="utf-8")
+        self.assertIn('id="dataset-intent"', page)
+        self.assertIn('value="training">Training', page)
+        self.assertIn('value="validation">Validation', page)
+        self.assertIn('datasetIntent: el["dataset-intent"].value', script)
+        self.assertIn('el["dataset-intent"].disabled = !app.connected || Boolean(active)', script)
+        self.assertIn('intentLabel(frame.datasetIntent)', script)
+        self.assertIn('intentLabel(session.datasetIntent)', script)
 
     def test_delete_selected_session_preserves_other_sessions_and_exports(self) -> None:
         service = ModelTrainingService(
@@ -237,6 +322,7 @@ class ModelTrainingTests(unittest.TestCase):
         self.assertEqual(label.read_text(encoding="ascii"), "0 0.50000000 0.50000000 0.50000000 0.60000000\n")
         data_yaml = (Path(dataset["path"]) / "data.yaml").read_text(encoding="utf-8")
         self.assertIn('  0: "006_oil-1l"', data_yaml)
+        self.assertNotIn("test: images/test", data_yaml)
         class_map = json.loads(
             (Path(dataset["path"]) / "class-map.json").read_text(encoding="utf-8")
         )

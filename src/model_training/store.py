@@ -22,6 +22,15 @@ SESSION_SCENARIOS = {
 FRAME_OUTCOMES = {"accepted", "corrected", "not_visible", "rejected", "uncertain"}
 
 
+def normalize_dataset_intent(value: str) -> str:
+    # Existing collections were made for training, never implicitly held out.
+    if value == "development":
+        return "training"
+    if value not in {"training", "validation", "gold_test"}:
+        raise ValueError("datasetIntent must be training, validation, or gold_test.")
+    return value
+
+
 class ModelTrainingStore:
     def __init__(self, db_path: Path) -> None:
         self.db_path = Path(db_path)
@@ -295,13 +304,12 @@ class ModelTrainingStore:
         scenario: str = "other",
         camera_index: int = 0,
         device_id: str = "",
-        dataset_intent: str = "development",
+        dataset_intent: str = "training",
         notes: str | None = None,
     ) -> dict[str, Any]:
         if scenario not in SESSION_SCENARIOS:
             raise ValueError(f"Unsupported scenario: {scenario}")
-        if dataset_intent not in {"development", "gold_test"}:
-            raise ValueError("datasetIntent must be development or gold_test.")
+        dataset_intent = normalize_dataset_intent(dataset_intent)
         if camera_index < 0:
             raise ValueError("cameraIndex must not be negative.")
         session_id = str(uuid.uuid4())
@@ -799,7 +807,7 @@ def _session_payload(row: sqlite3.Row) -> dict[str, Any]:
         "productCode": row["product_code"], "productName": row["product_name_snapshot"],
         "scenario": row["scenario"], "cameraIndex": row["camera_index"],
         "cameraNumber": row["camera_index"] + 1, "deviceId": row["device_id"],
-        "status": row["status"], "datasetIntent": row["dataset_intent"],
+        "status": row["status"], "datasetIntent": normalize_dataset_intent(row["dataset_intent"]),
         "startedAtUnixMilliseconds": row["started_at_unix_ms"],
         "stoppedAtUnixMilliseconds": row["stopped_at_unix_ms"],
         "frameCount": int(row["frame_count"]) if "frame_count" in row.keys() else 0,
@@ -822,7 +830,7 @@ def _frame_payload(row: sqlite3.Row) -> dict[str, Any]:
         "perceptualHash": row["perceptual_hash"],
         "annotationStatus": row["annotation_status"], "reviewOutcome": row["review_outcome"],
         "productCode": row["product_code"], "productName": row["product_name_snapshot"],
-        "scenario": row["scenario"], "datasetIntent": row["dataset_intent"],
+        "scenario": row["scenario"], "datasetIntent": normalize_dataset_intent(row["dataset_intent"]),
         "imageUrls": {
             "thumbnail": f"/model-training/api/frames/{row['frame_id']}/image?variant=thumbnail",
             "review": f"/model-training/api/frames/{row['frame_id']}/image?variant=review",

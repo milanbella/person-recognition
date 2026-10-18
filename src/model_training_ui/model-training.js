@@ -84,8 +84,13 @@ function renderOptions(select, items, value, label) {
   }));
 }
 
+function intentLabel(intent) {
+  return intent === "validation" ? "Validation" : intent === "gold_test" ? "Held-out test" : "Training";
+}
+
 function sessionLabel(session, exported = false) {
-  const base = session.productCode ? `${session.productName} · Camera ${session.cameraNumber} · ${session.scenario}` : `Walk ${new Date(session.startedAtUnixMilliseconds).toLocaleString()} · ${session.sessionId.slice(0, 8)}`;
+  const description = session.productCode ? `${session.productName} · Camera ${session.cameraNumber} · ${session.scenario}` : `Walk ${new Date(session.startedAtUnixMilliseconds).toLocaleString()} · ${session.sessionId.slice(0, 8)}`;
+  const base = `${intentLabel(session.datasetIntent)} · ${description}`;
   if (exported) return `${base} · ${session.exportedCount} frames · ${session.datasetVersions.join(", ")}`;
   return `${base} · ${session.pendingCount} pending · ${session.unexportedCount} ready`;
 }
@@ -187,7 +192,7 @@ function renderSessionProducts() {
 
 function selectedSessionConfig() {
   if (!el["session-product"].value || el.camera.value === "") throw new Error("Select product and camera first.");
-  return { cameraIndex: Number(el.camera.value), productCode: el["session-product"].value };
+  return { cameraIndex: Number(el.camera.value), productCode: el["session-product"].value, datasetIntent: el["dataset-intent"].value };
 }
 
 async function createSessionFromSelection() {
@@ -208,7 +213,7 @@ async function startSession() {
   try {
     await createSessionFromSelection();
     await loadQueue();
-    status("Session started. Product and camera are fixed until you stop this session.");
+    status(`${intentLabel(app.session.datasetIntent)} session started. Product, camera and purpose are fixed until you stop this session.`);
   } catch (error) { status(error.message, true); }
 }
 
@@ -216,6 +221,14 @@ function renderSession() {
   const active = app.session && app.session.status === "active";
 
   el.camera.disabled = Boolean(active);
+  el["dataset-intent"].disabled = !app.connected || Boolean(active);
+  if (active) {
+    const intent = app.session.datasetIntent === "development" ? "training" : app.session.datasetIntent;
+    if (![...el["dataset-intent"].options].some(option => option.value === intent)) {
+      el["dataset-intent"].add(new Option(intentLabel(intent), intent));
+    }
+    el["dataset-intent"].value = intent;
+  }
   el["session-product"].disabled = !app.connected || Boolean(active);
   el["session-product-search"].disabled = !app.connected || Boolean(active);
   el["start-session"].disabled = !app.connected || Boolean(active);
@@ -234,7 +247,7 @@ function renderSession() {
   el["clear-session"].disabled = !active;
   el["stop-session"].disabled = !active || app.captureInFlight;
   el["session-summary"].textContent = active
-    ? `${app.session.productName || "Legacy mixed session: stop and create a new session"} / Camera ${app.session.cameraNumber} / ${app.session.frameCount} captures`
+    ? `${intentLabel(app.session.datasetIntent)} / ${app.session.productName || "Legacy mixed session: stop and create a new session"} / Camera ${app.session.cameraNumber} / ${app.session.frameCount} captures`
     : "No active session";
 }
 
@@ -311,7 +324,7 @@ async function showFrame(frame) {
   loadFrameImage("review");
   const position = app.frameIndex >= 0 ? ` / frame ${app.frameIndex + 1} of ${app.frames.length}` : "";
   const mode = app.readOnly ? " / exported read-only" : "";
-  el["frame-caption"].textContent = `${frame.productName || "Unlabeled"} / camera ${frame.cameraNumber} / ${frame.scenario}${position}${mode}`;
+  el["frame-caption"].textContent = `${intentLabel(frame.datasetIntent)} / ${frame.productName || "Unlabeled"} / camera ${frame.cameraNumber} / ${frame.scenario}${position}${mode}`;
   el["canvas-wrap"].classList.remove("empty"); el["empty-review"].hidden = true; el["review-canvas"].style.display = "block";
   setReviewEnabled(true);
 }

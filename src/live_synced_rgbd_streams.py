@@ -158,7 +158,7 @@ from replay_synced_rgbd_streams import (
 )
 
 
-DEFAULT_LIVE_CAMERA_FPS = 15
+DEFAULT_LIVE_CAMERA_FPS = 30
 DEFAULT_LIVE_FRAME_WIDTH = 1920
 DEFAULT_LIVE_FRAME_HEIGHT = 1080
 DEFAULT_LIVE_PROCESSING_WIDTH = 1280
@@ -466,7 +466,7 @@ def build_argparser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--list-devices", action="store_true", help="List available OAK devices and exit.")
     parser.add_argument(
-        "--fps", type=int, default=DEFAULT_LIVE_CAMERA_FPS, help="Camera output FPS. Default: 15."
+        "--fps", type=int, default=DEFAULT_LIVE_CAMERA_FPS, help="Camera output FPS. Default: 30."
     )
     parser.add_argument(
         "--frame-width",

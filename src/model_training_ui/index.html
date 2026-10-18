@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Shop Model Training</title>
-  <link rel="stylesheet" href="/model-training/assets/model-training.css?v=delete-session-1">
+  <link rel="stylesheet" href="/model-training/assets/model-training.css?v=session-intent-1">
 </head>
 <body>
   <header>
@@ -19,6 +19,10 @@
       <label>Session product search<input id="session-product-search" type="search" placeholder="Search product name or code"></label>
       <label>Session product<select id="session-product"></select></label>
       <label>Session camera<select id="camera"></select></label>
+      <label>Collection purpose<select id="dataset-intent">
+        <option value="training">Training</option>
+        <option value="validation">Validation</option>
+      </select><span class="field-hint">Fixed for this session. Validation images evaluate the model; they are not used to learn its weights.</span></label>
       <div class="actions">
         <button id="connect" class="secondary">Connect</button>
         <button id="start-session">Start session</button>
@@ -99,6 +103,7 @@
     <section class="panel export-panel">
       <div><p class="eyebrow">Immutable output</p><h2>YOLO dataset</h2></div>
       <button id="export" class="secondary">Export reviewed frames</button>
+      <p class="field-hint">Training sessions export to train; validation sessions to val. Existing collections remain training. No automatic splitting.</p>
       <pre id="export-result"></pre>
     </section>
 
@@ -111,6 +116,6 @@
       </div>
     </section>
   </main>
-  <script src="/model-training/assets/model-training.js?v=delete-session-1"></script>
+  <script src="/model-training/assets/model-training.js?v=session-intent-1"></script>
 </body>
 </html>

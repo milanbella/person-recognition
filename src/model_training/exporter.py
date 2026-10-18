@@ -8,7 +8,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any, Mapping
 
-from model_training.store import ModelTrainingStore
+from model_training.store import ModelTrainingStore, normalize_dataset_intent
 
 
 class YoloDatasetExporter:
@@ -61,6 +61,7 @@ class YoloDatasetExporter:
                     {
                         "frameId": frame_id,
                         "sessionId": row["sessionId"],
+                        "datasetIntent": normalize_dataset_intent(str(row["datasetIntent"])),
                         "split": split,
                         "productCode": row["productCode"],
                         "cameraIndex": row["cameraIndex"],
@@ -71,7 +72,10 @@ class YoloDatasetExporter:
                         "annotationCount": len(row["annotations"]),
                     }
                 )
-            data_yaml = [f"path: {final_path}", "train: images/train", "val: images/val", "test: images/test", "names:"]
+            data_yaml = [f"path: {final_path}", "train: images/train", "val: images/val"]
+            if "test" in assignments.values():
+                data_yaml.append("test: images/test")
+            data_yaml.append("names:")
             data_yaml.extend(
                 f"  {index}: {json.dumps(model_labels[code])}"
                 for code, index in class_ids.items()
@@ -92,6 +96,7 @@ class YoloDatasetExporter:
             manifest = {
                 "datasetVersion": version,
                 "taskType": "sku_detection",
+                "splitPolicy": "explicit_session_intent_v1",
                 "createdAtUnixMilliseconds": int(time.time() * 1000),
                 "splitWarning": warning,
                 "counts": dict(Counter(item["split"] for item in manifest_items)),
@@ -144,25 +149,28 @@ def _model_labels(
 
 
 def _session_assignments(rows: list[Mapping[str, Any]]) -> tuple[dict[str, str], str | None]:
-    gold = {str(row["sessionId"]) for row in rows if row["datasetIntent"] == "gold_test"}
-    development = sorted({str(row["sessionId"]) for row in rows} - gold)
-    assignments = {session: "test" for session in gold}
-    assignments.update({session: "train" for session in development})
-    if len(development) >= 3:
-        assignments[development[-2]] = "val"
-        assignments[development[-1]] = "test"
-        coverage: dict[str, set[str]] = defaultdict(set)
-        for row in rows:
-            codes = {box["productCode"] for box in row["annotations"]}
-            for code in codes:
-                coverage[code].add(assignments[str(row["sessionId"])])
-        if coverage and all({"train", "val", "test"} <= splits for splits in coverage.values()):
-            return assignments, None
-    assignments.update({session: "train" for session in development})
-    return assignments, (
-        "Insufficient independent development sessions or per-product split coverage; "
-        "exported development data as train-only. Gold-test sessions remain held out."
-    )
+    splits = {"training": "train", "validation": "val", "gold_test": "test"}
+    assignments: dict[str, str] = {}
+    coverage: dict[str, set[str]] = defaultdict(set)
+    for row in rows:
+        session_id = str(row["sessionId"])
+        split = splits[normalize_dataset_intent(str(row["datasetIntent"]))]
+        if session_id in assignments and assignments[session_id] != split:
+            raise ValueError(f"Conflicting dataset intents for session {session_id}.")
+        assignments[session_id] = split
+        if row["productCode"]:
+            coverage.setdefault(str(row["productCode"]), set())
+        for box in row["annotations"]:
+            coverage[str(box["productCode"])].add(split)
+
+    warnings = []
+    if "val" not in assignments.values():
+        warnings.append("No validation frames; training collections remain train-only.")
+    for split, label in (("train", "training"), ("val", "validation")):
+        missing = sorted(code for code, seen in coverage.items() if split not in seen)
+        if missing:
+            warnings.append(f"Missing labeled {label} examples for: {', '.join(missing)}.")
+    return assignments, " ".join(warnings) or None
 
 
 def _link_or_copy(source: Path, destination: Path) -> None:

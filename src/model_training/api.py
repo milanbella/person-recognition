@@ -140,7 +140,7 @@ class ModelTrainingService:
                     scenario=str(payload.get("scenario") or "other"),
                     camera_index=camera_index,
                     device_id=str(camera["deviceId"]),
-                    dataset_intent=str(payload.get("datasetIntent", "development")),
+                    dataset_intent=str(payload.get("datasetIntent", "training")),
                     notes=None if payload.get("notes") is None else str(payload["notes"]),
                 )
             except KeyError as exc:
